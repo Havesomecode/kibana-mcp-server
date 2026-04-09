@@ -1,7 +1,7 @@
 ---
 title: Support Policy
 status: active
-updated: 2026-04-06
+updated: 2026-04-09
 ---
 
 # Support Policy
@@ -15,6 +15,7 @@ This MCP is designed for operators and AI agents that need read-only access to K
 - Node.js 22+ runtime
 - Repo-local Codex plugin install
 - `kibana_internal_search_es` and `elasticsearch_search` backends
+- Guided machine setup with saved profiles and imported source catalogs
 - Runtime configuration via `configure` plus persisted non-secret source catalogs
 
 ## Best-Effort Support
@@ -31,8 +32,9 @@ Best-effort means we will investigate issues but cannot guarantee behavior acros
 - Some Codex model variants are less reliable at completing repo-local plugin installation without a manual Codex UI step. The supported fallback is to install the plugin manually from the local marketplace, then continue with MCP configuration.
 - Some Kibana deployments proxy or block schema metadata endpoints. In those cases, schema-aware features may be unavailable.
 - `KIBANA_BASE_URL` must be the Kibana base prefix, not a full search endpoint such as `/internal/search/es`.
-- If you run staging and production side by side, give each MCP server entry its own `KIBANA_SOURCE_CATALOG_PATH` so runtime-persisted sources do not overwrite each other.
-- Credentials must remain in environment variables. The server does not persist secrets to disk.
+- Linux secure storage depends on a Secret Service-compatible keyring being available and unlocked.
+- If you run staging and production side by side, prefer saved machine profiles plus `KIBANA_PROFILE` selection. If you stay on env bootstrap, keep `KIBANA_SOURCE_CATALOG_PATH` distinct per entry so runtime-persisted sources do not overwrite each other.
+- Credentials are not persisted to repo-local files or tracked config. Guided setup stores them in the platform credential store.
 
 ## Security Reporting
 

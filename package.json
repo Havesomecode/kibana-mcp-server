@@ -9,7 +9,7 @@
     "url": "https://github.com/Zacaria/kibana-mcp-server.git"
   },
   "type": "module",
-  "main": "dist/src/index.js",
+  "main": "dist/src/mcp_entry.js",
   "bin": {
     "kibana-mcp-server": "dist/src/index.js"
   },
@@ -40,8 +40,9 @@
     "format": "biome format . --write",
     "format:check": "biome check . --linter-enabled=false",
     "check": "npm run check:types && npm run lint && npm run format:check",
-    "dev": "tsx src/index.ts",
-    "start": "node dist/src/index.js",
+    "dev": "tsx src/mcp_entry.ts",
+    "setup": "node dist/src/index.js setup",
+    "start": "node dist/src/mcp_entry.js",
     "test": "vitest run",
     "verify:packlist": "node scripts/verify-packlist.mjs",
     "verify:entrypoint": "node scripts/verify-mcp-entrypoint.mjs",

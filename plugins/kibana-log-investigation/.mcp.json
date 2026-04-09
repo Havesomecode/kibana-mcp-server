@@ -3,7 +3,7 @@
     "kibana-log-investigation": {
       "type": "stdio",
       "command": "node",
-      "args": ["./dist/src/index.js"],
+      "args": ["./dist/src/mcp_entry.js"],
       "note": "Local stdio MCP server for this repo. Requires Node.js 22+ and a built dist/ directory. If dependencies or dist are missing, run npm install and npm run build from the repository root first."
     }
   }

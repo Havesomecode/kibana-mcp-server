@@ -25,7 +25,10 @@ export const configureOutputSchema = z.object({
 
 export async function executeConfigure(
   input: z.infer<typeof configureInputSchema>,
-  envInput: NodeJS.ProcessEnv = process.env,
+  options: {
+    envInput?: NodeJS.ProcessEnv;
+    sourceCatalogPath?: string;
+  } = {},
 ): Promise<{ nextConfig: AppConfig; result: z.infer<typeof configureOutputSchema> }> {
   const nextConfig: AppConfig = {
     kibana: {
@@ -36,7 +39,7 @@ export async function executeConfigure(
     },
     sources: input.sources,
   };
-  const sourceCatalogPath = await persistSourceCatalog(input.sources, envInput);
+  const sourceCatalogPath = await persistSourceCatalog(input.sources, options);
 
   return {
     nextConfig,

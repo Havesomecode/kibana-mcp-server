@@ -4,7 +4,8 @@ Read-only MCP server for agent-driven log investigation against Kibana-backed se
 
 The server is intentionally small:
 
-- `configure` sets Kibana credentials and the logical source catalog for the current server session
+- `setup` saves one or more machine-level Kibana profiles for later threads
+- `configure` still exists for advanced MCP clients that want to drive credentials and source catalogs at runtime
 - `describe_fields` exposes effective field capabilities for one configured source
 - `discover` lists configured logical sources and field hints
 - `filter` runs an exact-field filter when the field name is already known
@@ -16,13 +17,14 @@ It is designed as a general-purpose log investigation MCP for environments where
 
 - Node.js 22+
 - A Kibana-compatible read endpoint reachable with basic auth
-- A source catalog JSON file describing the logical log sources to expose
+- A source catalog JSON file describing the logical log sources to expose, or the bundled `config/sources.example.json`
 
 ## Project Status
 
 This repo targets external adoption and AI-agent usability. It is safe for real investigations, but the install and release posture is still evolving.
 
 - Guaranteed: repo-local Codex plugin install (see `INSTALL.md`)
+- Guaranteed: guided machine setup through `npm run setup`
 - In progress: package binary contract for agent-friendly `npx` execution
 - Planned: public package distribution after trusted publishing is enabled
 - Support posture and compatibility details live in `docs/project/support-policy.md`
@@ -39,6 +41,8 @@ This repo targets external adoption and AI-agent usability. It is safe for real 
 
 ```bash
 npm install
+npm run build
+npm run setup
 ```
 
 ## Use In Codex
@@ -58,15 +62,19 @@ The packaged CLI surface is also prepared for a future public install path. Once
 ```bash
 npm install
 npm run build
+npm run setup
 ```
 
 4. Open the cloned repo in Codex.
 5. Open the plugin directory in Codex and install `Kibana Log Investigation` from the repo marketplace.
    - if the current model cannot complete that install itself, do the Codex UI click manually and let the agent continue with configuration afterward
 6. Restart Codex if the new MCP server does not appear immediately.
-7. Configure the server with Kibana credentials and sources:
-   - either call the MCP `configure` tool
-   - or set `KIBANA_*` env vars and use a local source-catalog file
+7. Run guided setup once:
+   - `npm run setup`
+   - provide the environment name, Kibana base URL, username, password, and a source catalog file to import
+   - use the bundled `config/sources.example.json` unless you already have a better catalog JSON
+8. Let later threads reuse the saved default profile automatically.
+   - if you add more than one environment during setup, select non-default ones with `KIBANA_PROFILE=<PROFILE_NAME>`
 
 Repo-scoped plugin files:
 
@@ -79,18 +87,41 @@ Repo-scoped plugin files:
 If you are handing only the repo link to another Codex agent, this usually works:
 
 ```text
-Clone this repo, ensure Node.js 22+ is installed at user level for the current OS, run npm install and npm run build, install the repo plugin named "Kibana Log Investigation", then configure it for my Kibana environment.
+Clone this repo, ensure Node.js 22+ is installed at user level for the current OS, run npm install, npm run build, and npm run setup, install the repo plugin named "Kibana Log Investigation", import a source catalog during setup, and verify discover plus one query work in Codex without needing a later manual configure step.
 ```
 
 ## Configuration
 
-The server can be configured in either of two ways:
+The preferred path is guided machine setup:
+
+- `npm run setup` or `node dist/src/index.js setup`
+- saves non-secret profile metadata in the user’s machine-level app config directory
+- saves credentials in the platform credential store
+  - macOS Keychain
+  - Windows Credential Manager
+  - Linux Secret Service when available
+- imports the selected source catalog into machine-local state so later threads do not depend on the repo checkout
+
+The server also supports two advanced compatibility paths:
 
 - bootstrap at process start through environment variables plus a JSON source catalog
 - runtime from your MCP client through the `configure` tool
 
-Runtime configuration is now the preferred path when your client is responsible for credentials and source selection.
-When `configure` is called, the source catalog is also persisted to `config/sources.runtime.json` by default so MCP restarts do not wipe the logical source setup.
+When `configure` is called, the source catalog is still persisted to disk so restarts do not wipe the logical source setup.
+
+### Machine profiles
+
+After guided setup, the default saved profile loads automatically on startup.
+
+If you saved more than one environment, select a non-default profile with:
+
+- `KIBANA_PROFILE=<PROFILE_NAME>`
+
+Example:
+
+```bash
+KIBANA_PROFILE=staging npm run dev
+```
 
 ### Bootstrap configuration
 
@@ -101,6 +132,7 @@ Environment variables:
 - `KIBANA_BASE_URL`
 - `KIBANA_USERNAME`
 - `KIBANA_PASSWORD`
+- `KIBANA_PROFILE` optional, selects a saved non-default machine profile
 - `KIBANA_TIMEOUT_MS` optional, default `10000`
 - `KIBANA_SOURCE_CATALOG_PATH` optional, default `config/sources.runtime.json`
 
@@ -118,26 +150,27 @@ Do not use:
 
 The source definition already carries endpoint paths such as `/internal/search/es`, so including a full API path in `KIBANA_BASE_URL` usually produces a bad combined URL and a `404`.
 
-Start from `config/sources.example.json` and copy it to `config/sources.json`.
-If no explicit `KIBANA_SOURCE_CATALOG_PATH` is set, startup will try `config/sources.runtime.json` first and then fall back to `config/sources.json`.
+For the env-bootstrap path, start from `config/sources.example.json` and copy it to `config/sources.json`.
+If no explicit `KIBANA_SOURCE_CATALOG_PATH` is set, env bootstrap will try `config/sources.runtime.json` first and then fall back to `config/sources.json`.
 
 ### Multiple environments
 
-If you need staging and production at the same time, create two MCP server entries that both run this repo but use different environment variables.
+The recommended path is to save multiple machine profiles during setup.
 
-Keep these distinct per environment:
+Then:
 
-- server name, for example `kibana-staging` and `kibana-prod`
-- `KIBANA_BASE_URL`
-- credentials
-- `KIBANA_SOURCE_CATALOG_PATH`, for example `config/sources.staging.json` and `config/sources.prod.json`
+- the default profile loads automatically
+- extra MCP entries can select another saved environment with `KIBANA_PROFILE`
+- you do not need to redefine `KIBANA_BASE_URL`, credentials, or source-catalog paths per thread
 
-If your workstation or secret store already uses target-specific variable names, that is also fine, for example:
+Example:
 
-- `KIBANA_BASE_URL_STAGING`, `KIBANA_USERNAME_STAGING`, `KIBANA_PASSWORD_STAGING`
-- `KIBANA_BASE_URL_PROD`, `KIBANA_USERNAME_PROD`, `KIBANA_PASSWORD_PROD`
+```bash
+KIBANA_PROFILE=staging npm run dev
+KIBANA_PROFILE=prod npm run dev
+```
 
-For each MCP server entry, map those target-specific values into the standard runtime variables expected by the server:
+If you still prefer env-bootstrap entries, keep these distinct per environment:
 
 - `KIBANA_BASE_URL`
 - `KIBANA_USERNAME`
@@ -218,6 +251,12 @@ KIBANA_SOURCE_CATALOG_PATH=config/sources.json \
 npm run dev
 ```
 
+Or, after guided setup:
+
+```bash
+npm run dev
+```
+
 ## Tool Shapes
 
 ### `configure`
@@ -260,7 +299,7 @@ Input:
 }
 ```
 
-If you do not bootstrap via env vars, call `configure` before `discover` or `query`.
+If you do not bootstrap via env vars and do not have a saved default profile, call `configure` before `discover` or `query`.
 Calling `configure` also persists the provided sources to the runtime source-catalog file so later restarts can reload them automatically.
 If you want `describe_fields`, exact-field auto-resolution in `query`, or nested-filter validation, configure `schema` for each relevant source.
 In deployments where schema endpoints are routed indirectly or return `404`, prefer `schema.kind = "kibana_data_views_fields"` with `schema.index` set and omit `schema.path`.

@@ -1,9 +1,18 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
-import { loadConfigFromEnvironment, parseAppConfig, resolveSourceCatalogPath } from "../src/config.js";
+import {
+  PROFILE_NAME_ENV,
+  loadConfigFromEnvironment,
+  parseAppConfig,
+  resolveSourceCatalogPath,
+} from "../src/config.js";
+import { resolveProfilePaths } from "../src/profile_paths.js";
+import { ProfileStore } from "../src/profile_store.js";
+
+const tempDirectories: string[] = [];
 
 describe("parseAppConfig", () => {
   it("parses valid environment and source catalog inputs", () => {
@@ -108,11 +117,150 @@ describe("parseAppConfig", () => {
       } as NodeJS.ProcessEnv),
     ).toBe("config/custom.json");
   });
+
+  it("loads a saved default profile when no bootstrap environment is present", async () => {
+    const root = await mkdtemp(join(tmpdir(), "kibana-config-"));
+    tempDirectories.push(root);
+    const paths = resolveProfilePaths({ KIBANA_STATE_DIR: root } as NodeJS.ProcessEnv);
+    const store = new ProfileStore(paths);
+    const sourceCatalogPath = join(paths.sourceCatalogsDir, "prod.json");
+
+    await mkdir(paths.sourceCatalogsDir, { recursive: true });
+    await writeFile(
+      sourceCatalogPath,
+      JSON.stringify(
+        {
+          sources: [
+            {
+              id: "app_logs",
+              name: "Application logs",
+              tags: ["application"],
+              timeField: "@timestamp",
+              backend: {
+                kind: "kibana_internal_search_es",
+                path: "/internal/search/es",
+                index: ["app-logs-*"],
+              },
+              fieldHints: [],
+              defaultTextFields: ["message"],
+              evidenceFields: [],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    await store.upsertProfile(
+      {
+        id: "prod",
+        name: "prod",
+        baseUrl: "https://kibana.example.com",
+        timeoutMs: 10000,
+        sourceCatalogPath,
+      },
+      {
+        makeDefault: true,
+      },
+    );
+
+    const config = await loadConfigFromEnvironment(
+      {},
+      {
+        profileStore: store,
+        secretStore: {
+          async load() {
+            return { username: "elastic", password: "secret" };
+          },
+        },
+      },
+    );
+
+    expect(config.profileName).toBe("prod");
+    expect(config.kibana.username).toBe("elastic");
+    expect(config.sourceCatalogPath).toBe(sourceCatalogPath);
+    expect(config.sources[0]?.id).toBe("app_logs");
+  });
+
+  it("lets an explicit profile name override the default profile", async () => {
+    const root = await mkdtemp(join(tmpdir(), "kibana-config-"));
+    tempDirectories.push(root);
+    const paths = resolveProfilePaths({ KIBANA_STATE_DIR: root } as NodeJS.ProcessEnv);
+    const store = new ProfileStore(paths);
+    const stagingCatalogPath = join(paths.sourceCatalogsDir, "staging.json");
+
+    await mkdir(paths.sourceCatalogsDir, { recursive: true });
+    await writeFile(
+      stagingCatalogPath,
+      JSON.stringify(
+        {
+          sources: [
+            {
+              id: "staging_logs",
+              name: "Staging logs",
+              tags: ["staging"],
+              timeField: "@timestamp",
+              backend: {
+                kind: "kibana_internal_search_es",
+                path: "/internal/search/es",
+              },
+              fieldHints: [],
+              defaultTextFields: ["message"],
+              evidenceFields: [],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    await store.upsertProfile(
+      {
+        id: "prod",
+        name: "prod",
+        baseUrl: "https://prod.example.com",
+        timeoutMs: 10000,
+        sourceCatalogPath: join(paths.sourceCatalogsDir, "prod.json"),
+      },
+      {
+        makeDefault: true,
+      },
+    );
+    await store.upsertProfile({
+      id: "staging",
+      name: "staging",
+      baseUrl: "https://staging.example.com",
+      timeoutMs: 10000,
+      sourceCatalogPath: stagingCatalogPath,
+    });
+
+    const config = await loadConfigFromEnvironment(
+      {
+        [PROFILE_NAME_ENV]: "staging",
+      } as NodeJS.ProcessEnv,
+      {
+        profileStore: store,
+        secretStore: {
+          async load(profileId) {
+            return { username: profileId, password: "secret" };
+          },
+        },
+      },
+    );
+
+    expect(config.profileName).toBe("staging");
+    expect(config.kibana.baseUrl).toBe("https://staging.example.com");
+    expect(config.kibana.username).toBe("staging");
+    expect(config.sources[0]?.id).toBe("staging_logs");
+  });
 });
 
 describe("loadConfigFromEnvironment", () => {
   it("loads config when KIBANA_TIMEOUT_MS is present", async () => {
     const catalogDirectory = await mkdtemp(join(tmpdir(), "kibana-mcp-server-"));
+    tempDirectories.push(catalogDirectory);
     const sourceCatalogPath = join(catalogDirectory, "sources.json");
 
     await writeFile(
@@ -152,4 +300,10 @@ describe("loadConfigFromEnvironment", () => {
     expect(config.sources).toHaveLength(1);
     expect(config.sources[0]?.id).toBe("app-logs");
   });
+});
+
+afterAll(async () => {
+  await Promise.all(
+    tempDirectories.map((directory) => rm(directory, { recursive: true, force: true })),
+  );
 });

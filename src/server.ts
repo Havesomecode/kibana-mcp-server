@@ -34,6 +34,7 @@ import {
   queryOutputSchema,
 } from "./tools/query.js";
 import type { AppConfig } from "./types.js";
+import type { ResolvedAppConfig } from "./types.js";
 
 export interface Application {
   server: McpServer;
@@ -47,7 +48,7 @@ export interface Application {
 }
 
 export function createApplication(
-  initialConfig?: AppConfig,
+  initialConfig?: ResolvedAppConfig,
   dependencies?: {
     kibanaClient?: KibanaClient;
     kibanaClientFactory?: (config: AppConfig["kibana"]) => KibanaClient;
@@ -81,8 +82,15 @@ export function createApplication(
   }
 
   const configureHandler = async (input: unknown) => {
-    const { nextConfig, result } = await executeConfigure(configureInputSchema.parse(input));
-    activeConfig = nextConfig;
+    const { nextConfig, result } = await executeConfigure(configureInputSchema.parse(input), {
+      sourceCatalogPath: activeConfig?.sourceCatalogPath,
+    });
+    activeConfig = {
+      ...nextConfig,
+      sourceCatalogPath: result.source_catalog_path,
+      profileName: activeConfig?.profileName,
+      sourceCatalogOrigin: activeConfig?.sourceCatalogOrigin,
+    };
     sourceCatalog = new SourceCatalog(nextConfig.sources);
     kibanaClient = kibanaClientFactory(nextConfig.kibana);
     schemaCatalog = new SchemaCatalog(kibanaClient);

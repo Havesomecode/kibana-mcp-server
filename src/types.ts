@@ -66,6 +66,33 @@ export interface AppConfig {
   sources: SourceDefinition[];
 }
 
+export interface ResolvedAppConfig extends AppConfig {
+  profileName?: string;
+  sourceCatalogPath?: string;
+  sourceCatalogOrigin?: "environment" | "profile" | "runtime_default" | "static_default";
+}
+
+export interface SavedProfile {
+  id: string;
+  name: string;
+  baseUrl: string;
+  timeoutMs: number;
+  sourceCatalogPath: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedProfileStoreState {
+  version: 1;
+  defaultProfileId: string | null;
+  profiles: SavedProfile[];
+}
+
+export interface SavedSecret {
+  username: string;
+  password: string;
+}
+
 export interface DiscoverSourceResult {
   id: string;
   name: string;

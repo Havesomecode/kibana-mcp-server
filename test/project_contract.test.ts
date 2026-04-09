@@ -28,7 +28,7 @@ describe("project contract", () => {
       .replace(/^[.][\\/]/, "")
       .split(/[\\/]/)
       .join(sep);
-    const expected = [outDir, "src", "index.js"].join(sep);
+    const expected = [outDir, "src", "mcp_entry.js"].join(sep);
     expect(normalized).toBe(expected);
   });
 });

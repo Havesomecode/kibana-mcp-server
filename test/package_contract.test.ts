@@ -17,11 +17,11 @@ describe("package contract", () => {
     };
 
     expect(pkg.name).toBe("@zacaria/kibana-mcp-server");
-    expect(pkg.main).toBe("dist/src/index.js");
+    expect(pkg.main).toBe("dist/src/mcp_entry.js");
     expect(pkg.bin?.["kibana-mcp-server"]).toBe("dist/src/index.js");
     expect(pkg.publishConfig?.access).toBe("public");
     expect(pkg.publishConfig?.provenance).toBe(true);
-    expect(pkg.scripts?.start).toBe("node dist/src/index.js");
+    expect(pkg.scripts?.start).toBe("node dist/src/mcp_entry.js");
     expect(pkg.files).toBeDefined();
     if (!pkg.files) {
       return;
