@@ -11,7 +11,6 @@ const required = [
   "plugins/kibana-log-investigation/.codex-plugin/plugin.json",
   "README.md",
   "LICENSE",
-  "CHANGELOG.md",
 ];
 
 const forbiddenPrefixes = ["test/", "test\\", "config/sources.json", "config/sources.runtime.json"];

@@ -44,6 +44,7 @@ If you find a security issue, report it through the process documented in `SECUR
 
 - Critical security reports: acknowledge within 3 business days.
 - Non-security issues: response cadence depends on maintainer availability.
+- Release notes and shipped version history are published through GitHub Releases and npm, not through committed changelog updates in the repository.
 
 ## Out of Scope
 

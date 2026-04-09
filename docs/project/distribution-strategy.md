@@ -1,7 +1,7 @@
 ---
 title: Distribution Strategy
 status: active
-updated: 2026-04-06
+updated: 2026-04-09
 ---
 
 # Distribution Strategy
@@ -29,7 +29,7 @@ This path is required for development and is the baseline for support.
 
 The package surface is prepared for agent-friendly execution via:
 
-- `npx -y @zacaria/kibana-mcp-server`
+- `npx -y @havesomecode/kibana-mcp-server`
 - MCP clients that invoke the published package binary instead of a repo-local build
 
 Public publishing remains gated until the following are complete:
@@ -58,7 +58,15 @@ The release artifact must exclude:
 
 ## Versioning
 
-Releases use semantic versioning. Changesets are the source of truth for release notes and version bumps.
+Releases use semantic versioning driven by `semantic-release`.
+
+The authoritative release record is:
+
+- Git tags
+- npm package versions
+- GitHub Releases
+
+The repository does not commit generated version bumps or release notes back into git.
 
 ## Decision Triggers
 

@@ -16,7 +16,7 @@ describe("package contract", () => {
       scripts?: Record<string, string>;
     };
 
-    expect(pkg.name).toBe("@zacaria/kibana-mcp-server");
+    expect(pkg.name).toBe("@havesomecode/kibana-mcp-server");
     expect(pkg.main).toBe("dist/src/mcp_entry.js");
     expect(pkg.bin?.["kibana-mcp-server"]).toBe("dist/src/index.js");
     expect(pkg.publishConfig?.access).toBe("public");
@@ -33,7 +33,6 @@ describe("package contract", () => {
       "plugins/kibana-log-investigation/.codex-plugin/plugin.json",
       "README.md",
       "LICENSE",
-      "CHANGELOG.md",
     ];
 
     for (const entry of required) {

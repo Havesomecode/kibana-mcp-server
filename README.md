@@ -26,7 +26,8 @@ This repo targets external adoption and AI-agent usability. It is safe for real 
 - Guaranteed: repo-local Codex plugin install (see `INSTALL.md`)
 - Guaranteed: guided machine setup through `npm run setup`
 - In progress: package binary contract for agent-friendly `npx` execution
-- Planned: public package distribution after trusted publishing is enabled
+- In progress: semantic-release automation for tags, npm publish, and GitHub Releases
+- Planned: first public package release after trusted publishing is enabled
 - Support posture and compatibility details live in `docs/project/support-policy.md`
 - Contributing and security reporting live in `CONTRIBUTING.md` and `SECURITY.md`
 
@@ -36,6 +37,7 @@ This repo targets external adoption and AI-agent usability. It is safe for real 
 - Compatibility matrix: `docs/project/compatibility-matrix.md`
 - Release checklist: `docs/project/release-checklist.md`
 - npm publishing setup: `docs/project/npm-publishing.md`
+- GitHub Releases are the canonical release notes and version record
 
 ## Installation
 
@@ -49,7 +51,7 @@ npm run setup
 
 This repo includes a repo-scoped Codex plugin so a cloned checkout can install the MCP without any extra packaging or hosted infrastructure.
 
-The packaged CLI surface is also prepared for a future public install path. Once npm publishing is enabled, AI agents will be able to run the server with `npx -y @zacaria/kibana-mcp-server` instead of cloning the repo first.
+The packaged CLI surface is also prepared for a future public install path. Once npm publishing is enabled, AI agents will be able to run the server with `npx -y @havesomecode/kibana-mcp-server` instead of cloning the repo first.
 
 ### Quick path
 

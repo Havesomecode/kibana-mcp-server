@@ -1,12 +1,12 @@
 {
-  "name": "@zacaria/kibana-mcp-server",
+  "name": "@havesomecode/kibana-mcp-server",
   "version": "0.1.0",
   "license": "MIT",
   "description": "Read-only MCP server for Kibana-backed log investigation and schema-aware querying",
   "homepage": "https://github.com/Zacaria/kibana-mcp-server",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Zacaria/kibana-mcp-server.git"
+    "url": "git+https://github.com/Zacaria/kibana-mcp-server.git"
   },
   "type": "module",
   "main": "dist/src/mcp_entry.js",
@@ -23,7 +23,6 @@
     "plugins/kibana-log-investigation/.codex-plugin/plugin.json",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md",
     "config/sources.example.json",
     "docs/project/**"
   ],
@@ -33,20 +32,20 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "check:types": "tsc --noEmit -p tsconfig.json",
-    "changeset": "changeset",
-    "changeset:version": "changeset version",
-    "changeset:release": "changeset publish",
     "lint": "biome lint .",
     "format": "biome format . --write",
     "format:check": "biome check . --linter-enabled=false",
     "check": "npm run check:types && npm run lint && npm run format:check",
     "dev": "tsx src/mcp_entry.ts",
+    "release": "semantic-release",
+    "release:dry-run": "semantic-release --dry-run",
     "setup": "node dist/src/index.js setup",
     "start": "node dist/src/mcp_entry.js",
     "test": "vitest run",
+    "verify:release-contract": "node scripts/verify-release-contract.mjs",
     "verify:packlist": "node scripts/verify-packlist.mjs",
     "verify:entrypoint": "node scripts/verify-mcp-entrypoint.mjs",
-    "verify": "npm run check && npm run test && npm run build && npm run verify:entrypoint && npm run verify:packlist"
+    "verify": "npm run check && npm run test && npm run build && npm run verify:entrypoint && npm run verify:release-contract && npm run verify:packlist"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
@@ -55,7 +54,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.8.3",
-    "@changesets/cli": "^2.27.10",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
+    "semantic-release": "^25.0.1",
     "@types/node": "^25.5.2",
     "tsx": "^4.0.0",
     "typescript": "^5.7.0",
