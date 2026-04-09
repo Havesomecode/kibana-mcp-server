@@ -86,9 +86,7 @@ export const sourceCatalogSchema = z.object({
   sources: z.array(sourceDefinitionSchema).min(1),
 });
 
-function buildKibanaConfig(
-  env: z.output<typeof bootstrapEnvSchema>,
-): AppConfig["kibana"] {
+function buildKibanaConfig(env: z.output<typeof bootstrapEnvSchema>): AppConfig["kibana"] {
   return {
     baseUrl: env.KIBANA_BASE_URL.replace(/\/+$/, ""),
     username: env.KIBANA_USERNAME,
@@ -195,9 +193,7 @@ export async function loadConfigFromEnvironment(
     sources: sourceCatalogSchema.parse(sourceCatalog.value).sources,
     profileName: profile.name,
     sourceCatalogPath,
-    sourceCatalogOrigin: overrides.KIBANA_SOURCE_CATALOG_PATH?.trim()
-      ? "environment"
-      : "profile",
+    sourceCatalogOrigin: overrides.KIBANA_SOURCE_CATALOG_PATH?.trim() ? "environment" : "profile",
   };
 }
 
@@ -208,8 +204,7 @@ export async function persistSourceCatalog(
     sourceCatalogPath?: string;
   } = {},
 ): Promise<string> {
-  const sourceCatalogPath =
-    options.sourceCatalogPath ?? resolveSourceCatalogPath(options.envInput);
+  const sourceCatalogPath = options.sourceCatalogPath ?? resolveSourceCatalogPath(options.envInput);
   await mkdir(dirname(sourceCatalogPath), { recursive: true });
   await writeFile(sourceCatalogPath, `${JSON.stringify({ sources }, null, 2)}\n`, "utf8");
   return sourceCatalogPath;
