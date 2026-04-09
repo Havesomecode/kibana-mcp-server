@@ -67,6 +67,15 @@ export const sourceCatalogSchema = z.object({
   sources: z.array(sourceDefinitionSchema).min(1),
 });
 
+function buildKibanaConfig(env: z.output<typeof envSchema>): AppConfig["kibana"] {
+  return {
+    baseUrl: env.KIBANA_BASE_URL.replace(/\/+$/, ""),
+    username: env.KIBANA_USERNAME,
+    password: env.KIBANA_PASSWORD,
+    timeoutMs: env.KIBANA_TIMEOUT_MS ?? 10000,
+  };
+}
+
 export function resolveSourceCatalogPath(envInput: NodeJS.ProcessEnv = process.env): string {
   const explicitPath = envInput.KIBANA_SOURCE_CATALOG_PATH?.trim();
   if (explicitPath) {
@@ -81,12 +90,7 @@ export function parseAppConfig(envInput: unknown, sourceCatalogInput: unknown): 
   const sourceCatalog = sourceCatalogSchema.parse(sourceCatalogInput);
 
   return {
-    kibana: {
-      baseUrl: env.KIBANA_BASE_URL.replace(/\/+$/, ""),
-      username: env.KIBANA_USERNAME,
-      password: env.KIBANA_PASSWORD,
-      timeoutMs: env.KIBANA_TIMEOUT_MS ?? 10000,
-    },
+    kibana: buildKibanaConfig(env),
     sources: sourceCatalog.sources,
   };
 }
@@ -118,7 +122,10 @@ export async function loadConfigFromEnvironment(
   }
 
   const sourceCatalog = JSON.parse(sourceCatalogRaw) as unknown;
-  return parseAppConfig(env, sourceCatalog);
+  return {
+    kibana: buildKibanaConfig(env),
+    sources: sourceCatalogSchema.parse(sourceCatalog).sources,
+  };
 }
 
 export async function persistSourceCatalog(

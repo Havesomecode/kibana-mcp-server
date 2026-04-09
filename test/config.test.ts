@@ -1,6 +1,9 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { parseAppConfig, resolveSourceCatalogPath } from "../src/config.js";
+import { loadConfigFromEnvironment, parseAppConfig, resolveSourceCatalogPath } from "../src/config.js";
 
 describe("parseAppConfig", () => {
   it("parses valid environment and source catalog inputs", () => {
@@ -104,5 +107,49 @@ describe("parseAppConfig", () => {
         KIBANA_SOURCE_CATALOG_PATH: "config/custom.json",
       } as NodeJS.ProcessEnv),
     ).toBe("config/custom.json");
+  });
+});
+
+describe("loadConfigFromEnvironment", () => {
+  it("loads config when KIBANA_TIMEOUT_MS is present", async () => {
+    const catalogDirectory = await mkdtemp(join(tmpdir(), "kibana-mcp-server-"));
+    const sourceCatalogPath = join(catalogDirectory, "sources.json");
+
+    await writeFile(
+      sourceCatalogPath,
+      JSON.stringify(
+        {
+          sources: [
+            {
+              id: "app-logs",
+              name: "Application logs",
+              tags: ["application"],
+              timeField: "@timestamp",
+              backend: {
+                kind: "kibana_internal_search_es",
+                path: "/internal/search/es",
+                index: "app-logs-*",
+              },
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const config = await loadConfigFromEnvironment({
+      KIBANA_BASE_URL: "https://kibana.example.com/",
+      KIBANA_USERNAME: "elastic",
+      KIBANA_PASSWORD: "secret",
+      KIBANA_TIMEOUT_MS: "2500",
+      KIBANA_SOURCE_CATALOG_PATH: sourceCatalogPath,
+    } as NodeJS.ProcessEnv);
+
+    expect(config.kibana.baseUrl).toBe("https://kibana.example.com");
+    expect(config.kibana.timeoutMs).toBe(2500);
+    expect(config.sources).toHaveLength(1);
+    expect(config.sources[0]?.id).toBe("app-logs");
   });
 });
