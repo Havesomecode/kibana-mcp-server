@@ -39,7 +39,7 @@ After package ownership is resolved:
 2. Add a trusted publisher.
 3. Choose GitHub Actions.
 4. Set:
-   - Organization or user: `Zacaria`
+   - Organization or user: `Havesomecode`
    - Repository: `kibana-mcp-server`
    - Workflow filename: `release.yml`
    - Environment name: leave blank unless GitHub environments are added later

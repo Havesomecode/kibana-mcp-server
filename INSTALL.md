@@ -7,13 +7,13 @@ This is the canonical install path today. Public package distribution is planned
 Repository:
 
 - Name: `kibana-mcp-server`
-- GitHub: `https://github.com/Zacaria/kibana-mcp-server`
+- GitHub: `https://github.com/Havesomecode/kibana-mcp-server`
 - Plugin name: `Kibana Log Investigation`
 
 ## Full-Auto Prompt
 
 ```text
-Clone and set up the GitHub repository https://github.com/Zacaria/kibana-mcp-server for Codex end to end.
+Clone and set up the GitHub repository https://github.com/Havesomecode/kibana-mcp-server for Codex end to end.
 
 Goals:
 1. Clone the repo locally.
@@ -64,7 +64,7 @@ Important constraints:
 ## Short Prompt
 
 ```text
-Clone https://github.com/Zacaria/kibana-mcp-server, ensure Node.js 22+ at user level for the current OS, run npm install, npm run build, and npm run setup, install the repo plugin `Kibana Log Investigation`, ask me for the environment name plus Kibana credentials, import a source catalog during setup, save the default environment so later threads do not need manual configure, then verify discover + one query work in Codex.
+Clone https://github.com/Havesomecode/kibana-mcp-server, ensure Node.js 22+ at user level for the current OS, run npm install, npm run build, and npm run setup, install the repo plugin `Kibana Log Investigation`, ask me for the environment name plus Kibana credentials, import a source catalog during setup, save the default environment so later threads do not need manual configure, then verify discover + one query work in Codex.
 ```
 
 ## Repo Hints
@@ -81,7 +81,7 @@ If a colleague receives only the raw `INSTALL.md` link, this file should still b
 
 The agent should infer all of the following from this file alone:
 
-- the GitHub repository to clone is `https://github.com/Zacaria/kibana-mcp-server`
+- the GitHub repository to clone is `https://github.com/Havesomecode/kibana-mcp-server`
 - the repo contains a repo-scoped Codex plugin named `Kibana Log Investigation`
 - the plugin lives at `plugins/kibana-log-investigation`
 - the repo must be built with `npm install` and `npm run build` before the MCP can start
