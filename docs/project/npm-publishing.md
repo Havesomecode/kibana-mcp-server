@@ -6,7 +6,7 @@ updated: 2026-04-09
 
 # npm Publishing Setup
 
-This repo is prepared for npm trusted publishing from GitHub Actions, but npm-side setup is still required before the first successful publish.
+This repo publishes to npm from GitHub Actions using trusted publishing.
 
 ## Package Identity
 
@@ -33,7 +33,7 @@ It is responsible for:
 
 ## npm-Side Setup
 
-After package ownership is resolved:
+For future maintenance:
 
 1. Open the package settings on npmjs.com.
 2. Add a trusted publisher.
@@ -45,7 +45,7 @@ After package ownership is resolved:
    - Environment name: leave blank unless GitHub environments are added later
 5. Save the trusted publisher.
 6. Merge a PR into `master` with a semantic title such as `feat: ...` or `fix: ...`.
-7. After the first successful publish, disable token-based publishing in npm package settings.
+7. Keep token-based publishing disabled in npm package settings after trusted publishing is verified.
 
 ## Publish Expectations
 
@@ -55,3 +55,4 @@ After package ownership is resolved:
 - The package `repository` field must match this public GitHub repository exactly.
 - The npm package name in `package.json` must stay aligned with the package configured in npm trusted publishers.
 - Squash merge should be enabled so the semantic PR title becomes the final commit title on `master`.
+- The published version is determined by `semantic-release` and recorded in npm, tags, and GitHub Releases; the `package.json` version committed in git is not the canonical released version.

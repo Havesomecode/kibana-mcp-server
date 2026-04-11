@@ -25,14 +25,14 @@ This is the primary, always-supported path:
 
 This path is required for development and is the baseline for support.
 
-### 2. Public package (planned, gated)
+### 2. Public package
 
-The package surface is prepared for agent-friendly execution via:
+The package is published for agent-friendly execution via:
 
 - `npx -y @havesomecode/kibana-mcp-server`
 - MCP clients that invoke the published package binary instead of a repo-local build
 
-Public publishing remains gated until the following are complete:
+This path depends on the following remaining true:
 
 - npm package ownership is under maintainer control for the chosen package name
 - Verified `npm pack` contents (runtime entrypoint, plugin metadata, README, LICENSE).
@@ -67,6 +67,7 @@ The authoritative release record is:
 - GitHub Releases
 
 The repository does not commit generated version bumps or release notes back into git.
+The `version` field in `package.json` on `master` is therefore a source manifest value, not an authoritative shipped version.
 
 ## Decision Triggers
 

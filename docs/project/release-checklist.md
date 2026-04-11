@@ -13,6 +13,7 @@ updated: 2026-04-09
 - The compatibility matrix is up to date (`docs/project/compatibility-matrix.md`).
 - Any new env or config requirements are documented in `README.md` and `INSTALL.md`.
 - The npm scope and package name (`@havesomecode/kibana-mcp-server`) are owned by the maintainers.
+- Maintainers understand that released versions are tracked in npm, tags, and GitHub Releases, not by the `package.json` version committed in git.
 
 ## Release Authorization
 
@@ -49,3 +50,4 @@ updated: 2026-04-09
 
 - Confirm install instructions still match the shipped artifact.
 - Update any compatibility claims that changed in the release.
+- If docs mention a specific current version, verify it against npm or GitHub Releases rather than reading `package.json` in git.

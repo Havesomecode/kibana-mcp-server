@@ -25,9 +25,8 @@ This repo targets external adoption and AI-agent usability. It is safe for real 
 
 - Guaranteed: repo-local Codex plugin install (see `INSTALL.md`)
 - Guaranteed: guided machine setup through `npm run setup`
-- In progress: package binary contract for agent-friendly `npx` execution
-- In progress: semantic-release automation for tags, npm publish, and GitHub Releases
-- Planned: first public package release after trusted publishing is enabled
+- Available: published package install via `npx -y @havesomecode/kibana-mcp-server`
+- Active: semantic-release automation for tags, npm publish, and GitHub Releases
 - Support posture and compatibility details live in `docs/project/support-policy.md`
 - Contributing and security reporting live in `CONTRIBUTING.md` and `SECURITY.md`
 
@@ -38,6 +37,7 @@ This repo targets external adoption and AI-agent usability. It is safe for real 
 - Release checklist: `docs/project/release-checklist.md`
 - npm publishing setup: `docs/project/npm-publishing.md`
 - GitHub Releases are the canonical release notes and version record
+- The `version` field in `package.json` inside git is not the release source of truth
 
 ## Installation
 
