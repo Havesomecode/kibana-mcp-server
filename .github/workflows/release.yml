@@ -23,8 +23,6 @@ jobs:
           node-version-file: .node-version
           cache: npm
           registry-url: https://registry.npmjs.org
-      - name: Setup npm for trusted publishing
-        run: npm install --global npm@^11.5.1
       - name: Install
         run: npm ci
       - name: Verify
