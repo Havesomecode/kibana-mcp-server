@@ -10,7 +10,7 @@ updated: 2026-04-09
 
 - Make the MCP installable by AI agents without manual explanation.
 - Preserve the repo-local Codex plugin workflow as the guaranteed path.
-- Offer a public distribution path once the artifact boundary is verified.
+- Keep the public package path healthy and aligned with the repo-local workflow.
 
 ## Supported Distribution Paths
 
@@ -40,7 +40,7 @@ This path depends on the following remaining true:
 - Clear support policy and compatibility matrix published.
 - Trusted publishing enabled (OIDC), no long-lived publish tokens.
 
-This path is optional until explicitly enabled.
+This path is live and should stay aligned with the repo-local install story and the hosted homepage.
 
 ## Artifact Boundary
 
@@ -69,11 +69,11 @@ The authoritative release record is:
 The repository does not commit generated version bumps or release notes back into git.
 The `version` field in `package.json` on `master` is therefore a source manifest value, not an authoritative shipped version.
 
-## Decision Triggers
+## Ongoing Obligations
 
-Move from repo-local only to public publishing when:
+Keep public publishing healthy by ensuring all of the following remain true:
 
-- the repo has an npm package identity maintainers can actually control
-- at least one external adopter confirms successful installation without maintainer intervention
-- artifact verification passes on two consecutive release candidates
-- maintainer agrees to own the support posture defined in `docs/project/support-policy.md`
+- the npm package identity stays under maintainer control
+- `npm run verify` continues to enforce the published artifact boundary
+- release automation remains green on the supported Node line
+- the hosted homepage, repo-local install path, and support policy describe the same install contract

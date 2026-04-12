@@ -17,6 +17,6 @@ This matrix distinguishes guaranteed support from best-effort behavior. Each cla
 | `elasticsearch_search` backend | Guaranteed | Verified in tests | Direct Elasticsearch-compatible search path. |
 | Schema metadata endpoints | Best-effort | Known 404s in some deployments | `describe_fields` may fail if endpoints are blocked. |
 | Nested query features | Best-effort | Depends on schema availability | Requires schema metadata for validation. |
-| Public package install | Planned | Not yet verified | Enabled after artifact verification and release automation. |
+| Public package install | Guaranteed | Published on npm and verified through packlist, release-contract, and release automation checks | Direct machine setup uses `npx -y @havesomecode/kibana-mcp-server`. |
 
 Upgrade a row from best-effort to guaranteed only after verifying it in CI or in a reproducible environment test and documenting the evidence here.

@@ -21,7 +21,11 @@ It is designed as a general-purpose log investigation MCP for environments where
 
 ## Project Status
 
-This repo targets external adoption and AI-agent usability. It is safe for real investigations, but the install and release posture is still evolving.
+This repo is live for external adoption and AI-agent use.
+
+- Homepage: `https://havesomecode.github.io/kibana-mcp-server/`
+- Published package: `npx -y @havesomecode/kibana-mcp-server`
+- Repo-local Codex plugin install remains a first-class path for cloned checkouts
 
 - Guaranteed: repo-local Codex plugin install (see `INSTALL.md`)
 - Guaranteed: guided machine setup through `npm run setup`
@@ -51,7 +55,7 @@ npm run setup
 
 This repo includes a repo-scoped Codex plugin so a cloned checkout can install the MCP without any extra packaging or hosted infrastructure.
 
-The packaged CLI surface is also prepared for a future public install path. Once npm publishing is enabled, AI agents will be able to run the server with `npx -y @havesomecode/kibana-mcp-server` instead of cloning the repo first.
+If you do not need the repo-local plugin workflow, the published package is already available through `npx -y @havesomecode/kibana-mcp-server`.
 
 ### Quick path
 

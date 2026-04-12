@@ -2,7 +2,8 @@
 
 Use this document when handing the repository to another Codex user or agent and you want setup to be as automatic as possible from a cloned checkout.
 
-This is the canonical install path today. Public package distribution is planned but not yet the default path (see `docs/project/distribution-strategy.md`).
+This is the canonical repo-local install path for Codex users working from a cloned checkout.
+If you want the public landing page or direct package path instead, use `https://havesomecode.github.io/kibana-mcp-server/` or `npx -y @havesomecode/kibana-mcp-server`.
 
 Repository:
 
