@@ -43,7 +43,7 @@
             <h1>Faster Kibana investigations for agents and teams</h1>
             <p class="hero-summary">
               Give agents structured access to source discovery, field inspection, and focused
-              queries without turning your workflow into brittle UI automation.
+              queries without relying on brittle UI automation.
             </p>
 
             <div class="hero-actions">
@@ -53,8 +53,7 @@
 
             <section class="install-chooser" aria-labelledby="install-chooser-title">
               <p class="chooser-lead" id="install-chooser-title">
-                Start with the install mode that matches your workflow. Full copy-paste commands
-                live lower on the page.
+                Pick the install path that fits your workflow.
               </p>
               <div class="tablist" role="tablist" aria-label="Install path">
                 <button
@@ -107,7 +106,11 @@
                 <article id="panel-repo" class="tab-panel" role="tabpanel" aria-labelledby="tab-repo" hidden>
                   <p class="tab-label">Best for: Codex users who want the repo-local plugin workflow</p>
                   <div class="hero-command-row">
-                    <code id="hero-command-repo">git clone https://github.com/Havesomecode/kibana-mcp-server.git</code>
+                    <pre><code id="hero-command-repo">git clone https://github.com/Havesomecode/kibana-mcp-server.git
+cd kibana-mcp-server
+npm install
+npm run build
+npm run setup</code></pre>
                     <button
                       class="copy-icon-button"
                       type="button"
@@ -133,7 +136,7 @@
               <li>Read-only by design</li>
               <li>Guided setup in one command</li>
               <li>Saved machine profile for later threads</li>
-              <li>Repo-local Codex path supported</li>
+              <li>Works with the repo-local Codex plugin</li>
             </ul>
           </div>
 
@@ -195,8 +198,8 @@
             <p class="eyebrow">See a real investigation flow</p>
             <h2>From source discovery to structured query output</h2>
             <p>
-              The first proof block follows one investigation session end to end, from choosing a
-              source to getting structured results back.
+              The first proof block follows one investigation from source selection to structured
+              results.
             </p>
           </div>
 
@@ -207,7 +210,7 @@
               <div>
                 <h3>Discover the sources you can trust</h3>
                 <p>
-                  Start from named logical sources instead of hunting through a raw Kibana UI tree.
+                  Start from named sources instead of hunting through raw Kibana index structure.
                 </p>
               </div>
             </article>
@@ -226,8 +229,8 @@
               <div>
                 <h3>Run focused queries that return structured results</h3>
                 <p>
-                  Ask for hits, counts, histograms, terms, stats, or grouped top hits without custom
-                  glue code per team.
+                  Ask for hits, counts, histograms, terms, stats, or grouped top hits without
+                  custom glue for every team.
                 </p>
               </div>
             </article>
@@ -240,7 +243,7 @@
             <h2>Kibana works for humans. Agents need structure.</h2>
             <p>
               Kibana is powerful, but repeatable agent workflows break down when every investigation
-              depends on UI state, tribal knowledge, or one-off wrappers. This MCP creates a safer,
+              depends on UI state, tribal knowledge, or one-off wrappers. This MCP adds a
               structured path on top of the log sources you already expose.
             </p>
           </div>
@@ -270,21 +273,21 @@
             <article class="feature-row">
               <div class="feature-lead">
                 <p class="feature-kicker">Discover sources</p>
-                <h3>Start from logical streams, not raw cluster trivia</h3>
+                <h3>Start from logical sources, not raw index details</h3>
               </div>
               <p>
                 Give teams and agents a bounded catalog of sources with names, tags, and field
-                hints instead of making every investigation start from UI archaeology.
+                hints instead of making every investigation start from manual digging.
               </p>
             </article>
             <article class="feature-row">
               <div class="feature-lead">
                 <p class="feature-kicker">Inspect fields</p>
-                <h3>Check exact-safe fields before tightening filters</h3>
+                <h3>Check exact-match fields before tightening filters</h3>
               </div>
               <p>
                 <code>describe_fields</code> helps when the deployment exposes schema metadata.
-                When it does not, the rest of the query workflow still works.
+                Without it, the rest of the query workflow still works.
               </p>
             </article>
             <article class="feature-row">
@@ -293,8 +296,8 @@
                 <h3>Move from broad search to grouped, filtered, or statistical output</h3>
               </div>
               <p>
-                Return structured results that agents can reason about without manual UI parsing or
-                custom wrapper glue for every team.
+                Return structured results agents can reason about without manual UI parsing or
+                custom glue for every team.
               </p>
             </article>
             <article class="feature-row">
@@ -315,7 +318,7 @@
             <p class="eyebrow">Install</p>
             <h2>Choose the path that matches your workflow</h2>
             <p>
-              Both install paths are first-class. Pick the one that matches how you work today.
+              Both paths work. Pick the one that matches how you work today.
             </p>
           </div>
 
@@ -328,7 +331,7 @@
               <pre><code id="command-npx">npx -y @havesomecode/kibana-mcp-server setup</code></pre>
               <button class="copy-button" type="button" data-copy-target="command-npx">Copy command</button>
               <p class="install-note">
-                Run guided setup once, save the default profile, and let later threads reuse it.
+                Run guided setup once. Later threads can reuse the default profile.
               </p>
             </article>
 
@@ -344,7 +347,7 @@ npm run build
 npm run setup</code></pre>
               <button class="copy-button" type="button" data-copy-target="command-repo">Copy commands</button>
               <p class="install-note">
-                Install the local plugin, run setup once, then let Codex threads reuse the saved
+                Install the local plugin, run setup once, and let Codex threads reuse the saved
                 default profile.
               </p>
             </article>
@@ -358,11 +361,11 @@ npm run setup</code></pre>
 
         <section class="section boundaries-section" id="boundaries">
           <div class="section-heading narrow">
-            <p class="eyebrow">Deployment expectations</p>
+            <p class="eyebrow">Environment notes</p>
             <h2>What to expect in your environment</h2>
             <p>
-              The core workflow is stable. Some capabilities depend on how your Kibana deployment
-              is exposed, especially schema-aware features.
+              The main workflow works across deployments. Some features depend on schema metadata
+              being exposed.
             </p>
           </div>
           <div class="boundary-grid">
@@ -370,21 +373,21 @@ npm run setup</code></pre>
               <h3>What it handles well</h3>
               <p>
                 Read-only source discovery, field inspection, exact-field filtering, and structured
-                queries over Kibana-backed logs are the default path this tool is built for.
+                queries over Kibana-backed logs.
               </p>
             </article>
             <article>
               <h3>What it will not do</h3>
               <p>
                 It does not write to Kibana or Elasticsearch, and it does not try to turn log
-                investigation into a broader workflow automation product.
+                investigation into a broader automation product.
               </p>
             </article>
             <article>
               <h3>What depends on your setup</h3>
               <p>
-                Schema-aware features depend on the deployment. When metadata endpoints are blocked,
-                the tool stays useful, but those features stay best-effort rather than guaranteed.
+                Schema-aware features depend on the deployment. If metadata endpoints are blocked,
+                those features may be limited or unavailable.
               </p>
             </article>
           </div>
