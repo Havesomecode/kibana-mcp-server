@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "description": "Install the local Kibana log investigation MCP from this repository.",
   "author": {
-    "name": "Zacaria",
-    "url": "https://github.com/Zacaria"
+    "name": "Havesomecode",
+    "url": "https://github.com/Havesomecode"
   },
-  "homepage": "https://github.com/Zacaria/kibana-mcp-server",
-  "repository": "https://github.com/Zacaria/kibana-mcp-server",
+  "homepage": "https://havesomecode.github.io/kibana-mcp-server/",
+  "repository": "https://github.com/Havesomecode/kibana-mcp-server",
   "license": "MIT",
   "keywords": ["kibana", "logs", "mcp", "investigation", "codex"],
   "skills": "./skills/",
@@ -15,13 +15,13 @@
   "interface": {
     "displayName": "Kibana Log Investigation",
     "shortDescription": "Local Kibana log investigation MCP for Codex",
-    "longDescription": "Install a local stdio MCP server from this repository so Codex can discover sources, inspect schema metadata, and query Kibana-backed logs without additional hosting. This repo is the primary distribution contract today; public distribution is planned once artifact verification is stable.",
-    "developerName": "Zacaria",
+    "longDescription": "Install the repo-local Kibana investigation MCP for Codex, or use the published package directly. The homepage covers the public install story, while this plugin keeps the local repository workflow first-class.",
+    "developerName": "Havesomecode",
     "category": "Productivity",
     "capabilities": ["Interactive", "Read", "Write"],
-    "websiteURL": "https://github.com/Zacaria/kibana-mcp-server",
-    "privacyPolicyURL": "https://github.com/Zacaria/kibana-mcp-server",
-    "termsOfServiceURL": "https://github.com/Zacaria/kibana-mcp-server",
+    "websiteURL": "https://havesomecode.github.io/kibana-mcp-server/",
+    "privacyPolicyURL": "https://github.com/Havesomecode/kibana-mcp-server",
+    "termsOfServiceURL": "https://github.com/Havesomecode/kibana-mcp-server",
     "defaultPrompt": [
       "Install the Kibana Log Investigation plugin from this repo, bootstrap Node.js if needed, and configure it for my Kibana environment.",
       "Use the Kibana Log Investigation plugin to inspect log sources and query a time window."

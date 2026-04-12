@@ -12,6 +12,7 @@ updated: 2026-04-09
 - `npm run verify` passes locally.
 - The compatibility matrix is up to date (`docs/project/compatibility-matrix.md`).
 - Any new env or config requirements are documented in `README.md` and `INSTALL.md`.
+- The hosted homepage still matches the supported install paths and support posture.
 - The npm scope and package name (`@havesomecode/kibana-mcp-server`) are owned by the maintainers.
 - Maintainers understand that released versions are tracked in npm, tags, and GitHub Releases, not by the `package.json` version committed in git.
 
@@ -45,9 +46,11 @@ updated: 2026-04-09
 5. Merge with squash merge into `master`.
 6. Confirm the `Release` workflow either exits with no release or publishes a new version.
 7. Validate the Git tag, GitHub Release notes, published package contents, and provenance.
+8. Confirm the `Pages` workflow still deploys the homepage surface and that the install copy remains truthful.
 
 ## Post-Release
 
 - Confirm install instructions still match the shipped artifact.
+- Confirm the hosted homepage still matches the shipped artifact and current support posture.
 - Update any compatibility claims that changed in the release.
 - If docs mention a specific current version, verify it against npm or GitHub Releases rather than reading `package.json` in git.

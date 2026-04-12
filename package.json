@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "license": "MIT",
   "description": "Read-only MCP server for Kibana-backed log investigation and schema-aware querying",
-  "homepage": "https://github.com/Havesomecode/kibana-mcp-server",
+  "homepage": "https://havesomecode.github.io/kibana-mcp-server/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Havesomecode/kibana-mcp-server.git"
