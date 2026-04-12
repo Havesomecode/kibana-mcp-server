@@ -1,5 +1,6 @@
 const tabButtons = Array.from(document.querySelectorAll("[data-tab-target]"));
 const tabPanels = Array.from(document.querySelectorAll(".tab-panel"));
+const copyResetTimers = new WeakMap();
 
 function activateTab(targetId) {
   for (const button of tabButtons) {
@@ -43,12 +44,19 @@ for (const button of document.querySelectorAll("[data-copy-target]")) {
     try {
       await navigator.clipboard.writeText(text);
       const previous = button.textContent;
+      const existingTimer = copyResetTimers.get(button);
+      if (existingTimer) {
+        window.clearTimeout(existingTimer);
+      }
+
       button.textContent = "Copied";
       button.classList.add("is-copied");
-      window.setTimeout(() => {
+      const timerId = window.setTimeout(() => {
         button.textContent = previous;
         button.classList.remove("is-copied");
+        copyResetTimers.delete(button);
       }, 1400);
+      copyResetTimers.set(button, timerId);
     } catch {
       // If clipboard access fails, leave the original command visible for manual copy.
     }

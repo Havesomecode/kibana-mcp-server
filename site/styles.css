@@ -105,8 +105,6 @@ pre {
   animation: drift 16s ease-in-out infinite reverse;
 }
 
-.topbar,
-.hero-grid,
 .section,
 .trust-strip {
   width: var(--content-width);
@@ -118,6 +116,8 @@ pre {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
+  width: 100%;
+  padding-inline: clamp(24px, 4vw, 48px);
   padding-bottom: 42px;
 }
 
@@ -150,9 +150,11 @@ pre {
 
 .hero-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
-  gap: 32px;
+  grid-template-columns: minmax(0, 0.9fr) minmax(420px, 0.92fr);
+  gap: 40px;
   align-items: center;
+  width: 100%;
+  padding-inline: clamp(24px, 4vw, 48px);
 }
 
 .hero-copy,
@@ -260,11 +262,7 @@ h3 {
   background: rgba(255, 255, 255, 0.02);
 }
 
-.install-chooser,
 .visual-panel,
-.feature-card,
-.install-card,
-.boundary-grid article,
 .trust-strip,
 .workflow-section,
 .narrative-section,
@@ -278,15 +276,14 @@ h3 {
 
 .install-chooser {
   max-width: 34rem;
-  padding: 20px;
-  border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, rgba(10, 21, 37, 0.82), rgba(8, 16, 28, 0.94));
+  margin-top: 10px;
 }
 
-.chooser-header p {
-  margin-bottom: 16px;
+.chooser-lead {
+  margin-bottom: 14px;
   color: var(--muted);
   line-height: 1.5;
+  font-size: 0.96rem;
 }
 
 .tablist {
@@ -312,35 +309,97 @@ h3 {
 }
 
 .tab-panels {
-  margin-top: 18px;
+  margin-top: 14px;
+}
+
+.hero-command-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .tab-panel code {
   display: block;
-  width: fit-content;
-  margin-top: 10px;
-  padding: 11px 14px;
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.03);
+  min-width: 0;
   font-size: 0.95rem;
   color: #ffe0af;
+  overflow-wrap: anywhere;
+}
+
+.copy-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, color 180ms ease, background-color
+    180ms ease;
+}
+
+.copy-icon-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.copy-icon-button:hover,
+.copy-icon-button:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(255, 175, 69, 0.32);
+  color: #f6d39a;
+}
+
+.copy-icon-button.is-copied {
+  border-color: rgba(122, 240, 182, 0.36);
+  color: var(--success);
+  background: rgba(122, 240, 182, 0.08);
+}
+
+.copy-button-hero {
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--muted);
 }
 
 .hero-signals {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, max-content));
+  gap: 8px 16px;
   padding: 0;
   margin: 24px 0 0;
   list-style: none;
 }
 
 .hero-signals li {
-  padding: 9px 12px;
-  border-radius: 999px;
-  background: rgba(121, 211, 255, 0.08);
+  position: relative;
+  padding-left: 16px;
   color: #dce8f5;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+}
+
+.hero-signals li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 18px rgba(255, 175, 69, 0.4);
 }
 
 .hero-visual {
@@ -482,7 +541,6 @@ main {
 .section-heading p,
 .narrow p,
 .workflow-node p,
-.feature-card p:last-child,
 .boundary-grid p {
   color: #526073;
 }
@@ -541,40 +599,50 @@ main {
   color: var(--text);
 }
 
-.feature-grid,
+.feature-rows,
 .install-grid,
 .boundary-grid {
   display: grid;
   gap: 18px;
 }
 
-.feature-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.feature-rows {
+  gap: 0;
 }
 
-.feature-card,
-.boundary-grid article {
-  padding: 24px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.62);
+.feature-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 24px;
+  padding: 24px 0;
+  border-top: 1px solid rgba(12, 24, 39, 0.12);
+}
+
+.feature-row:first-child {
+  border-top: 0;
+  padding-top: 6px;
+}
+
+.feature-lead {
+  max-width: 28rem;
 }
 
 .install-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
 }
 
 .install-card {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 24px;
-  border-radius: 24px;
-  background: #0b1627;
-  color: var(--text);
+  padding: 6px 0 0;
+  color: #091321;
+  border-top: 1px solid rgba(12, 24, 39, 0.14);
 }
 
 .install-best-for {
-  color: var(--muted);
+  color: #526073;
 }
 
 pre {
@@ -582,23 +650,23 @@ pre {
   margin: 0;
   padding: 16px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
+  background: #0b1627;
   color: #f0d7a9;
 }
 
 .copy-button {
   align-self: start;
   padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(12, 24, 39, 0.14);
   border-radius: 999px;
   background: transparent;
-  color: var(--text);
+  color: #091321;
   cursor: pointer;
 }
 
 .copy-button.is-copied {
-  border-color: rgba(122, 240, 182, 0.5);
-  color: var(--success);
+  border-color: rgba(45, 130, 92, 0.42);
+  color: #1b7a55;
 }
 
 .install-links,
@@ -617,6 +685,12 @@ pre {
 
 .boundary-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.boundary-grid article {
+  padding-left: 20px;
+  border-left: 1px solid rgba(12, 24, 39, 0.14);
 }
 
 .final-cta {
@@ -656,7 +730,7 @@ pre {
 
   .hero-grid,
   .trust-strip,
-  .feature-grid,
+  .feature-row,
   .install-grid,
   .boundary-grid,
   .final-cta {
@@ -707,12 +781,24 @@ pre {
     border-radius: 22px;
   }
 
+  .hero-signals {
+    grid-template-columns: 1fr;
+  }
+
   .tablist {
     width: 100%;
   }
 
   .tab {
     flex: 1;
+  }
+
+  .hero-command-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .copy-icon-button {
+    justify-self: end;
   }
 }
 
