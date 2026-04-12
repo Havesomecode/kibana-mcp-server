@@ -322,6 +322,12 @@ h3 {
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+.hero-command-row pre {
+  min-width: 0;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 .tab-panel code {
   display: block;
   min-width: 0;
