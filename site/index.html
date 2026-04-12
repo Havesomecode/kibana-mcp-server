@@ -52,9 +52,10 @@
             </div>
 
             <section class="install-chooser" aria-labelledby="install-chooser-title">
-              <div class="chooser-header">
-                <p id="install-chooser-title">Choose the install path near the top. Copy-paste details live lower on the page.</p>
-              </div>
+              <p class="chooser-lead" id="install-chooser-title">
+                Start with the install mode that matches your workflow. Full copy-paste commands
+                live lower on the page.
+              </p>
               <div class="tablist" role="tablist" aria-label="Install path">
                 <button
                   id="tab-npx"
@@ -83,19 +84,55 @@
               <div class="tab-panels">
                 <article id="panel-npx" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-npx">
                   <p class="tab-label">Best for: direct machine install and quick guided setup</p>
-                  <code>npx -y @havesomecode/kibana-mcp-server setup</code>
+                  <div class="hero-command-row">
+                    <code id="hero-command-npx">npx -y @havesomecode/kibana-mcp-server setup</code>
+                    <button
+                      class="copy-icon-button"
+                      type="button"
+                      data-copy-target="hero-command-npx"
+                      aria-label="Copy npx command"
+                      title="Copy command"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M9 7.5A2.5 2.5 0 0 1 11.5 5h6A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-6A2.5 2.5 0 0 1 9 16.5z"
+                        />
+                        <path
+                          d="M6.5 15H6A2 2 0 0 1 4 13V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v.5"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </article>
                 <article id="panel-repo" class="tab-panel" role="tabpanel" aria-labelledby="tab-repo" hidden>
                   <p class="tab-label">Best for: Codex users who want the repo-local plugin workflow</p>
-                  <code>git clone https://github.com/Havesomecode/kibana-mcp-server.git</code>
+                  <div class="hero-command-row">
+                    <code id="hero-command-repo">git clone https://github.com/Havesomecode/kibana-mcp-server.git</code>
+                    <button
+                      class="copy-icon-button"
+                      type="button"
+                      data-copy-target="hero-command-repo"
+                      aria-label="Copy repo command"
+                      title="Copy command"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M9 7.5A2.5 2.5 0 0 1 11.5 5h6A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-6A2.5 2.5 0 0 1 9 16.5z"
+                        />
+                        <path
+                          d="M6.5 15H6A2 2 0 0 1 4 13V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v.5"
+                        />
+                      </svg>
+                    </button>
+                  </div>
                 </article>
               </div>
             </section>
 
             <ul class="hero-signals" aria-label="Key proof points">
               <li>Read-only by design</li>
-              <li>Published on npm</li>
-              <li>GitHub Releases live</li>
+              <li>Guided setup in one command</li>
+              <li>Saved machine profile for later threads</li>
               <li>Repo-local Codex path supported</li>
             </ul>
           </div>
@@ -158,8 +195,8 @@
             <p class="eyebrow">See a real investigation flow</p>
             <h2>From source discovery to structured query output</h2>
             <p>
-              The workflow is the product. The first proof block shows one investigation session
-              rather than a marketing grid of disconnected features.
+              The first proof block follows one investigation session end to end, from choosing a
+              source to getting structured results back.
             </p>
           </div>
 
@@ -219,45 +256,55 @@
             <p>Use `npx` directly or the repo-local Codex plugin workflow.</p>
           </div>
           <div>
-            <p class="trust-title">Release contract is live</p>
-            <p>Published package, GitHub Releases, and semantic release automation.</p>
+            <p class="trust-title">Maintained release path</p>
+            <p>Install from the package, inspect tagged releases, or review the repo directly.</p>
           </div>
         </section>
 
         <section class="section feature-section" id="features">
           <div class="section-heading">
             <p class="eyebrow">Built for real investigation workflows</p>
-            <h2>Capability proof without the marketing fog</h2>
+            <h2>Capabilities that matter during an investigation</h2>
           </div>
-          <div class="feature-grid">
-            <article class="feature-card">
-              <p class="feature-kicker">Discover sources</p>
-              <h3>Start from logical streams, not raw cluster trivia</h3>
+          <div class="feature-rows">
+            <article class="feature-row">
+              <div class="feature-lead">
+                <p class="feature-kicker">Discover sources</p>
+                <h3>Start from logical streams, not raw cluster trivia</h3>
+              </div>
               <p>
-                Give teams and agents a bounded catalog of sources with names, tags, and field hints.
+                Give teams and agents a bounded catalog of sources with names, tags, and field
+                hints instead of making every investigation start from UI archaeology.
               </p>
             </article>
-            <article class="feature-card">
-              <p class="feature-kicker">Inspect fields</p>
-              <h3>Check exact-safe fields before tightening filters</h3>
+            <article class="feature-row">
+              <div class="feature-lead">
+                <p class="feature-kicker">Inspect fields</p>
+                <h3>Check exact-safe fields before tightening filters</h3>
+              </div>
               <p>
-                `describe_fields` helps when the deployment exposes schema metadata. It stays honest
-                when those endpoints are unavailable.
+                <code>describe_fields</code> helps when the deployment exposes schema metadata.
+                When it does not, the rest of the query workflow still works.
               </p>
             </article>
-            <article class="feature-card">
-              <p class="feature-kicker">Run tighter queries</p>
-              <h3>Move from broad search to grouped, filtered, or statistical output</h3>
+            <article class="feature-row">
+              <div class="feature-lead">
+                <p class="feature-kicker">Run tighter queries</p>
+                <h3>Move from broad search to grouped, filtered, or statistical output</h3>
+              </div>
               <p>
-                Return structured results that agents can reason about without manual UI parsing.
+                Return structured results that agents can reason about without manual UI parsing or
+                custom wrapper glue for every team.
               </p>
             </article>
-            <article class="feature-card">
-              <p class="feature-kicker">Reuse saved setup</p>
-              <h3>Install once, keep a default machine profile for later threads</h3>
+            <article class="feature-row">
+              <div class="feature-lead">
+                <p class="feature-kicker">Reuse saved setup</p>
+                <h3>Install once, keep a default machine profile for later threads</h3>
+              </div>
               <p>
                 Guided setup saves machine-level profile state so new threads do not need a manual
-                `configure` step just to get started.
+                <code>configure</code> step just to get back to investigation work.
               </p>
             </article>
           </div>
@@ -311,21 +358,34 @@ npm run setup</code></pre>
 
         <section class="section boundaries-section" id="boundaries">
           <div class="section-heading narrow">
-            <p class="eyebrow">Clear boundaries</p>
-            <h2>Keep the product claims honest</h2>
+            <p class="eyebrow">Deployment expectations</p>
+            <h2>What to expect in your environment</h2>
+            <p>
+              The core workflow is stable. Some capabilities depend on how your Kibana deployment
+              is exposed, especially schema-aware features.
+            </p>
           </div>
           <div class="boundary-grid">
             <article>
-              <h3>What it does</h3>
-              <p>Read-only source discovery, field inspection, exact-field filtering, and structured queries over Kibana-backed logs.</p>
+              <h3>What it handles well</h3>
+              <p>
+                Read-only source discovery, field inspection, exact-field filtering, and structured
+                queries over Kibana-backed logs are the default path this tool is built for.
+              </p>
             </article>
             <article>
-              <h3>What it does not do</h3>
-              <p>No writes, no workflow automation outside investigation, and no claim that every Kibana deployment exposes schema metadata.</p>
+              <h3>What it will not do</h3>
+              <p>
+                It does not write to Kibana or Elasticsearch, and it does not try to turn log
+                investigation into a broader workflow automation product.
+              </p>
             </article>
             <article>
-              <h3>What depends on the deployment</h3>
-              <p>Schema-aware features depend on the deployment. When metadata endpoints are blocked, the tool stays useful, but those features are best-effort.</p>
+              <h3>What depends on your setup</h3>
+              <p>
+                Schema-aware features depend on the deployment. When metadata endpoints are blocked,
+                the tool stays useful, but those features stay best-effort rather than guaranteed.
+              </p>
             </article>
           </div>
           <div class="support-links">
