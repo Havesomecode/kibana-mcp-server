@@ -22,4 +22,6 @@ jobs:
       - name: Install
         run: npm ci
       - name: Validate PR title
-        run: printf '%s\n' '${{ github.event.pull_request.title }}' | npx commitlint --verbose
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | npx commitlint --verbose
