@@ -6,7 +6,7 @@
     <title>Kibana Log Investigation MCP</title>
     <meta
       name="description"
-      content="Fast, read-only Kibana investigation for agents and teams, with both npx and repo-local Codex install paths."
+      content="Structured, read-only Kibana investigation for agents and teams, with both npx and repo-local Codex install paths."
     />
     <link
       rel="icon"
@@ -40,7 +40,7 @@
         <section class="hero-grid">
           <div class="hero-copy">
             <p class="eyebrow">Read-only MCP for Kibana-backed log investigation</p>
-            <h1>Faster Kibana investigations for agents and teams</h1>
+            <h1>Structured Kibana investigations for agents and teams</h1>
             <p class="hero-summary">
               Give agents structured access to source discovery, field inspection, and focused
               queries without relying on brittle UI automation.
@@ -162,7 +162,7 @@ npm run setup</code></pre>
             <section class="visual-panel product-panel">
               <header>
                 <p>Structured investigation output</p>
-                <span class="status-pill">live workflow</span>
+                <span class="status-pill">synthetic example</span>
               </header>
               <div class="product-grid">
                 <div class="mini-card">
@@ -195,11 +195,11 @@ npm run setup</code></pre>
       <main id="content">
         <section class="section workflow-section" id="workflow">
           <div class="section-heading">
-            <p class="eyebrow">See a real investigation flow</p>
+            <p class="eyebrow">Synthetic investigation example</p>
             <h2>From source discovery to structured query output</h2>
             <p>
-              The first proof block follows one investigation from source selection to structured
-              results.
+              This public example uses invented services and counts. It follows the supported flow
+              from source selection to structured results without exposing an operator's logs.
             </p>
           </div>
 
@@ -229,8 +229,8 @@ npm run setup</code></pre>
               <div>
                 <h3>Run focused queries that return structured results</h3>
                 <p>
-                  Ask for hits, counts, histograms, terms, stats, or grouped top hits without
-                  custom glue for every team.
+                  Ask for hits, counts, histograms, terms, stats, or grouped top hits. The response
+                  keeps the query bounds and filters visible beside the result.
                 </p>
               </div>
             </article>
@@ -243,7 +243,7 @@ npm run setup</code></pre>
             <h2>Kibana works for humans. Agents need structure.</h2>
             <p>
               Kibana is powerful, but repeatable agent workflows break down when every investigation
-              depends on UI state, tribal knowledge, or one-off wrappers. This MCP adds a
+              depends on UI state, local conventions, or one-off wrappers. This MCP adds a
               structured path on top of the log sources you already expose.
             </p>
           </div>
@@ -276,8 +276,8 @@ npm run setup</code></pre>
                 <h3>Start from logical sources, not raw index details</h3>
               </div>
               <p>
-                Give teams and agents a bounded catalog of sources with names, tags, and field
-                hints instead of making every investigation start from manual digging.
+                The operator controls a bounded catalog of sources, names, tags, and field hints.
+                Agents investigate within that catalog instead of starting from raw index details.
               </p>
             </article>
             <article class="feature-row">
@@ -296,8 +296,8 @@ npm run setup</code></pre>
                 <h3>Move from broad search to grouped, filtered, or statistical output</h3>
               </div>
               <p>
-                Return structured results agents can reason about without manual UI parsing or
-                custom glue for every team.
+                Every response includes a <code>query_echo</code> with its sources, time bounds,
+                filters, and mode, so the investigation remains inspectable.
               </p>
             </article>
             <article class="feature-row">

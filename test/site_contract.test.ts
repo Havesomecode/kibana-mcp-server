@@ -38,6 +38,13 @@ describe("site contract", () => {
     expect(html).toContain("Schema-aware features depend on the deployment");
   });
 
+  it("labels the public investigation example without making unmeasured speed claims", () => {
+    const html = readSiteFile("site/index.html");
+
+    expect(html).toContain("Synthetic investigation example");
+    expect(html).not.toMatch(/\b(?:fast|faster|efficien(?:t|cy))\b/i);
+  });
+
   it("avoids root-relative links and assets that would break on a project Pages path", () => {
     const html = readSiteFile("site/index.html");
 
@@ -50,5 +57,7 @@ describe("site contract", () => {
     expect(html).toContain("@havesomecode/kibana-mcp-server");
     expect(html).toContain("Back to homepage");
     expect(html).toContain("Open the repository");
+    expect(html).toContain('href="/kibana-mcp-server/styles.css"');
+    expect(html).toContain('href="/kibana-mcp-server/"');
   });
 });
