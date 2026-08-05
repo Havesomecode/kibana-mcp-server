@@ -1,12 +1,16 @@
 ---
 title: feat: Create a GitHub landing page for Kibana MCP adoption
 type: feat
-status: active
+status: superseded
 date: 2026-04-08
 origin: docs/brainstorms/2026-04-02-kibana-log-investigation-requirements.md
+superseded_by: docs/plans/2026-04-08-002-feat-github-pages-site-plan.md
 ---
 
 # feat: Create a GitHub landing page for Kibana MCP adoption
+
+> [!NOTE]
+> Historical plan. It was superseded by `docs/plans/2026-04-08-002-feat-github-pages-site-plan.md`, which was subsequently superseded by the implemented `docs/plans/2026-04-11-001-feat-github-pages-homepage-plan.md`.
 
 ## Overview
 
