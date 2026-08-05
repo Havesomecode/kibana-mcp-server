@@ -76,7 +76,7 @@ Raw handoff that should now be sufficient by itself:
 
 ```text
 Use this INSTALL.md as the canonical setup guide:
-https://raw.githubusercontent.com/Zacaria/kibana-mcp-server/main/INSTALL.md
+https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/master/INSTALL.md
 
 Clone and set up the repo end to end, install the local plugin, ask me for the environment name, configure Kibana access, and verify the MCP works.
 ```

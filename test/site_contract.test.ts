@@ -45,6 +45,29 @@ describe("site contract", () => {
     expect(html).not.toMatch(/\b(?:fast|faster|efficien(?:t|cy))\b/i);
   });
 
+  it("describes query echoes only for query and filter responses", () => {
+    const html = readSiteFile("site/index.html");
+    const portfolio = readSiteFile("docs/portfolio/kibana-log-investigation-mcp.md");
+
+    expect(html).toContain("Query and filter responses include a <code>query_echo</code>");
+    expect(html).not.toContain("Every response includes a <code>query_echo</code>");
+    expect(portfolio).toContain("Query and filter responses include a `query_echo`");
+    expect(portfolio).not.toContain("query scope echoed in every response");
+    expect(portfolio).not.toContain("Responses include a `query_echo`");
+  });
+
+  it("keeps the public install handoff portable and current", () => {
+    const handoff = readSiteFile(
+      "docs/solutions/documentation-gaps/self-contained-codex-install-handoff-2026-04-08.md",
+    );
+
+    expect(handoff).toContain(
+      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/master/INSTALL.md",
+    );
+    expect(handoff).not.toContain("raw.githubusercontent.com/Zacaria/");
+    expect(handoff).not.toContain("/Users/");
+  });
+
   it("avoids root-relative links and assets that would break on a project Pages path", () => {
     const html = readSiteFile("site/index.html");
 

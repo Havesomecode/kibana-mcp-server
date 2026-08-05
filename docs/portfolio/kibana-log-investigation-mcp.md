@@ -2,7 +2,7 @@
 
 ## Short card
 
-A read-only MCP that gives agents a bounded way to investigate Kibana-backed logs. Operators choose the source catalog; agents can inspect fields, apply exact filters, and run time-bounded queries with the query scope echoed in every response.
+A read-only MCP that gives agents a bounded way to investigate Kibana-backed logs. Operators choose the source catalog; agents can inspect fields, apply exact filters, and run time-bounded queries. Query and filter responses include a `query_echo` so their scope remains inspectable.
 
 ## Personal context
 
@@ -16,7 +16,7 @@ The interesting part for me is not adding AI to observability. It is making a di
 
 Kibana Log Investigation MCP exposes a small, read-only investigation surface over Kibana-backed search endpoints. It supports source discovery, schema inspection where the deployment allows it, exact-field filters, and bounded queries for hits, counts, histograms, terms, statistics, and grouped top hits.
 
-Responses include a `query_echo` with the selected sources, time bounds, filters, and mode. That keeps the scope visible when an agent explains what it found. Schema-dependent features fail clearly or return advisories rather than pretending that exact-field resolution happened.
+Query and filter responses include a `query_echo` with the selected sources, time bounds, filters, and mode. That keeps the scope visible when an agent explains what it found. Schema-dependent features fail clearly or return advisories rather than pretending that exact-field resolution happened.
 
 The project includes a repo-local Codex plugin, guided machine setup, secure credential storage, a public npm package, release automation, and a static documentation site. The public capture uses invented service names and counts; it contains no real host, source catalog, credential, or log payload.
 
@@ -25,7 +25,7 @@ The project includes a repo-local Codex plugin, guided machine setup, secure cre
 - Public docs: <https://havesomecode.github.io/kibana-mcp-server/>
 - Source: <https://github.com/Havesomecode/kibana-mcp-server>
 - npm: <https://www.npmjs.com/package/@havesomecode/kibana-mcp-server>
-- Release used as the public package reference: [v1.1.0](https://github.com/Havesomecode/kibana-mcp-server/releases/tag/v1.1.0)
+- Current public release: [latest release](https://github.com/Havesomecode/kibana-mcp-server/releases/latest)
 - Sanitized capture: `docs/portfolio/kibana-log-investigation-mcp-homepage.png`
 
 ## Claim boundaries
