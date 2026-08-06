@@ -68,6 +68,20 @@ describe("site contract", () => {
     expect(handoff).not.toContain("/Users/");
   });
 
+  it("keeps the timeout bug handoff synthetic and portable", () => {
+    const handoff = readSiteFile("HANDOFF_timeout-config-bug.md");
+    const baseUrls = [...handoff.matchAll(/KIBANA_BASE_URL='([^']+)'/g)].map(
+      ([, baseUrl]) => baseUrl,
+    );
+
+    expect(baseUrls.length).toBeGreaterThan(0);
+    for (const baseUrl of baseUrls) {
+      expect(new URL(baseUrl).hostname).toBe("kibana.example.com");
+    }
+    expect(handoff).toContain("KIBANA_SOURCE_CATALOG_PATH='config/sources.example.json'");
+    expect(handoff).not.toMatch(/\/(?:Users|Volumes)\//);
+  });
+
   it("avoids root-relative links and assets that would break on a project Pages path", () => {
     const html = readSiteFile("site/index.html");
 
