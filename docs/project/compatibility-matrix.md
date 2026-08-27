@@ -17,7 +17,7 @@ This matrix distinguishes guaranteed support from best-effort behavior. Each cla
 | `elasticsearch_search` backend | Guaranteed | Verified in tests | Direct Elasticsearch-compatible search path. |
 | Schema metadata endpoints | Best-effort | Known 404s in some deployments | `describe_fields` may fail if endpoints are blocked. |
 | Nested query features | Best-effort | Depends on schema availability | Requires schema metadata for validation. |
-| Prompt-free package bootstrap | Guaranteed | Verified through CLI, rollback, packlist, and release-contract tests | Use `npx -y @havesomecode/kibana-mcp-server bootstrap --index 'pattern-*' --client codex`. |
+| Connection-only package bootstrap | Guaranteed | Verified through CLI, rollback, packlist, and release-contract tests | Use `npx -y @havesomecode/kibana-mcp-server bootstrap --client codex`; configure an index only after the user names it. |
 | Agent Skill installation | Guaranteed after publication | Repository discovery is verified with the `skills` CLI; skills.sh indexing follows the public branch | Install `kibana-log-investigation` from `Havesomecode/kibana-mcp-server`. |
 
 Upgrade a row from best-effort to guaranteed only after verifying it in CI or in a reproducible environment test and documenting the evidence here.

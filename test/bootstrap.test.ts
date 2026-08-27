@@ -106,10 +106,10 @@ describe("deterministic bootstrap", () => {
           subfields: [],
         },
       ]),
-    ).toThrow("--time-field");
+    ).toThrow("time_field");
   });
 
-  it("verifies before writing, saves the generated profile, and registers Codex", async () => {
+  it("verifies only the connection before writing an empty catalog and registering Codex", async () => {
     const root = await mkdtemp(join(tmpdir(), "kibana-bootstrap-"));
     tempDirectories.push(root);
     const paths = resolveProfilePaths({ KIBANA_STATE_DIR: root } as NodeJS.ProcessEnv);
@@ -123,7 +123,6 @@ describe("deterministic bootstrap", () => {
         baseUrl: "https://kibana.example.com/",
         username: "elastic",
         password: "secret",
-        indexes: ["consumer-*"],
         client: "codex",
         makeDefault: true,
         mcpName: "kibana-log-investigation",
@@ -148,9 +147,9 @@ describe("deterministic bootstrap", () => {
           },
         },
         verifier: {
-          async verify() {
+          async verify(...args: unknown[]) {
             events.push("verify");
-            return fields;
+            expect(args).toHaveLength(1);
           },
         },
         clientRegistrar: {
@@ -173,8 +172,7 @@ describe("deterministic bootstrap", () => {
     expect(result).toMatchObject({
       profileName: "prod",
       profileId: "prod",
-      sourceId: "consumer",
-      indexes: ["consumer-*"],
+      sourceCount: 0,
       client: "codex",
       registered: true,
       verified: true,
@@ -182,12 +180,8 @@ describe("deterministic bootstrap", () => {
     expect((await profileStore.getDefaultProfile())?.name).toBe("prod");
     expect(secrets.get("prod")).toEqual({ username: "elastic", password: "secret" });
     const catalog = JSON.parse(await readFile(result.sourceCatalogPath, "utf8"));
-    expect(catalog.sources[0]).toMatchObject({
-      id: "consumer",
-      timeField: "@timestamp",
-      defaultTextFields: ["message"],
-      evidenceFields: ["trace.id"],
-    });
+    expect(catalog.sources).toEqual([]);
+    expect(catalog.generatedBy.sourceHash).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("does not write any machine state when verification fails", async () => {
@@ -204,7 +198,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://kibana.example.com",
           username: "elastic",
           password: "secret",
-          indexes: ["missing-*"],
           client: "none",
           makeDefault: true,
           mcpName: "kibana-log-investigation",
@@ -249,7 +242,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://kibana.example.com",
           username: "elastic",
           password: "secret",
-          indexes: ["consumer-*"],
           client: "none",
           makeDefault: true,
         },
@@ -268,9 +260,7 @@ describe("deterministic bootstrap", () => {
             },
           },
           verifier: {
-            async verify() {
-              return fields;
-            },
+            async verify() {},
           },
         },
       ),
@@ -302,7 +292,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://kibana.example.com",
           username: "elastic",
           password: "secret",
-          indexes: ["consumer-*"],
           client: "none",
           makeDefault: true,
         },
@@ -319,7 +308,6 @@ describe("deterministic bootstrap", () => {
           verifier: {
             async verify() {
               verified = true;
-              return fields;
             },
           },
         },
@@ -362,7 +350,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://kibana.example.com",
           username: "elastic",
           password: "secret",
-          indexes: ["consumer-*"],
           client: "none",
           makeDefault: true,
         },
@@ -379,7 +366,6 @@ describe("deterministic bootstrap", () => {
           verifier: {
             async verify() {
               verified = true;
-              return fields;
             },
           },
         },
@@ -390,7 +376,7 @@ describe("deterministic bootstrap", () => {
     expect(await readFile(catalogPath, "utf8")).toBe(tamperedContent);
   });
 
-  it("repairs an existing generated profile when its credential entry is missing", async () => {
+  it("repairs a missing credential without deleting explicitly configured sources", async () => {
     const root = await mkdtemp(join(tmpdir(), "kibana-bootstrap-"));
     tempDirectories.push(root);
     const paths = resolveProfilePaths({ KIBANA_STATE_DIR: root } as NodeJS.ProcessEnv);
@@ -420,7 +406,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://kibana.example.com",
           username: "elastic",
           password: "replacement",
-          indexes: ["consumer-*"],
           client: "none",
           makeDefault: true,
         },
@@ -437,15 +422,15 @@ describe("deterministic bootstrap", () => {
             async delete() {},
           },
           verifier: {
-            async verify() {
-              return fields;
-            },
+            async verify() {},
           },
         },
       ),
-    ).resolves.toMatchObject({ profileName: "prod", verified: true });
+    ).resolves.toMatchObject({ profileName: "prod", sourceCount: 1, verified: true });
 
     expect(saved).toBe(true);
+    const catalog = JSON.parse(await readFile(catalogPath, "utf8"));
+    expect(catalog.sources.map((source: { id: string }) => source.id)).toEqual(["consumer"]);
   });
 
   it("restores the previous credential when replacement fails after mutating the store", async () => {
@@ -479,7 +464,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://new.example.com",
           username: "new",
           password: "new-secret",
-          indexes: ["consumer-*"],
           client: "none",
           makeDefault: true,
         },
@@ -504,9 +488,7 @@ describe("deterministic bootstrap", () => {
             },
           },
           verifier: {
-            async verify() {
-              return fields;
-            },
+            async verify() {},
           },
         },
       ),
@@ -537,7 +519,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://new.example.com",
           username: "new",
           password: "new-secret",
-          indexes: ["consumer-*"],
           client: "none",
           makeDefault: true,
         },
@@ -562,9 +543,7 @@ describe("deterministic bootstrap", () => {
             },
           },
           verifier: {
-            async verify() {
-              return fields;
-            },
+            async verify() {},
           },
         },
       ),
@@ -588,7 +567,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://new.example.com",
           username: "new",
           password: "new-secret",
-          indexes: ["consumer-*"],
           client: "none",
           makeDefault: true,
         },
@@ -613,9 +591,7 @@ describe("deterministic bootstrap", () => {
             },
           },
           verifier: {
-            async verify() {
-              return fields;
-            },
+            async verify() {},
           },
         },
       ),
@@ -639,7 +615,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://kibana.example.com",
           username: "elastic",
           password: "secret",
-          indexes: ["consumer-*"],
           client: "codex",
           makeDefault: true,
           mcpName: "kibana-log-investigation",
@@ -656,9 +631,7 @@ describe("deterministic bootstrap", () => {
             async delete() {},
           },
           verifier: {
-            async verify() {
-              return fields;
-            },
+            async verify() {},
           },
           clientRegistrar: {
             async preflight() {
@@ -712,7 +685,6 @@ describe("deterministic bootstrap", () => {
           baseUrl: "https://new.example.com",
           username: "new-user",
           password: "new-secret",
-          indexes: ["consumer-*"],
           client: "codex",
           makeDefault: true,
           replaceExisting: true,
@@ -736,9 +708,7 @@ describe("deterministic bootstrap", () => {
             },
           },
           verifier: {
-            async verify() {
-              return fields;
-            },
+            async verify() {},
           },
           clientRegistrar: {
             async preflight() {

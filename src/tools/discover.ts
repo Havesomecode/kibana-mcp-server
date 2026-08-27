@@ -9,6 +9,7 @@ export const discoverInputSchema = z.object({
 });
 
 export const discoverOutputSchema = z.object({
+  configured_total: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
   sources: z.array(
     z.object({
@@ -35,12 +36,17 @@ export function executeDiscover(
 ): z.infer<typeof discoverOutputSchema> {
   const sources = sourceCatalog.list(input.query, input.limit);
   return {
+    configured_total: sourceCatalog.count(),
     total: sources.length,
     sources,
   };
 }
 
 export function formatDiscoverResult(result: z.infer<typeof discoverOutputSchema>): string {
+  if (result.configured_total === 0) {
+    return "No log source is configured. Ask the user which Kibana index or index pattern they want to use, then call 'configure_index' with exactly that value.";
+  }
+
   if (result.sources.length === 0) {
     return "No sources matched the requested discovery query.";
   }

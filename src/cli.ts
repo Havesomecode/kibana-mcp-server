@@ -27,24 +27,26 @@ function renderHelp(): string {
 function renderBootstrapHelp(): string {
   return [
     "Usage:",
-    "  kibana-mcp-server bootstrap --index <pattern> [options]",
-    "  kibana-mcp-server setup --index <pattern> [options]  # compatible alias",
+    "  kibana-mcp-server bootstrap [options]",
+    "  kibana-mcp-server setup [options]  # compatible non-interactive alias",
+    "",
+    "Bootstrap verifies and saves only the Kibana connection; it does not inspect or configure indexes.",
+    "After installation, ask the agent to configure a specific index or index pattern.",
     "",
     "Connection options use KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD as fallbacks.",
     "Passwords are accepted only through --password-stdin, --password-env <NAME>, or KIBANA_PASSWORD.",
     "",
     "Options:",
-    "  --index <pattern>       Elasticsearch index pattern; repeatable and required",
     "  --profile <name>        Saved profile name (default: KIBANA_PROFILE or default)",
     "  --url <url>             Kibana base URL",
     "  --username <name>       Kibana basic-auth username",
     "  --password-stdin        Read the password from stdin",
     "  --password-env <name>   Read the password from a named environment variable",
-    "  --time-field <field>    Override automatic date-field selection",
+
     "  --client <codex|none>   Register Codex or skip client registration (default: codex)",
     "  --package <specifier>   Exact package specifier used by the Codex registration",
     "  --mcp-name <name>       Base name for the transport-hashed Codex registration",
-    "  --replace               Explicitly replace an existing hand-authored profile catalog",
+    "  --replace               Explicitly replace an existing catalog with an empty managed catalog",
     "  --no-default            Do not make this profile the default",
   ].join("\n");
 }
@@ -175,15 +177,12 @@ async function parseBootstrapOptions(
     allowPositionals: false,
     strict: true,
     options: {
-      index: { type: "string", multiple: true },
       profile: { type: "string" },
       url: { type: "string" },
       username: { type: "string" },
       "password-stdin": { type: "boolean" },
       "password-env": { type: "string" },
-      "source-name": { type: "string" },
-      "source-id": { type: "string" },
-      "time-field": { type: "string" },
+
       timeout: { type: "string" },
       client: { type: "string" },
       package: { type: "string" },
@@ -236,15 +235,12 @@ async function parseBootstrapOptions(
     baseUrl,
     username,
     password,
-    indexes: values.index ?? [],
     client,
     packageSpecifier: values.package,
     mcpName: values["mcp-name"],
     makeDefault: !values["no-default"],
     replaceExisting: values.replace ?? false,
-    sourceName: values["source-name"],
-    sourceId: values["source-id"],
-    timeField: values["time-field"],
+
     timeoutMs,
   };
 }
@@ -252,7 +248,9 @@ async function parseBootstrapOptions(
 function renderBootstrapResult(result: BootstrapResult): string {
   return [
     `Bootstrap verified for profile '${result.profileName}'.`,
-    `Source '${result.sourceId}' uses index pattern${result.indexes.length === 1 ? "" : "s"}: ${result.indexes.join(", ")}.`,
+    result.sourceCount === 0
+      ? "Source catalog is empty. No Kibana indexes were inspected or configured. Ask the user which index or index pattern to configure before querying logs."
+      : `Preserved ${result.sourceCount} explicitly configured source${result.sourceCount === 1 ? "" : "s"}; bootstrap did not inspect them.`,
     result.registered
       ? `Codex MCP registration is installed and verified for profile '${result.profileName}'.`
       : "Client registration was skipped by request.",

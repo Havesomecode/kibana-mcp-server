@@ -84,7 +84,7 @@
                 <article id="panel-npx" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-npx">
                   <p class="tab-label">Best for: verified machine install without prompts or config edits</p>
                   <div class="hero-command-row">
-                    <code id="hero-command-npx">npx -y @havesomecode/kibana-mcp-server bootstrap --index 'app-logs-*' --client codex</code>
+                    <code id="hero-command-npx">npx -y @havesomecode/kibana-mcp-server bootstrap --client codex</code>
                     <button
                       class="copy-icon-button"
                       type="button"
@@ -110,7 +110,7 @@
 cd kibana-mcp-server
 npm install
 npm run build
-node dist/src/index.js bootstrap --index 'app-logs-*' --client none</code></pre>
+node dist/src/index.js bootstrap --client none</code></pre>
                     <button
                       class="copy-icon-button"
                       type="button"
@@ -134,7 +134,8 @@ node dist/src/index.js bootstrap --index 'app-logs-*' --client none</code></pre>
 
             <ul class="hero-signals" aria-label="Key proof points">
               <li>Read-only by design</li>
-              <li>Prompt-free verified bootstrap</li>
+              <li>Connection-only verified bootstrap</li>
+              <li>Explicit consent before index configuration</li>
               <li>Saved machine profile for later threads</li>
               <li>Works with the repo-local Codex plugin</li>
             </ul>
@@ -149,9 +150,10 @@ node dist/src/index.js bootstrap --index 'app-logs-*' --client none</code></pre>
                 <p>Install surface</p>
               </header>
               <div class="terminal-body">
-                <p><span class="prompt">$</span> kibana-mcp-server bootstrap --index 'app-logs-*'</p>
-                <p><span class="success">✓</span> Credentials and index verified</p>
-                <p><span class="success">✓</span> Source catalog generated from discovered fields</p>
+                <p><span class="prompt">$</span> kibana-mcp-server bootstrap</p>
+                <p><span class="success">✓</span> Kibana connection verified</p>
+                <p><span class="success">✓</span> Empty managed source catalog saved</p>
+                <p><span class="success">✓</span> No indexes inspected or configured</p>
                 <p><span class="success">✓</span> Machine profile saved atomically</p>
                 <p><span class="success">✓</span> Codex registration read back</p>
                 <p><span class="success">✓</span> No config file editing required</p>
@@ -317,7 +319,9 @@ node dist/src/index.js bootstrap --index 'app-logs-*' --client none</code></pre>
             <p class="eyebrow">Install</p>
             <h2>Choose the path that matches your workflow</h2>
             <p>
-              Both paths work. Pick the one that matches how you work today.
+              Both paths work. Pick the one that matches how you work today. Bootstrap creates an
+              empty catalog. Ask the user which exact Kibana index or index pattern to use. Only then
+              call <code>configure_index</code> with that value.
             </p>
           </div>
 
@@ -327,10 +331,10 @@ node dist/src/index.js bootstrap --index 'app-logs-*' --client none</code></pre>
                 <p class="install-label">npx</p>
                 <p class="install-best-for">Best for direct machine setup</p>
               </div>
-              <pre><code id="command-npx">npx -y @havesomecode/kibana-mcp-server bootstrap --index 'app-logs-*' --client codex</code></pre>
+              <pre><code id="command-npx">npx -y @havesomecode/kibana-mcp-server bootstrap --client codex</code></pre>
               <button class="copy-button" type="button" data-copy-target="command-npx">Copy command</button>
               <p class="install-note">
-                Uses provisioned Kibana credentials, verifies the index, and registers Codex without prompts.
+                Verifies only the Kibana connection, creates an empty catalog, and registers Codex without prompts.
               </p>
             </article>
 
@@ -343,7 +347,7 @@ node dist/src/index.js bootstrap --index 'app-logs-*' --client none</code></pre>
 cd kibana-mcp-server
 npm install
 npm run build
-node dist/src/index.js bootstrap --index 'app-logs-*' --client none</code></pre>
+node dist/src/index.js bootstrap --client none</code></pre>
               <button class="copy-button" type="button" data-copy-target="command-repo">Copy commands</button>
               <p class="install-note">
                 Install the local plugin, bootstrap a verified profile, and let Codex threads reuse it.
@@ -358,7 +362,7 @@ node dist/src/index.js bootstrap --index 'app-logs-*' --client none</code></pre>
               <pre><code id="command-skill">npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation --agent codex --global --yes</code></pre>
               <button class="copy-button" type="button" data-copy-target="command-skill">Copy command</button>
               <p class="install-note">
-                Gives the agent the deterministic bootstrap contract without asking it to edit MCP config files.
+                Teaches the agent to ask for an exact index before calling configure_index.
               </p>
             </article>
           </div>

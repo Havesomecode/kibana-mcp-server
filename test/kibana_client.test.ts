@@ -35,6 +35,38 @@ describe("KibanaClient", () => {
     vi.restoreAllMocks();
   });
 
+  it("verifies only the Kibana connection without touching an index", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ status: { overall: { level: "available" } } })),
+      );
+
+    await new KibanaClient(config).verifyConnection();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://kibana.example.com/api/status",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("rejects a successful JSON response that is not a Kibana status envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({})));
+
+    await expect(new KibanaClient(config).verifyConnection()).rejects.toThrow(
+      "valid Kibana status response",
+    );
+  });
+
+  it("accepts the legacy Kibana overall.state status envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: { overall: { state: "green" } } })),
+    );
+
+    await expect(new KibanaClient(config).verifyConnection()).resolves.toBeUndefined();
+  });
+
   it("sends kibana internal search requests with auth and kbn-xsrf", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

@@ -2,25 +2,24 @@
 
 This is the canonical install and handoff guide for `@havesomecode/kibana-mcp-server`.
 
-The supported newcomer path is a prompt-free bootstrap from an Elasticsearch index pattern. Agents must use the CLI contract below instead of editing Codex or MCP configuration files.
+The supported newcomer path is a prompt-free, connection-only bootstrap. Bootstrap never lists, scans, infers, or configures Kibana indexes. Agents must use the CLI contract below instead of editing Codex or MCP configuration files.
 
 ## Prerequisites
 
 - Node.js 22 or newer
 - `codex` on `PATH` when `--client codex` is used
 - a Kibana base URL reachable with basic authentication
-- an Elasticsearch index pattern
 - credentials supplied through a trusted environment or stdin
 
-An index pattern cannot reveal a Kibana URL or credentials. To make the index the only newcomer-specific input, provision these machine values before installation:
+Provision these machine values before installation:
 
 - `KIBANA_BASE_URL`
 - `KIBANA_USERNAME`
 - `KIBANA_PASSWORD`
 
-## Install The Agent Skill
+No index is required or accepted during bootstrap.
 
-The repository exposes a standard Agent Skill compatible with the open skills ecosystem:
+## Install The Agent Skill
 
 ```bash
 npx skills add Havesomecode/kibana-mcp-server \
@@ -30,99 +29,92 @@ npx skills add Havesomecode/kibana-mcp-server \
   --yes
 ```
 
-The CLI discovers it at `skills/kibana-log-investigation/SKILL.md`. After the repository is indexed, its skills.sh route is:
+The skill is stored at `skills/kibana-log-investigation/SKILL.md`. After the repository is indexed, its skills.sh route is:
 
 - `https://skills.sh/havesomecode/kibana-mcp-server/kibana-log-investigation`
 
-## Prompt-Free Bootstrap
+## Prompt-Free Connection Bootstrap
 
-With connection values provisioned, the complete install command is:
+With connection values provisioned:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --index 'app-logs-*' \
   --client codex
 ```
-
-Quote index patterns containing `*`.
 
 Optional profile selection:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap \
   --profile prod \
-  --index 'app-logs-*' \
   --client codex
 ```
 
-The bootstrap is non-interactive and idempotent for profiles it generated. It:
+Bootstrap is non-interactive and idempotent for profiles it generated. It:
 
-1. validates all inputs;
+1. validates the connection inputs;
 2. checks for a missing or conflicting Codex registration;
-3. connects to Kibana and discovers index fields;
-4. runs a bounded search preflight;
-5. selects a time field and useful text fields deterministically;
-6. acquires an interprocess state lock and generates a machine-local source catalog;
+3. verifies only the Kibana connection through `/api/status`;
+4. acquires an interprocess state lock;
+5. writes an empty managed source catalog on first install;
+6. preserves sources that were explicitly configured after a prior bootstrap;
 7. saves credentials in the platform credential store;
 8. saves profile and catalog files atomically;
-9. calls `codex mcp add` with the exact running package version and a transport-hashed registration name rather than editing TOML;
+9. calls `codex mcp add` with the exact running package version and a transport-hashed registration name;
 10. reads the registered transport back exactly;
 11. restores prior machine state if registration fails.
 
-A non-zero exit means installation did not complete. Do not claim success or proceed with a partially configured client.
+A non-zero exit means installation did not complete. A successful exit verifies the connection, not any index.
+
+## Explicit Index Selection
+
+Start a fresh agent session after bootstrap and call `discover`. An empty catalog responds with instructions to ask the user which exact Kibana index or index pattern they want to use.
+
+The safe sequence is:
+
+1. call `discover`;
+2. ask the user for the exact index or pattern;
+3. wait for their answer—never guess, enumerate, scan, or auto-select;
+4. call `configure_index` with exactly the user-provided `index` value;
+5. let that tool inspect fields and run one bounded validation search only for that index;
+6. call `discover` again and use the returned source id.
+
+`configure_index` accepts no Kibana credentials. A validation failure leaves the existing catalog unchanged.
 
 ## Secret Input
 
-Never put a password in a command-line argument.
-
-The supported sources, in explicit-precedence order, are:
+Never put a password in a command-line argument. Supported sources, in precedence order:
 
 1. `--password-stdin`
 2. `--password-env NAME`
 3. `KIBANA_PASSWORD`
 
-Examples:
-
 ```bash
 printf '%s\n' "$SECRET_VALUE" | npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --index 'app-logs-*' \
   --password-stdin \
   --client codex
 ```
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --index 'app-logs-*' \
   --password-env KIBANA_PROD_PASSWORD \
   --client codex
 ```
 
-Secrets are stored in:
-
-- macOS Keychain
-- Windows Credential Manager
-- Linux Secret Service when available
-
-They are not written to profiles, generated source catalogs, or MCP client configuration.
+Secrets are stored in macOS Keychain, Windows Credential Manager, or Linux Secret Service when available. They are not written to profiles, generated catalogs, or MCP client configuration.
 
 ## Profiles
 
 The first bootstrap creates the default profile. Use `--profile NAME` for additional environments and `--no-default` when the new profile must not replace the current default.
 
-The registered, version-pinned stdio command selects the profile explicitly: `npx -y @havesomecode/kibana-mcp-server@<bootstrap-version> serve --profile prod`. The placeholder represents the exact version that performed bootstrap. Registration names use `kibana-log-investigation-<transport-hash>`, preventing different profiles or package versions from overwriting one another. Inspect them with `codex mcp list --json`.
-
-This avoids OS-specific MCP environment-variable configuration.
+The registered stdio command selects the profile explicitly: `npx -y @havesomecode/kibana-mcp-server@<bootstrap-version> serve --profile prod`. Registration names use `kibana-log-investigation-<transport-hash>`. Inspect them with `codex mcp list --json`.
 
 ## Client Registration Modes
 
-Use `--client codex` for a full install. The bootstrap refuses to overwrite a conflicting MCP registration.
-
-Use `--client none` when client registration is already managed, such as the repo-local plugin path or CI verification:
+Use `--client codex` for a full install. Use `--client none` when registration is already managed, such as the repo-local plugin path or CI:
 
 ```bash
-npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --index 'app-logs-*' \
-  --client none
+npx -y @havesomecode/kibana-mcp-server bootstrap --client none
 ```
 
 ## Explicit Overrides
@@ -133,47 +125,37 @@ npx -y @havesomecode/kibana-mcp-server bootstrap \
 | Kibana base URL | `--url URL` | `KIBANA_BASE_URL` |
 | Username | `--username USER` | `KIBANA_USERNAME` |
 | Password | `--password-stdin` / `--password-env NAME` | `KIBANA_PASSWORD` |
-| Index patterns | repeatable `--index PATTERN` | none |
-| Time field | `--time-field FIELD` | automatic discovery |
-| Source id | `--source-id ID` | generated from the first index |
 | Client | `--client codex|none` | `codex` |
-| Replace catalog | `--replace` | refuse replacement by default |
+| Replace catalog | `--replace` | preserve managed sources; refuse protected catalogs |
 
-If a profile points to a hand-authored, multi-source, or operator-modified catalog, bootstrap fails without changing it. Generated catalogs carry a tool marker plus a content hash, so manual edits invalidate automatic overwrite permission. Use `--replace` only when intentionally converting that profile to the generated single-source format. Untouched generated catalogs can be bootstrapped repeatedly without the flag.
+If a profile points to a hand-authored or operator-modified catalog, bootstrap fails without changing it. Generated catalogs carry a tool marker and content hash. `--replace` intentionally converts the target to an empty managed catalog; use it only with explicit operator authorization.
 
 ## Example Catalog Policy
 
-`config/sources.example.json` is packaged as documentation data. It never participates in prompt-free bootstrap precedence.
-
-Guided `setup` remains available for operators with hand-authored catalogs:
+`config/sources.example.json` is documentation data. It never participates in bootstrap precedence. Guided `setup` remains available for operators who explicitly want a hand-authored catalog:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server setup
 ```
 
-Guided setup requires an explicit catalog path. Type `example` to opt into the bundled example deliberately; pressing Enter cannot install it silently.
-
 ## Repository Contributor Path
-
-For development from a clone:
 
 ```bash
 npm install
 npm run build
-node dist/src/index.js bootstrap --index 'app-logs-*' --client none
+node dist/src/index.js bootstrap --client none
 ```
 
-The repo-scoped Codex plugin remains under `plugins/kibana-log-investigation`. Because that plugin already supplies the MCP entry, use `--client none` to avoid a duplicate global registration.
+The repo-scoped Codex plugin already supplies the MCP entry, so `--client none` avoids a duplicate global registration.
 
 ## Verification
 
-Bootstrap success already means all automated checks passed:
+Bootstrap success verifies:
 
-- Kibana credentials accepted
-- schema fields discovered
-- bounded search accepted
-- profile and catalog saved
-- credential stored
+- Kibana credentials accepted through `/api/status`
+- no index endpoint called
+- empty managed catalog created on first install
+- profile and credential saved
 - requested client registration read back
 
-After a new Codex session starts, confirm the MCP can run source discovery and one bounded query. Never bypass a failed bootstrap by manually pasting a guessed config entry.
+After a new agent session starts, confirm `discover` reports the empty state. Configure and validate an index only after the user explicitly names it.
