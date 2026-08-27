@@ -80,6 +80,10 @@ describe("runCli", () => {
         "prod",
         "--client",
         "codex",
+        "--package",
+        "github:Havesomecode/kibana-mcp-server#df3f520",
+        "--mcp-name",
+        "kibana-live",
         "--replace",
       ],
       {
@@ -118,6 +122,8 @@ describe("runCli", () => {
       password: "secret",
       indexes: ["consumer-*", "consumer-dead-letter-*"],
       client: "codex",
+      packageSpecifier: "github:Havesomecode/kibana-mcp-server#df3f520",
+      mcpName: "kibana-live",
       makeDefault: true,
       replaceExisting: true,
     });
