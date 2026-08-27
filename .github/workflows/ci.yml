@@ -40,5 +40,5 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
-      - name: Verify
-        run: npm run verify
+      - name: Platform typecheck, tests, and build
+        run: npm run check:types && npm run test && npm run build
