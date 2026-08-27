@@ -1,7 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { Stats } from "node:fs";
-import type { FileHandle } from "node:fs/promises";
-import { mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  open,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 const DEFAULT_TIMEOUT_MS = 30000;
@@ -50,14 +59,11 @@ export async function acquireStateLock(
 
   await mkdir(stateRoot, { recursive: true });
   await mkdir(pendingPath);
-  let ownerHandle: FileHandle | undefined;
   try {
     await writeFile(pendingOwnerPath, `${JSON.stringify(owner)}\n`, {
       encoding: "utf8",
       mode: 0o600,
     });
-    ownerHandle = await open(pendingOwnerPath, "r+");
-
     while (true) {
       try {
         await rename(pendingPath, lockPath);
@@ -81,19 +87,20 @@ export async function acquireStateLock(
         continue;
       }
 
-      const acquiredOwnerHandle = ownerHandle;
-      if (!acquiredOwnerHandle) throw new Error("State lock owner handle was not initialized.");
       const heartbeatMs =
         options.heartbeatMs ?? Math.min(30000, Math.max(1000, Math.floor(staleMs / 3)));
+      const heartbeatClaimStaleMs = Math.max(1000, Math.min(staleMs, 30000));
+      let heartbeatInFlight = Promise.resolve();
       const heartbeat = setInterval(() => {
-        const now = new Date();
-        void acquiredOwnerHandle.utimes(now, now).catch(() => {});
+        heartbeatInFlight = heartbeatInFlight
+          .then(() => refreshOwnerHeartbeat(lockPath, ownerPath, token, heartbeatClaimStaleMs))
+          .catch(() => {});
       }, heartbeatMs);
       heartbeat.unref();
 
       return async () => {
         clearInterval(heartbeat);
-        await acquiredOwnerHandle.close().catch(() => {});
+        await heartbeatInFlight;
         // The critical section has already committed or rolled back. Release is best effort;
         // lease recovery handles any remaining lock without changing that outcome.
         await releaseOwnedLock(
@@ -109,9 +116,27 @@ export async function acquireStateLock(
       };
     }
   } catch (error) {
-    await ownerHandle?.close().catch(() => {});
     await rm(pendingPath, { recursive: true, force: true }).catch(() => {});
     throw error;
+  }
+}
+
+async function refreshOwnerHeartbeat(
+  lockPath: string,
+  ownerPath: string,
+  ownerToken: string,
+  claimStaleMs: number,
+): Promise<void> {
+  const claimPath = join(lockPath, ".reclaim");
+  const claimToken = `${ownerToken}.heartbeat.${randomUUID()}`;
+  const releaseClaim = await acquireTransitionLease(claimPath, claimToken, claimStaleMs);
+  if (!releaseClaim) return;
+  try {
+    if ((await readOwner(ownerPath))?.token !== ownerToken) return;
+    const now = new Date();
+    await utimes(ownerPath, now, now);
+  } finally {
+    await releaseClaim();
   }
 }
 
