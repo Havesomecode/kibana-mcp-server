@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { type ClientRegistrar, CodexClientRegistrar } from "./client_registration.js";
-import { sourceCatalogSchema } from "./config.js";
+import { sourceCatalogSchema, sourceDefinitionSchema } from "./config.js";
 import { KibanaClient } from "./kibana_client.js";
 import { type ProfilePaths, resolveProfilePaths } from "./profile_paths.js";
 import { ProfileStore, deriveProfileId } from "./profile_store.js";
@@ -32,12 +32,8 @@ export interface BootstrapOptions {
   baseUrl: string;
   username: string;
   password: string;
-  indexes: string[];
   client: BootstrapClient;
   makeDefault: boolean;
-  sourceName?: string;
-  sourceId?: string;
-  timeField?: string;
   timeoutMs?: number;
   mcpName?: string;
   packageSpecifier?: string;
@@ -47,8 +43,7 @@ export interface BootstrapOptions {
 export interface BootstrapResult {
   profileName: string;
   profileId: string;
-  sourceId: string;
-  indexes: string[];
+  sourceCount: number;
   sourceCatalogPath: string;
   client: BootstrapClient;
   registered: boolean;
@@ -56,10 +51,7 @@ export interface BootstrapResult {
 }
 
 export interface BootstrapVerifier {
-  verify(
-    connection: KibanaConnectionConfig,
-    source: SourceDefinition,
-  ): Promise<SourceFieldDescriptor[]>;
+  verify(connection: KibanaConnectionConfig): Promise<void>;
 }
 
 interface BootstrapDependencies {
@@ -138,7 +130,7 @@ export function chooseGeneratedSourceFields(
 
   if (!timeField) {
     throw new Error(
-      "Could not determine a time field from the discovered schema. Retry with --time-field <field>.",
+      "Could not determine a time field from the discovered schema. Retry configure_index with time_field set explicitly.",
     );
   }
 
@@ -222,7 +214,6 @@ async function runBootstrapLocked(
       `Profile '${options.profileName}' would replace an existing hand-authored, modified, or orphaned source catalog. Re-run with --replace to replace it explicitly.`,
     );
   }
-  const source = buildGeneratedSource(options.indexes, options.sourceName, options.sourceId);
   const connection: KibanaConnectionConfig = {
     baseUrl: options.baseUrl,
     username: options.username,
@@ -235,13 +226,14 @@ async function runBootstrapLocked(
     await registrar.preflight();
   }
 
-  const discoveredFields = await verifier.verify(connection, source);
-  const generatedFields = chooseGeneratedSourceFields(discoveredFields, options.timeField);
-  const verifiedSource: SourceDefinition = {
-    ...source,
-    ...generatedFields,
-  };
-  const catalog = createGeneratedCatalog(verifiedSource);
+  await verifier.verify(connection);
+  const existingGeneratedCatalog = [targetCatalog, profileCatalog]
+    .filter((content): content is string => content !== undefined)
+    .find((content) => isGeneratedCatalog(content));
+  const catalog =
+    !options.replaceExisting && existingGeneratedCatalog
+      ? sourceCatalogSchema.parse(JSON.parse(existingGeneratedCatalog) as unknown)
+      : createGeneratedCatalog([]);
 
   const previousCatalog = targetCatalog;
   const previousSecret = await loadPreviousSecret(secretStore, profileId);
@@ -274,8 +266,7 @@ async function runBootstrapLocked(
     return {
       profileName: options.profileName,
       profileId,
-      sourceId: verifiedSource.id,
-      indexes: options.indexes,
+      sourceCount: catalog.sources.length,
       sourceCatalogPath,
       client: options.client,
       registered: options.client === "codex",
@@ -315,33 +306,8 @@ async function runBootstrapLocked(
 }
 
 class NetworkBootstrapVerifier implements BootstrapVerifier {
-  async verify(
-    connection: KibanaConnectionConfig,
-    source: SourceDefinition,
-  ): Promise<SourceFieldDescriptor[]> {
-    const client = new KibanaClient(connection);
-    const fields = await client.describeFields(source);
-    if (fields.length === 0) {
-      throw new Error(
-        `Index pattern '${formatIndex(source.backend.index)}' resolved to no fields. Check the index and Kibana permissions.`,
-      );
-    }
-
-    await client.execute({
-      source,
-      request: {
-        body: {
-          size: 1,
-          track_total_hits: false,
-          query: { match_all: {} },
-        },
-      },
-      resolvedFilters: [],
-      resolvedNestedFilters: [],
-      resolvedSortBy: source.timeField,
-      advisories: [],
-    });
-    return fields;
+  async verify(connection: KibanaConnectionConfig): Promise<void> {
+    await new KibanaClient(connection).verifyConnection();
   }
 }
 
@@ -397,7 +363,6 @@ function normalizeOptions(options: BootstrapOptions): RequiredBootstrapOptions {
     baseUrl,
     username,
     password,
-    indexes: normalizeIndexes(options.indexes),
     timeoutMs,
     mcpName: options.mcpName?.trim() || DEFAULT_MCP_NAME,
     packageSpecifier: options.packageSpecifier?.trim() || "",
@@ -428,33 +393,43 @@ export async function resolveCurrentPackageSpecifier(): Promise<string> {
 }
 
 export function createGeneratedCatalog(
-  source: SourceDefinition,
+  sourceOrSources: SourceDefinition | SourceDefinition[],
 ): ReturnType<typeof sourceCatalogSchema.parse> {
-  const parsed = sourceCatalogSchema.parse({ sources: [source] });
+  const sources = Array.isArray(sourceOrSources) ? sourceOrSources : [sourceOrSources];
+  const parsedSources = sources.map((source) => sourceDefinitionSchema.parse(source));
   return sourceCatalogSchema.parse({
     generatedBy: {
       tool: "@havesomecode/kibana-mcp-server",
       formatVersion: 1,
-      sourceHash: hashSources(parsed.sources),
+      sourceHash: hashSources(parsedSources),
     },
-    sources: parsed.sources,
+    sources: parsedSources,
   });
 }
 
-function isGeneratedCatalog(content: string): boolean {
+export function parseGeneratedCatalog(
+  content: string,
+): ReturnType<typeof sourceCatalogSchema.parse> | undefined {
   try {
     const raw = JSON.parse(content) as unknown;
     const parsed = sourceCatalogSchema.parse(raw);
-    if (!isPlainRecord(raw) || !hasExactKeys(raw, ["generatedBy", "sources"])) return false;
-    if (!isPlainRecord(raw.generatedBy)) return false;
-    if (!hasExactKeys(raw.generatedBy, ["formatVersion", "sourceHash", "tool"])) return false;
-    if (!Array.isArray(raw.sources) || raw.sources.length !== 1) return false;
-    return Boolean(
-      parsed.generatedBy && parsed.generatedBy.sourceHash === hashSources(raw.sources),
-    );
+    if (!isPlainRecord(raw) || !hasExactKeys(raw, ["generatedBy", "sources"])) return undefined;
+    if (!isPlainRecord(raw.generatedBy)) return undefined;
+    if (!hasExactKeys(raw.generatedBy, ["formatVersion", "sourceHash", "tool"])) {
+      return undefined;
+    }
+    if (!Array.isArray(raw.sources)) return undefined;
+    if (!parsed.generatedBy || parsed.generatedBy.sourceHash !== hashSources(raw.sources)) {
+      return undefined;
+    }
+    return parsed;
   } catch {
-    return false;
+    return undefined;
   }
+}
+
+function isGeneratedCatalog(content: string): boolean {
+  return parseGeneratedCatalog(content) !== undefined;
 }
 
 function hashSources(sources: unknown): string {

@@ -5,7 +5,8 @@ Read-only MCP server for agent-driven log investigation against Kibana-backed se
 The server is intentionally small:
 
 - `setup` saves one or more machine-level Kibana profiles for later threads
-- `bootstrap` verifies an Elasticsearch index, generates its source catalog, saves credentials, and registers Codex without prompts or config-file edits
+- `bootstrap` verifies only the Kibana connection, creates an empty managed catalog, saves credentials, and registers Codex without prompts or config-file edits
+- `configure_index` validates and persists exactly one index or pattern after the user explicitly names it
 - `configure` still exists for advanced MCP clients that want to drive credentials and source catalogs at runtime
 - `describe_fields` exposes effective field capabilities for one configured source
 - `discover` lists configured logical sources and field hints
@@ -47,9 +48,9 @@ This repo is live for external adoption and AI-agent use.
 
 ## Installation
 
-### Prompt-free install from an index
+### Prompt-free connection bootstrap
 
-Pre-provision the connection values in the environment, then quote the index pattern so the shell cannot expand it:
+Pre-provision the connection values in the environment:
 
 ```bash
 export KIBANA_BASE_URL='https://kibana.example.com'
@@ -57,24 +58,14 @@ export KIBANA_USERNAME='elastic'
 export KIBANA_PASSWORD='use-a-secret-provider'
 
 npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --index 'app-logs-*' \
   --client codex
 ```
 
-This command performs no prompts and does not edit Codex configuration files directly. `setup` accepts the same flags as a compatibility alias; plain `setup` remains the guided catalog-import flow. The deterministic path:
+This command performs no prompts and does not edit Codex configuration files directly. It verifies only the Kibana connection, writes an empty managed source catalog on first install, stores credentials securely, and registers the exact running package transport. It does not list, scan, infer, or configure indexes.
 
-1. validates the URL and index input;
-2. discovers fields and performs a bounded Kibana search preflight;
-3. selects the time field and default text fields deterministically;
-4. writes the generated catalog and profile atomically;
-5. serializes profile writes with an interprocess state lock;
-6. stores credentials in the operating-system credential store;
-7. invokes `codex mcp add` with the exact running package version and a transport-hashed registration name, then reads the registration back;
-8. rolls local state back if client registration fails.
+After bootstrap, call `discover`. When no source is configured, the agent must ask the user which exact Kibana index or index pattern to use. Only after the user answers may the agent call `configure_index` with that value. That tool validates only the approved index and persists it without accepting credentials.
 
-The only newcomer-specific input can be the index pattern when URL, username, and password are already provisioned by workstation policy. An index cannot reveal a Kibana URL or credentials, so installations without those machine prerequisites fail closed with an exact error instead of prompting or installing a broken MCP.
-
-Bootstrap reruns generated profiles idempotently. It refuses to replace a hand-authored or multi-source profile unless `--replace` is supplied explicitly.
+Bootstrap reruns preserve sources that were configured through this explicit flow. It refuses to replace a hand-authored or modified catalog unless `--replace` is supplied explicitly; `--replace` creates an empty managed catalog.
 
 Never pass passwords as command-line arguments. Use `KIBANA_PASSWORD`, `--password-env NAME`, or `--password-stdin`.
 
@@ -113,8 +104,8 @@ npm run build
 5. Open the plugin directory in Codex and install `Kibana Log Investigation` from the repo marketplace.
    - if the current model cannot complete that install itself, do the Codex UI click manually and let the agent continue with configuration afterward
 6. Restart Codex if the new MCP server does not appear immediately.
-7. Run `node dist/src/index.js bootstrap --index 'app-logs-*' --client none` to verify and save the profile. The repo plugin already supplies the client registration.
-8. Let later threads reuse the saved default profile automatically.
+7. Run `node dist/src/index.js bootstrap --client none` to verify the connection and save an empty profile. The repo plugin already supplies the client registration.
+8. In a fresh thread, call `discover`, ask the user for the exact index or pattern, then call `configure_index` only after they answer.
 
 Repo-scoped plugin files:
 
@@ -127,18 +118,19 @@ Repo-scoped plugin files:
 If you are handing only the repo link to another Codex agent, this usually works:
 
 ```text
-Install the `kibana-log-investigation` skill from Havesomecode/kibana-mcp-server, then use its prompt-free bootstrap for index 'app-logs-*'. Use the provisioned KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD values. Do not edit Codex config files and do not import the example catalog.
+Install the `kibana-log-investigation` skill from Havesomecode/kibana-mcp-server, then run its connection-only bootstrap with the provisioned KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD values. Do not edit Codex config files, import the example catalog, or inspect indexes. After install, ask me which exact index or pattern to configure before calling configure_index.
 ```
 
 ## Configuration
 
-The preferred path is deterministic machine bootstrap:
+The preferred path is deterministic connection-only bootstrap:
 
-- `npx -y @havesomecode/kibana-mcp-server bootstrap --index 'pattern-*' --client codex`
-- verifies the index before saving or registering anything
-- generates a source catalog from discovered fields
+- `npx -y @havesomecode/kibana-mcp-server bootstrap --client codex`
+- verifies `/api/status` without touching an index endpoint
+- creates an empty managed source catalog on first install
 - rejects conflicting MCP registrations instead of overwriting them
 - saves non-secret profile metadata and credentials for later threads
+- exposes `configure_index` for one user-approved index or pattern at a time
 
 Guided setup remains available for hand-authored source catalogs:
 
@@ -307,6 +299,21 @@ npm run dev
 ```
 
 ## Tool Shapes
+
+### `configure_index`
+
+Use this tool only after the user explicitly names the exact index or index pattern to configure. It accepts no credentials and never lists or scans for candidate indexes.
+
+Input:
+
+```json
+{
+  "index": "app-logs-*",
+  "source_name": "Application logs"
+}
+```
+
+The tool inspects fields and runs one bounded validation search only for that index. It then persists the generated source in the managed catalog. Optional `source_id`, `time_field`, and `replace` fields support explicit collision or schema handling.
 
 ### `configure`
 

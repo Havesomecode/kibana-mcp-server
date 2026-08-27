@@ -15,7 +15,7 @@
   "interface": {
     "displayName": "Kibana Log Investigation",
     "shortDescription": "Local Kibana log investigation MCP for Codex",
-    "longDescription": "Use the repo-local read-only Kibana investigation MCP in Codex. Bootstrap a verified machine profile from an Elasticsearch index without importing the example catalog or editing client configuration.",
+    "longDescription": "Use the repo-local read-only Kibana investigation MCP in Codex. Run connection-only bootstrap to create an empty managed catalog without importing examples, inspecting indexes, or editing client configuration.",
     "developerName": "Havesomecode",
     "category": "Productivity",
     "capabilities": ["Interactive", "Read"],
@@ -23,7 +23,7 @@
     "privacyPolicyURL": "https://github.com/Havesomecode/kibana-mcp-server",
     "termsOfServiceURL": "https://github.com/Havesomecode/kibana-mcp-server",
     "defaultPrompt": [
-      "Install the Kibana Log Investigation plugin from this repo, bootstrap Node.js if needed, and run the prompt-free profile bootstrap from my Elasticsearch index with --client none.",
+      "Install the Kibana Log Investigation plugin from this repo, bootstrap Node.js if needed, and run connection-only bootstrap with --client none. Do not inspect indexes. After installation, ask me which exact index or pattern to configure before calling configure_index.",
       "Use the Kibana Log Investigation plugin to inspect log sources and query a time window."
     ],
     "brandColor": "#1F6FEB"

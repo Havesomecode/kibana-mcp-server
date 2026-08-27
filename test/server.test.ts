@@ -28,7 +28,7 @@ const config: AppConfig = {
 };
 
 describe("createApplication", () => {
-  it("exposes configure, describe_fields, discover, filter, and query handlers", () => {
+  it("exposes explicit configure_index alongside the existing investigation handlers", () => {
     const application = createApplication(config, {
       kibanaClient: {
         executeMany: async () => [],
@@ -38,11 +38,96 @@ describe("createApplication", () => {
 
     expect(Object.keys(application.handlers).sort()).toEqual([
       "configure",
+      "configure_index",
       "describe_fields",
       "discover",
       "filter",
       "query",
     ]);
+
+    const registeredTools = Object.keys(
+      (application.server as unknown as { _registeredTools: Record<string, unknown> })
+        ._registeredTools,
+    );
+    expect(registeredTools).toContain("configure_index");
+    expect(registeredTools).not.toContain("configure");
+  });
+
+  it("advertises legacy full configuration only when no saved connection exists", () => {
+    const application = createApplication();
+    const registeredTools = Object.keys(
+      (application.server as unknown as { _registeredTools: Record<string, unknown> })
+        ._registeredTools,
+    );
+
+    expect(registeredTools).toContain("configure");
+    expect(registeredTools).not.toContain("configure_index");
+  });
+
+  it("invalidates cached schema fields after configure_index replaces a source", async () => {
+    const replacementSource = {
+      ...config.sources[0],
+      backend: {
+        kind: "kibana_internal_search_es" as const,
+        path: "/internal/search/es",
+        index: "replacement-*",
+      },
+      schema: {
+        kind: "kibana_data_views_fields" as const,
+        index: "replacement-*",
+      },
+    };
+    let describeCalls = 0;
+    const application = createApplication(
+      {
+        ...config,
+        profileName: "default",
+        sourceCatalogPath: "/tmp/default.json",
+        sourceCatalogOrigin: "profile",
+      },
+      {
+        kibanaClient: {
+          executeMany: async () => [],
+          describeFields: async (source: { backend: { index?: string | string[] } }) => {
+            describeCalls += 1;
+            return [
+              {
+                name: source.backend.index === "replacement-*" ? "new.field" : "old.field",
+                type: "keyword",
+                searchable: true,
+                aggregatable: true,
+                subfields: [],
+              },
+            ];
+          },
+        } as never,
+        configureIndexFn: async () => ({
+          sources: [replacementSource],
+          result: {
+            configured: true,
+            persisted: true,
+            source_catalog_path: "/tmp/default.json",
+            source_count: 1,
+            source_id: "consumer",
+            index: "replacement-*",
+            time_field: "@timestamp",
+          },
+        }),
+      } as never,
+    );
+
+    const before = await application.handlers.describe_fields({ source_id: "consumer", limit: 20 });
+    expect(before.fields.map((field) => field.name)).toEqual(["old.field"]);
+
+    await application.handlers.configure_index({
+      index: "replacement-*",
+      source_id: "consumer",
+      replace: true,
+    });
+
+    const after = await application.handlers.describe_fields({ source_id: "consumer", limit: 20 });
+    expect(after.fields.map((field) => field.name)).toEqual(["new.field"]);
+    expect(describeCalls).toBe(2);
   });
 
   it("routes queries through the shared schemas", async () => {

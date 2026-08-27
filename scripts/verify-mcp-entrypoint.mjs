@@ -125,8 +125,11 @@ try {
       maxBuffer: 1024 * 1024,
     },
   );
-  if (!bootstrapHelp.includes("--index <pattern>")) {
-    throw new Error("Installed package CLI did not expose deterministic bootstrap help.");
+  if (
+    !bootstrapHelp.includes("does not inspect or configure indexes") ||
+    bootstrapHelp.includes("--index")
+  ) {
+    throw new Error("Installed package CLI did not expose connection-only bootstrap help.");
   }
 
   const installedSkill = join(
@@ -162,24 +165,16 @@ try {
       await chmod(executablePath, 0o755);
     }
 
+    const requests = [];
     const server = createServer((request, response) => {
+      requests.push(`${request.method} ${request.url}`);
       response.setHeader("content-type", "application/json");
-      if (request.method === "GET") {
-        response.end(
-          JSON.stringify({
-            fields: [
-              { name: "@timestamp", type: "date", searchable: true, aggregatable: true },
-              { name: "message", type: "text", searchable: true, aggregatable: false },
-            ],
-          }),
-        );
+      if (request.method === "GET" && request.url === "/api/status") {
+        response.end(JSON.stringify({ status: { overall: { level: "available" } } }));
         return;
       }
-      response.end(
-        JSON.stringify({
-          rawResponse: { hits: { total: { value: 0 }, hits: [] } },
-        }),
-      );
+      response.statusCode = 500;
+      response.end(JSON.stringify({ error: "unexpected request" }));
     });
     await new Promise((resolvePromise, rejectPromise) => {
       server.once("error", rejectPromise);
@@ -201,8 +196,6 @@ try {
           "verification-user",
           "--password-env",
           "VERIFY_KIBANA_PASSWORD",
-          "--index",
-          "verification-logs-*",
           "--client",
           "none",
         ],
@@ -222,11 +215,23 @@ try {
       if (!bootstrapOutput.includes("Bootstrap verified for profile 'default'.")) {
         throw new Error("Installed package did not complete prompt-free bootstrap.");
       }
+      if (!bootstrapOutput.includes("No Kibana indexes were inspected or configured.")) {
+        throw new Error("Installed package did not report an empty source catalog.");
+      }
       const savedProfiles = JSON.parse(await readFile(join(stateRoot, "profiles.json"), "utf8"));
       const sourcePath = savedProfiles.profiles?.[0]?.sourceCatalogPath;
       if (!sourcePath || !existsSync(sourcePath)) {
         throw new Error(
           "Installed package bootstrap did not persist its generated source catalog.",
+        );
+      }
+      const sourceCatalog = JSON.parse(await readFile(sourcePath, "utf8"));
+      if (!sourceCatalog.generatedBy || sourceCatalog.sources?.length !== 0) {
+        throw new Error("Installed package bootstrap did not persist an empty managed catalog.");
+      }
+      if (JSON.stringify(requests) !== JSON.stringify(["GET /api/status"])) {
+        throw new Error(
+          `Connection-only bootstrap made unexpected requests: ${requests.join(", ")}`,
         );
       }
     } finally {

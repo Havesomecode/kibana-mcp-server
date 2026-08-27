@@ -7,34 +7,30 @@ description: Bootstrap and use the Kibana log investigation MCP safely.
 
 Use this skill when an operator wants to install, configure, or use the read-only Kibana MCP server from `@havesomecode/kibana-mcp-server`.
 
-## Deterministic installation
+## Connection-only installation
 
-Do not edit Codex or MCP configuration files by hand. Do not run guided `setup` when the operator supplied an Elasticsearch index pattern.
+Do not edit Codex or MCP configuration files by hand. Bootstrap establishes only the Kibana connection and an empty managed source catalog. It must not list, scan, infer, or configure indexes.
 
 1. Verify Node.js 22 or newer is available.
-2. Obtain the Elasticsearch index pattern from the task.
-3. Resolve connection values from `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` unless the operator supplied safe alternatives.
-4. Run the prompt-free bootstrap, quoting the index pattern so the shell cannot expand wildcards:
+2. Resolve connection values from `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD`, unless the operator supplied safe alternatives.
+3. Run the prompt-free bootstrap:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --index 'app-logs-*' \
   --client codex
 ```
 
-The bootstrap must complete all of these steps itself:
+Bootstrap must:
 
-- validate the Kibana base URL and index pattern
-- connect to Kibana and discover fields
-- choose a usable time field and text fields deterministically
-- run a bounded search preflight
-- generate and atomically save a machine-local source catalog
+- validate the Kibana base URL and verify the connection through Kibana status only
+- write an empty managed catalog on first install
+- preserve previously and explicitly configured generated sources on idempotent reruns
 - save credentials in the operating-system credential store
 - register the exact, version-pinned stdio command under a transport-hashed Codex name
 - read the Codex registration back and reject conflicting entries
 - restore prior profile state if registration fails
 
-A successful command is the verification result. Do not claim installation succeeded if it exits non-zero.
+A successful command verifies installation, not an index. Do not claim an index is usable until the explicit configuration flow below succeeds.
 
 ## Supplying secrets safely
 
@@ -42,7 +38,6 @@ Never put a password directly in a command argument. Prefer a pre-provisioned `K
 
 ```bash
 printf '%s\n' "$SECRET_VALUE" | npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --index 'app-logs-*' \
   --password-stdin \
   --client codex
 ```
@@ -51,14 +46,24 @@ If the password is stored under another environment variable, reference its name
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --index 'app-logs-*' \
   --password-env KIBANA_PROD_PASSWORD \
   --client codex
 ```
 
-## Profiles and overrides
+## Explicit index configuration
 
-Connection values may be supplied through flags or environment variables:
+After bootstrap:
+
+1. Call `discover`.
+2. If no source is configured, ask the user which exact Kibana index or index pattern they want to use.
+3. Wait for the user's answer. Never guess, enumerate, scan, or auto-select an index.
+4. Call `configure_index` exactly once with the user's value in `index`.
+5. Report the configured `source_id` and time field. If validation fails, preserve the empty catalog and report the error.
+6. Call `discover` again before beginning an investigation.
+
+`configure_index` contains no credential fields. It may inspect fields and perform one bounded validation search only for the exact user-approved index or pattern.
+
+## Profiles and overrides
 
 | Value | Flag | Environment fallback |
 |---|---|---|
@@ -66,11 +71,9 @@ Connection values may be supplied through flags or environment variables:
 | Base URL | `--url https://kibana.example.com` | `KIBANA_BASE_URL` |
 | Username | `--username elastic` | `KIBANA_USERNAME` |
 | Password | `--password-stdin` or `--password-env NAME` | `KIBANA_PASSWORD` |
-| Index | repeatable `--index 'pattern-*'` | none; always explicit |
+| Client | `--client codex` or `--client none` | `codex` |
 
-Use `--time-field FIELD` only when automatic discovery reports that no date field can be selected. Use `--client none` for CI or for a machine where Codex registration is intentionally managed elsewhere.
-
-To select an existing non-default profile without environment-variable editing, register or run:
+To select an existing non-default profile:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server serve --profile prod
@@ -78,18 +81,19 @@ npx -y @havesomecode/kibana-mcp-server serve --profile prod
 
 ## Failure rules
 
-- Never silently import the bundled example catalog. It is documentation data, not a production default.
-- Never add `--replace` merely to make a failed install pass. Use it only when the operator explicitly authorizes replacement of an existing hand-authored or multi-source catalog.
-- Never overwrite a conflicting MCP client registration. Report the conflict and let the operator remove or rename it explicitly.
-- Never bypass failed Kibana verification.
+- Never silently import the bundled example catalog.
+- Never pass an index to bootstrap; bootstrap is connection-only.
+- Never call `configure_index` until the user explicitly names the index or pattern.
+- Never add `--replace` merely to make a failed install pass. It intentionally replaces an existing catalog with an empty managed catalog.
+- Never overwrite a conflicting MCP client registration.
 - Never expose a password in logs, summaries, shell history, generated catalogs, or MCP client configuration.
-- If URL, username, password, or index is unavailable, report the exact missing prerequisite rather than inventing it.
+- If URL, username, or password is unavailable, report the exact missing prerequisite rather than inventing it.
 
 ## Using the MCP
 
-After bootstrap succeeds:
+After a source is explicitly configured:
 
-1. Call source discovery.
+1. Use `discover` to obtain the source id.
 2. Use field description before constructing unfamiliar filters or aggregations.
 3. Start with a bounded time range and a small result limit.
 4. Keep investigations read-only and cite returned evidence rather than inferring unseen log content.

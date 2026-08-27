@@ -20,10 +20,11 @@ updated: 2026-04-09
 The newcomer path is:
 
 1. Install `kibana-log-investigation` from `Havesomecode/kibana-mcp-server` with the `skills` CLI.
-2. Run the package's prompt-free `bootstrap --index ... --client codex` command.
-3. Let bootstrap verify Kibana, save machine state, register through `codex mcp add`, and read the registration back.
+2. Run the package's prompt-free `bootstrap --client codex` command.
+3. Let bootstrap verify only the Kibana connection, save an empty managed catalog, register through `codex mcp add`, and read the registration back.
+4. In a fresh agent session, ask the user which exact index or pattern to configure before calling `configure_index`.
 
-The only newcomer-specific value can be the index pattern when connection values are provisioned by workstation policy.
+Bootstrap never lists, scans, infers, or configures indexes. Index validation begins only after the user explicitly supplies one.
 
 ### 2. Repo-local Codex plugin
 
@@ -40,7 +41,7 @@ This path is required for development and is the baseline for support.
 
 The package is published for agent-friendly execution via:
 
-- `npx -y @havesomecode/kibana-mcp-server bootstrap --index 'pattern-*' --client codex`
+- `npx -y @havesomecode/kibana-mcp-server bootstrap --client codex`
 - MCP clients that invoke the published package binary instead of a repo-local build
 
 This path depends on the following remaining true:

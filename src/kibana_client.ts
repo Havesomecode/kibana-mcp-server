@@ -394,6 +394,17 @@ export class KibanaClient {
     }
   }
 
+  async verifyConnection(): Promise<void> {
+    const response = await this.requestJson(joinUrl(this.config.baseUrl, "/api/status"));
+    const overall = asRecord(asRecord(asRecord(response).status).overall);
+    const indicator = overall.level ?? overall.state;
+    if (typeof indicator !== "string" || !indicator.trim()) {
+      throw new Error(
+        "Kibana connection verification did not return a valid Kibana status response.",
+      );
+    }
+  }
+
   async execute(compiledQuery: CompiledSourceQuery): Promise<KibanaSearchExecutionResult> {
     const source = compiledQuery.source;
     const endpoint = joinUrl(this.config.baseUrl, source.backend.path);

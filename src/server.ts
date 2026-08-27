@@ -10,6 +10,12 @@ import {
   executeConfigure,
 } from "./tools/configure.js";
 import {
+  configureIndexInputSchema,
+  configureIndexOutputSchema,
+  createConfigureIndexCallToolResult,
+  executeConfigureIndex,
+} from "./tools/configure_index.js";
+import {
   createDescribeFieldsCallToolResult,
   describeFieldsInputSchema,
   describeFieldsOutputSchema,
@@ -40,6 +46,9 @@ export interface Application {
   server: McpServer;
   handlers: {
     configure: (input: unknown) => Promise<Awaited<ReturnType<typeof executeConfigure>>["result"]>;
+    configure_index: (
+      input: unknown,
+    ) => Promise<Awaited<ReturnType<typeof executeConfigureIndex>>["result"]>;
     describe_fields: (input: unknown) => Promise<Awaited<ReturnType<typeof executeDescribeFields>>>;
     discover: (input: unknown) => ReturnType<typeof executeDiscover>;
     filter: (input: unknown) => ReturnType<typeof executeFilter>;
@@ -52,6 +61,7 @@ export function createApplication(
   dependencies?: {
     kibanaClient?: KibanaClient;
     kibanaClientFactory?: (config: AppConfig["kibana"]) => KibanaClient;
+    configureIndexFn?: typeof executeConfigureIndex;
   },
 ): Application {
   const server = new McpServer({
@@ -97,6 +107,21 @@ export function createApplication(
     return result;
   };
 
+  const configureIndexHandler = async (input: unknown) => {
+    if (!activeConfig || !kibanaClient) {
+      throw new Error("No saved Kibana connection is available. Run connection bootstrap first.");
+    }
+    const configureIndexFn = dependencies?.configureIndexFn ?? executeConfigureIndex;
+    const { sources, result } = await configureIndexFn(configureIndexInputSchema.parse(input), {
+      config: activeConfig,
+      kibanaClient,
+    });
+    activeConfig = { ...activeConfig, sources };
+    sourceCatalog = new SourceCatalog(sources);
+    schemaCatalog = new SchemaCatalog(kibanaClient);
+    return result;
+  };
+
   const describeFieldsHandler = (input: unknown) =>
     executeDescribeFields(
       describeFieldsInputSchema.parse(input),
@@ -124,16 +149,29 @@ export function createApplication(
       },
     );
 
-  server.registerTool(
-    "configure",
-    {
-      description:
-        "Configure the Kibana connection and logical source catalog for this server session.",
-      inputSchema: configureInputSchema,
-      outputSchema: configureOutputSchema,
-    },
-    async (input) => createConfigureCallToolResult(await configureHandler(input)),
-  );
+  if (!initialConfig) {
+    server.registerTool(
+      "configure",
+      {
+        description:
+          "Advanced legacy setup for a server started without a saved profile. Replaces the Kibana connection and full source catalog.",
+        inputSchema: configureInputSchema,
+        outputSchema: configureOutputSchema,
+      },
+      async (input) => createConfigureCallToolResult(await configureHandler(input)),
+    );
+  } else {
+    server.registerTool(
+      "configure_index",
+      {
+        description:
+          "Configure exactly one Kibana index or index pattern after the user has explicitly named it. Never guess, list, scan, or auto-select indexes before calling this tool.",
+        inputSchema: configureIndexInputSchema,
+        outputSchema: configureIndexOutputSchema,
+      },
+      async (input) => createConfigureIndexCallToolResult(await configureIndexHandler(input)),
+    );
+  }
 
   server.registerTool(
     "describe_fields",
@@ -181,6 +219,7 @@ export function createApplication(
     server,
     handlers: {
       configure: configureHandler,
+      configure_index: configureIndexHandler,
       describe_fields: describeFieldsHandler,
       discover: discoverHandler,
       filter: filterHandler,

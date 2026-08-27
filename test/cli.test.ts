@@ -64,7 +64,7 @@ describe("runCli", () => {
     expect(stdout).toContain("Saved 1 environment. Default environment: default.");
   });
 
-  it("runs a prompt-free bootstrap from indexes plus environment connection values", async () => {
+  it("runs a prompt-free connection-only bootstrap from environment values", async () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
     let received: Record<string, unknown> | undefined;
@@ -72,10 +72,6 @@ describe("runCli", () => {
     const exitCode = await runCli(
       [
         "bootstrap",
-        "--index",
-        "consumer-*",
-        "--index",
-        "consumer-dead-letter-*",
         "--profile",
         "prod",
         "--client",
@@ -102,8 +98,7 @@ describe("runCli", () => {
           return {
             profileName: options.profileName,
             profileId: "prod",
-            sourceId: "consumer",
-            indexes: options.indexes,
+            sourceCount: 0,
             sourceCatalogPath: "/tmp/prod.json",
             client: options.client,
             registered: true,
@@ -120,21 +115,35 @@ describe("runCli", () => {
       baseUrl: "https://kibana.example.com",
       username: "elastic",
       password: "secret",
-      indexes: ["consumer-*", "consumer-dead-letter-*"],
       client: "codex",
       packageSpecifier: "github:Havesomecode/kibana-mcp-server#df3f520",
       mcpName: "kibana-live",
       makeDefault: true,
       replaceExisting: true,
     });
+    expect(received).not.toHaveProperty("indexes");
     expect(stdout.join("\n")).not.toContain("secret");
     expect(stdout.join("\n")).toContain("Bootstrap verified");
+  });
+
+  it("documents bootstrap as connection-only and does not expose index selection flags", async () => {
+    const stdout: string[] = [];
+
+    const exitCode = await runCli(["bootstrap", "--help"], {
+      stdout: (text) => stdout.push(text),
+      stderr: () => {},
+    });
+
+    expect(exitCode).toBe(0);
+    expect(stdout.join("\n")).toContain("does not inspect or configure indexes");
+    expect(stdout.join("\n")).not.toContain("--index");
+    expect(stdout.join("\n")).not.toContain("--time-field");
   });
 
   it("accepts deterministic setup flags as a bootstrap-compatible alias", async () => {
     let called = false;
     const exitCode = await runCli(
-      ["setup", "--index", "consumer-*", "--client", "none"],
+      ["setup", "--profile", "default", "--client", "none"],
       {
         stdout: () => {},
         stderr: () => {},
@@ -150,8 +159,7 @@ describe("runCli", () => {
           return {
             profileName: "default",
             profileId: "default",
-            sourceId: "consumer",
-            indexes: ["consumer-*"],
+            sourceCount: 0,
             sourceCatalogPath: "/tmp/consumer.json",
             client: "none" as const,
             registered: false,
@@ -170,8 +178,6 @@ describe("runCli", () => {
     const exitCode = await runCli(
       [
         "bootstrap",
-        "--index",
-        "consumer-*",
         "--url",
         "https://kibana.example.com",
         "--username",
@@ -192,8 +198,7 @@ describe("runCli", () => {
           return {
             profileName: options.profileName,
             profileId: "default",
-            sourceId: "consumer",
-            indexes: options.indexes,
+            sourceCount: 0,
             sourceCatalogPath: "/tmp/default.json",
             client: options.client,
             registered: false,
@@ -210,7 +215,7 @@ describe("runCli", () => {
   it("fails closed when bootstrap inputs are missing instead of prompting", async () => {
     const stderr: string[] = [];
     const exitCode = await runCli(
-      ["bootstrap", "--index", "consumer-*"],
+      ["bootstrap"],
       {
         stdin: Readable.from(""),
         env: {},

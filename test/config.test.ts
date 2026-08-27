@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
+import { createGeneratedCatalog } from "../src/bootstrap.js";
 import {
   PROFILE_NAME_ENV,
   loadConfigFromEnvironment,
@@ -48,6 +49,52 @@ describe("parseAppConfig", () => {
     expect(config.kibana.timeoutMs).toBe(10000);
     expect(config.sources[0]?.id).toBe("app-logs");
     expect(config.sources[0]?.schema?.kind).toBe("kibana_data_views_fields");
+  });
+
+  it("accepts an empty managed source catalog for a connection-only bootstrap", () => {
+    const config = parseAppConfig(
+      {
+        KIBANA_BASE_URL: "https://kibana.example.com",
+        KIBANA_USERNAME: "elastic",
+        KIBANA_PASSWORD: "secret",
+      },
+      createGeneratedCatalog([]),
+    );
+
+    expect(config.sources).toEqual([]);
+  });
+
+  it("rejects an empty unmanaged catalog that configure_index cannot safely update", () => {
+    expect(() =>
+      parseAppConfig(
+        {
+          KIBANA_BASE_URL: "https://kibana.example.com",
+          KIBANA_USERNAME: "elastic",
+          KIBANA_PASSWORD: "secret",
+        },
+        { sources: [] },
+      ),
+    ).toThrow("Empty source catalogs must be managed");
+  });
+
+  it("rejects an empty catalog with invalid managed provenance", () => {
+    expect(() =>
+      parseAppConfig(
+        {
+          KIBANA_BASE_URL: "https://kibana.example.com",
+          KIBANA_USERNAME: "elastic",
+          KIBANA_PASSWORD: "secret",
+        },
+        {
+          generatedBy: {
+            tool: "@havesomecode/kibana-mcp-server",
+            formatVersion: 1,
+            sourceHash: "0".repeat(64),
+          },
+          sources: [],
+        },
+      ),
+    ).toThrow("valid managed provenance");
   });
 
   it("accepts schema metadata without an explicit path when the index is provided", () => {
