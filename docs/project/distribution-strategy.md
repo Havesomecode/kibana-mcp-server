@@ -9,12 +9,23 @@ updated: 2026-04-09
 ## Goals
 
 - Make the MCP installable by AI agents without manual explanation.
-- Preserve the repo-local Codex plugin workflow as the guaranteed path.
+- Make prompt-free package bootstrap and skills.sh discovery the guaranteed newcomer path.
+- Preserve the repo-local Codex plugin workflow for contributors.
 - Keep the public package path healthy and aligned with the repo-local workflow.
 
 ## Supported Distribution Paths
 
-### 1. Repo-local Codex plugin (guaranteed)
+### 1. Public package plus Agent Skill (guaranteed)
+
+The newcomer path is:
+
+1. Install `kibana-log-investigation` from `Havesomecode/kibana-mcp-server` with the `skills` CLI.
+2. Run the package's prompt-free `bootstrap --index ... --client codex` command.
+3. Let bootstrap verify Kibana, save machine state, register through `codex mcp add`, and read the registration back.
+
+The only newcomer-specific value can be the index pattern when connection values are provisioned by workstation policy.
+
+### 2. Repo-local Codex plugin
 
 This is the primary, always-supported path:
 
@@ -25,11 +36,11 @@ This is the primary, always-supported path:
 
 This path is required for development and is the baseline for support.
 
-### 2. Public package
+### 3. Public package without the skill
 
 The package is published for agent-friendly execution via:
 
-- `npx -y @havesomecode/kibana-mcp-server`
+- `npx -y @havesomecode/kibana-mcp-server bootstrap --index 'pattern-*' --client codex`
 - MCP clients that invoke the published package binary instead of a repo-local build
 
 This path depends on the following remaining true:
@@ -48,6 +59,7 @@ The release artifact must include:
 
 - `dist/` runtime build output
 - plugin metadata and MCP config
+- `skills/kibana-log-investigation/SKILL.md`
 - `README.md`, `LICENSE`
 
 The release artifact must exclude:

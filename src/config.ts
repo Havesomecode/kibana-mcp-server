@@ -83,6 +83,13 @@ export const sourceDefinitionSchema = z.object({
 });
 
 export const sourceCatalogSchema = z.object({
+  generatedBy: z
+    .object({
+      tool: z.literal("@havesomecode/kibana-mcp-server"),
+      formatVersion: z.literal(1),
+      sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
+    })
+    .optional(),
   sources: z.array(sourceDefinitionSchema).min(1),
 });
 

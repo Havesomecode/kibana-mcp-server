@@ -189,6 +189,16 @@ function inferPrimitiveFieldType(value: unknown, fieldName?: string): string | u
       return "keyword";
     }
 
+    if (
+      fieldName &&
+      /(^@timestamp$)|((^|[._-])(timestamp|time|date|created|ingested|updated)([._-]|$))/i.test(
+        fieldName,
+      ) &&
+      !Number.isNaN(Date.parse(value))
+    ) {
+      return "date";
+    }
+
     return "text";
   }
 
@@ -450,7 +460,6 @@ export class KibanaClient {
                 ...(source.backend.index ? { index: source.backend.index } : {}),
                 body: {
                   size: 20,
-                  sort: [{ [source.timeField]: { order: "desc" } }],
                   fields: ["*"],
                   _source: true,
                   track_total_hits: false,
@@ -459,7 +468,6 @@ export class KibanaClient {
             }
           : {
               size: 20,
-              sort: [{ [source.timeField]: { order: "desc" } }],
               fields: ["*"],
               _source: true,
               track_total_hits: false,

@@ -105,6 +105,35 @@ describe("runSetupFlow", () => {
     expect((await profileStore.getDefaultProfile())?.name).toBe("staging");
   });
 
+  it("requires an explicit catalog choice instead of silently importing the bundled example", async () => {
+    const root = await mkdtemp(join(tmpdir(), "kibana-setup-flow-"));
+    tempDirectories.push(root);
+    const paths = resolveProfilePaths({
+      KIBANA_STATE_DIR: join(root, "machine-state"),
+    } as NodeJS.ProcessEnv);
+    const prompts = createQueuedPrompter({
+      promptAnswers: ["prod", "https://prod.example.com", "elastic", "secret", "", "example"],
+      confirmAnswers: [false],
+    });
+
+    await runSetupFlow(prompts, {
+      cwd: root,
+      paths,
+      profileStore: new ProfileStore(paths),
+      secretStore: {
+        async load() {
+          return { username: "elastic", password: "secret" };
+        },
+        async save() {},
+        async delete() {},
+      },
+    });
+
+    expect(prompts.messages).toContain(
+      "A source catalog is required. Enter a JSON path or type 'example' explicitly.",
+    );
+  });
+
   it("rejects full endpoint URLs and asks again", async () => {
     const root = await mkdtemp(join(tmpdir(), "kibana-setup-flow-"));
     tempDirectories.push(root);
