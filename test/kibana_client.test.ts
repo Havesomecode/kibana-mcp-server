@@ -210,6 +210,7 @@ describe("KibanaClient", () => {
     expect(result.find((field) => field.name === "event")?.preferred_exact_field).toBe(
       "event.keyword",
     );
+    expect(result.find((field) => field.name === "@timestamp")?.type).toBe("date");
     expect(result.find((field) => field.name === "steps.name")?.nested_path).toBe(undefined);
     expect(result.find((field) => field.name === "steps.name")?.object_array_path).toBe("steps");
     expect(result.find((field) => field.name === "steps.duration_ms")?.object_array_path).toBe(

@@ -9,6 +9,7 @@ const required = [
   "dist/src/index.js",
   "plugins/kibana-log-investigation/.mcp.json",
   "plugins/kibana-log-investigation/.codex-plugin/plugin.json",
+  "skills/kibana-log-investigation/SKILL.md",
   "README.md",
   "LICENSE",
 ];

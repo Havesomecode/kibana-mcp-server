@@ -1,140 +1,179 @@
-# Install In Codex
+# Deterministic Installation
 
-Use this document when handing the repository to another Codex user or agent and you want setup to be as automatic as possible from a cloned checkout.
+This is the canonical install and handoff guide for `@havesomecode/kibana-mcp-server`.
 
-This is the canonical repo-local install path for Codex users working from a cloned checkout.
-If you want the public landing page or direct package path instead, use `https://havesomecode.github.io/kibana-mcp-server/` or `npx -y @havesomecode/kibana-mcp-server`.
+The supported newcomer path is a prompt-free bootstrap from an Elasticsearch index pattern. Agents must use the CLI contract below instead of editing Codex or MCP configuration files.
 
-Repository:
+## Prerequisites
 
-- Name: `kibana-mcp-server`
-- GitHub: `https://github.com/Havesomecode/kibana-mcp-server`
-- Plugin name: `Kibana Log Investigation`
+- Node.js 22 or newer
+- `codex` on `PATH` when `--client codex` is used
+- a Kibana base URL reachable with basic authentication
+- an Elasticsearch index pattern
+- credentials supplied through a trusted environment or stdin
 
-## Full-Auto Prompt
-
-```text
-Clone and set up the GitHub repository https://github.com/Havesomecode/kibana-mcp-server for Codex end to end.
-
-Goals:
-1. Clone the repo locally.
-   - The repo name is `kibana-mcp-server`.
-2. Detect the current OS.
-3. Ensure Node.js 22+ is installed at user level.
-   - If Node is missing or too old, use the repo plugin skill `ensure-node-runtime`.
-   - Do not require admin/system-wide installation.
-   - On Windows, prefer PowerShell-native setup.
-4. From the repo root, run:
-   - npm install
-   - npm run build
-   - npm run setup
-5. Open the cloned repo in Codex.
-6. Install the repo-scoped plugin named `Kibana Log Investigation` from the local marketplace in this repo.
-   - If the current model cannot complete the plugin install itself, give me the exact Codex UI steps to click manually, then continue the rest of setup after I confirm.
-7. Restart Codex if needed so the MCP appears.
-8. Run the guided setup flow and ask me for a short environment name.
-   - Examples: `staging`, `prod`, `preprod`, `qa`
-   - Collect Kibana base URL, username, password, and a source catalog import path.
-   - Prefer the bundled `config/sources.example.json` unless I provide a better catalog file.
-   - Save the default environment at machine level so later threads do not need a manual `configure` step.
-   - If I need both staging and production, use the setup flow's "add another environment" continuation instead of asking me to hand-define env vars.
-9. Store secrets in the platform credential store and import the selected source catalog into machine-local app state.
-10. Verify the MCP is usable by:
-   - discovering sources
-   - running one simple query
-   - confirming the server is available in Codex
-   - confirming a later thread can use the default environment without rerunning `configure`
-11. If something is blocked, adapt the setup and continue instead of stopping early.
-
-Important constraints:
-- Prefer repo-local/plugin install plus machine-level saved profiles over hand-written per-thread env vars.
-- Prefer user-level installs.
-- Do not assume Scoop is available on Windows.
-- Use the plugin skills in this repo when relevant.
-- The repo contains a repo-scoped plugin under `plugins/kibana-log-investigation`.
-- The local plugin marketplace file is `.agents/plugins/marketplace.json`.
-- The human CLI is the built file `dist/src/index.js`.
-- The MCP entrypoint is the built file `dist/src/mcp_entry.js`, referenced by `plugins/kibana-log-investigation/.mcp.json`.
-- Ask for the environment name explicitly instead of inventing one.
-- If more than one environment is saved, select non-default ones with `KIBANA_PROFILE=<PROFILE_NAME>` instead of asking the user to redefine credentials manually.
-- `KIBANA_BASE_URL` is a base prefix, not a full Kibana API endpoint. Keep paths such as `/internal/search/es` in the source backend config.
-- Do not stop just because plugin installation requires one manual Codex UI step.
-- At the end, summarize exactly what was installed, configured, and verified.
-```
-
-## Short Prompt
-
-```text
-Clone https://github.com/Havesomecode/kibana-mcp-server, ensure Node.js 22+ at user level for the current OS, run npm install, npm run build, and npm run setup, install the repo plugin `Kibana Log Investigation`, ask me for the environment name plus Kibana credentials, import a source catalog during setup, save the default environment so later threads do not need manual configure, then verify discover + one query work in Codex.
-```
-
-## Repo Hints
-
-- The repo pins Node major `22` in `.node-version`.
-- The repo-scoped plugin marketplace is in `.agents/plugins/marketplace.json`.
-- The plugin lives in `plugins/kibana-log-investigation`.
-- The Node bootstrap skill is `plugins/kibana-log-investigation/skills/ensure-node-runtime/SKILL.md`.
-- The setup skill is `plugins/kibana-log-investigation/skills/install-and-configure/SKILL.md`.
-
-## Raw File Handoff
-
-If a colleague receives only the raw `INSTALL.md` link, this file should still be enough context for an agent to proceed.
-
-The agent should infer all of the following from this file alone:
-
-- the GitHub repository to clone is `https://github.com/Havesomecode/kibana-mcp-server`
-- the repo contains a repo-scoped Codex plugin named `Kibana Log Investigation`
-- the plugin lives at `plugins/kibana-log-investigation`
-- the repo must be built with `npm install` and `npm run build` before the MCP can start
-- guided setup runs through `npm run setup`
-- Node.js major `22` is required
-- the agent should continue through manual Codex UI plugin installation if autonomous installation is blocked
-
-When sharing this document, prefer sending the raw link plus the Kibana credentials and the source-catalog file the installer should import.
-
-## Manual Plugin Install Fallback
-
-Some Codex model variants are less reliable at completing repo-local plugin installation from prompting alone, especially on Windows.
-
-If the agent stalls on plugin installation:
-
-1. Open this repo in Codex.
-2. Open the plugin directory `plugins/kibana-log-investigation`.
-3. Install `Kibana Log Investigation` from the repo-local marketplace.
-4. Restart Codex if the MCP list does not refresh automatically.
-5. Let the agent continue with MCP configuration and verification.
-
-Treat the manual click as a supported fallback, not as a setup failure.
-
-## Base URL Rule
-
-`KIBANA_BASE_URL` must be the base prefix that the server should join with each source backend path.
-
-Use values such as:
-
-- `https://kibana.example.com`
-- `https://gateway.example.com/logs` when Kibana is mounted under `/logs`
-
-Do not use values such as:
-
-- `https://kibana.example.com/internal/search/es`
-- `https://gateway.example.com/logs/internal/search/es`
-
-The source catalog already carries endpoint paths such as `/internal/search/es`.
-
-## Staging And Production Side By Side
-
-If operators need both staging and production on the same machine, save both during guided setup.
-
-Then:
-
-- let the default profile load automatically
-- select non-default saved environments with `KIBANA_PROFILE`, for example `KIBANA_PROFILE=staging`
-- avoid redefining `KIBANA_BASE_URL`, credentials, or source-catalog paths per thread
-
-If operators still prefer the advanced env-bootstrap path, keep these distinct per environment:
+An index pattern cannot reveal a Kibana URL or credentials. To make the index the only newcomer-specific input, provision these machine values before installation:
 
 - `KIBANA_BASE_URL`
 - `KIBANA_USERNAME`
 - `KIBANA_PASSWORD`
-- `KIBANA_SOURCE_CATALOG_PATH`
+
+## Install The Agent Skill
+
+The repository exposes a standard Agent Skill compatible with the open skills ecosystem:
+
+```bash
+npx skills add Havesomecode/kibana-mcp-server \
+  --skill kibana-log-investigation \
+  --agent codex \
+  --global \
+  --yes
+```
+
+The CLI discovers it at `skills/kibana-log-investigation/SKILL.md`. After the repository is indexed, its skills.sh route is:
+
+- `https://skills.sh/havesomecode/kibana-mcp-server/kibana-log-investigation`
+
+## Prompt-Free Bootstrap
+
+With connection values provisioned, the complete install command is:
+
+```bash
+npx -y @havesomecode/kibana-mcp-server bootstrap \
+  --index 'app-logs-*' \
+  --client codex
+```
+
+Quote index patterns containing `*`.
+
+Optional profile selection:
+
+```bash
+npx -y @havesomecode/kibana-mcp-server bootstrap \
+  --profile prod \
+  --index 'app-logs-*' \
+  --client codex
+```
+
+The bootstrap is non-interactive and idempotent for profiles it generated. It:
+
+1. validates all inputs;
+2. checks for a missing or conflicting Codex registration;
+3. connects to Kibana and discovers index fields;
+4. runs a bounded search preflight;
+5. selects a time field and useful text fields deterministically;
+6. acquires an interprocess state lock and generates a machine-local source catalog;
+7. saves credentials in the platform credential store;
+8. saves profile and catalog files atomically;
+9. calls `codex mcp add` with the exact running package version and a transport-hashed registration name rather than editing TOML;
+10. reads the registered transport back exactly;
+11. restores prior machine state if registration fails.
+
+A non-zero exit means installation did not complete. Do not claim success or proceed with a partially configured client.
+
+## Secret Input
+
+Never put a password in a command-line argument.
+
+The supported sources, in explicit-precedence order, are:
+
+1. `--password-stdin`
+2. `--password-env NAME`
+3. `KIBANA_PASSWORD`
+
+Examples:
+
+```bash
+printf '%s\n' "$SECRET_VALUE" | npx -y @havesomecode/kibana-mcp-server bootstrap \
+  --index 'app-logs-*' \
+  --password-stdin \
+  --client codex
+```
+
+```bash
+npx -y @havesomecode/kibana-mcp-server bootstrap \
+  --index 'app-logs-*' \
+  --password-env KIBANA_PROD_PASSWORD \
+  --client codex
+```
+
+Secrets are stored in:
+
+- macOS Keychain
+- Windows Credential Manager
+- Linux Secret Service when available
+
+They are not written to profiles, generated source catalogs, or MCP client configuration.
+
+## Profiles
+
+The first bootstrap creates the default profile. Use `--profile NAME` for additional environments and `--no-default` when the new profile must not replace the current default.
+
+The registered, version-pinned stdio command selects the profile explicitly: `npx -y @havesomecode/kibana-mcp-server@<bootstrap-version> serve --profile prod`. The placeholder represents the exact version that performed bootstrap. Registration names use `kibana-log-investigation-<transport-hash>`, preventing different profiles or package versions from overwriting one another. Inspect them with `codex mcp list --json`.
+
+This avoids OS-specific MCP environment-variable configuration.
+
+## Client Registration Modes
+
+Use `--client codex` for a full install. The bootstrap refuses to overwrite a conflicting MCP registration.
+
+Use `--client none` when client registration is already managed, such as the repo-local plugin path or CI verification:
+
+```bash
+npx -y @havesomecode/kibana-mcp-server bootstrap \
+  --index 'app-logs-*' \
+  --client none
+```
+
+## Explicit Overrides
+
+| Purpose | Option | Environment fallback |
+|---|---|---|
+| Profile | `--profile NAME` | `KIBANA_PROFILE`, then `default` |
+| Kibana base URL | `--url URL` | `KIBANA_BASE_URL` |
+| Username | `--username USER` | `KIBANA_USERNAME` |
+| Password | `--password-stdin` / `--password-env NAME` | `KIBANA_PASSWORD` |
+| Index patterns | repeatable `--index PATTERN` | none |
+| Time field | `--time-field FIELD` | automatic discovery |
+| Source id | `--source-id ID` | generated from the first index |
+| Client | `--client codex|none` | `codex` |
+| Replace catalog | `--replace` | refuse replacement by default |
+
+If a profile points to a hand-authored, multi-source, or operator-modified catalog, bootstrap fails without changing it. Generated catalogs carry a tool marker plus a content hash, so manual edits invalidate automatic overwrite permission. Use `--replace` only when intentionally converting that profile to the generated single-source format. Untouched generated catalogs can be bootstrapped repeatedly without the flag.
+
+## Example Catalog Policy
+
+`config/sources.example.json` is packaged as documentation data. It never participates in prompt-free bootstrap precedence.
+
+Guided `setup` remains available for operators with hand-authored catalogs:
+
+```bash
+npx -y @havesomecode/kibana-mcp-server setup
+```
+
+Guided setup requires an explicit catalog path. Type `example` to opt into the bundled example deliberately; pressing Enter cannot install it silently.
+
+## Repository Contributor Path
+
+For development from a clone:
+
+```bash
+npm install
+npm run build
+node dist/src/index.js bootstrap --index 'app-logs-*' --client none
+```
+
+The repo-scoped Codex plugin remains under `plugins/kibana-log-investigation`. Because that plugin already supplies the MCP entry, use `--client none` to avoid a duplicate global registration.
+
+## Verification
+
+Bootstrap success already means all automated checks passed:
+
+- Kibana credentials accepted
+- schema fields discovered
+- bounded search accepted
+- profile and catalog saved
+- credential stored
+- requested client registration read back
+
+After a new Codex session starts, confirm the MCP can run source discovery and one bounded query. Never bypass a failed bootstrap by manually pasting a guessed config entry.
