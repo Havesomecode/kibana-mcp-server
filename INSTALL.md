@@ -152,7 +152,7 @@ The repo-scoped Codex plugin already supplies the MCP entry, so `--client none` 
 
 Bootstrap success verifies:
 
-- Kibana credentials accepted through `/api/status`
+- Kibana returned a valid status envelope through `/api/status`
 - no index endpoint called
 - empty managed catalog created on first install
 - profile and credential saved
