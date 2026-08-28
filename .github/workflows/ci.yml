@@ -23,3 +23,22 @@ jobs:
         run: npm ci
       - name: Verify
         run: npm run verify
+
+  verify-platforms:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Platform typecheck, tests, and build
+        run: npm run check:types && npm run test && npm run build

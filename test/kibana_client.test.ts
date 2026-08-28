@@ -35,6 +35,38 @@ describe("KibanaClient", () => {
     vi.restoreAllMocks();
   });
 
+  it("verifies only the Kibana connection without touching an index", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ status: { overall: { level: "available" } } })),
+      );
+
+    await new KibanaClient(config).verifyConnection();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://kibana.example.com/api/status",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("rejects a successful JSON response that is not a Kibana status envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({})));
+
+    await expect(new KibanaClient(config).verifyConnection()).rejects.toThrow(
+      "valid Kibana status response",
+    );
+  });
+
+  it("accepts the legacy Kibana overall.state status envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: { overall: { state: "green" } } })),
+    );
+
+    await expect(new KibanaClient(config).verifyConnection()).resolves.toBeUndefined();
+  });
+
   it("sends kibana internal search requests with auth and kbn-xsrf", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
@@ -210,11 +242,72 @@ describe("KibanaClient", () => {
     expect(result.find((field) => field.name === "event")?.preferred_exact_field).toBe(
       "event.keyword",
     );
+    expect(result.find((field) => field.name === "@timestamp")?.type).toBe("date");
     expect(result.find((field) => field.name === "steps.name")?.nested_path).toBe(undefined);
     expect(result.find((field) => field.name === "steps.name")?.object_array_path).toBe("steps");
     expect(result.find((field) => field.name === "steps.duration_ms")?.object_array_path).toBe(
       "steps",
     );
+  });
+
+  it("aborts sibling source requests when one source fails", async () => {
+    let stalledSignal: AbortSignal | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/fail")) {
+        return Promise.resolve(new Response("failed", { status: 503 }));
+      }
+      stalledSignal = init?.signal ?? undefined;
+      return new Promise((_resolve, reject) => {
+        stalledSignal?.addEventListener("abort", () => reject(stalledSignal?.reason), {
+          once: true,
+        });
+      });
+    });
+    const queryFor = (id: string, path: string): CompiledSourceQuery => ({
+      source: { ...source, id, backend: { ...source.backend, path } },
+      resolvedFilters: [],
+      resolvedNestedFilters: [],
+      resolvedSortBy: "@timestamp",
+      advisories: [],
+      request: { body: { size: 0 } },
+    });
+    const caller = new AbortController();
+    const client = new KibanaClient(config);
+    const execution = client.executeMany(
+      [queryFor("failing", "/fail"), queryFor("stalled", "/stall")],
+      caller.signal,
+    );
+
+    await expect(execution).rejects.toMatchObject({ code: "KIBANA_HTTP", status: 503 });
+    const siblingWasAborted = stalledSignal?.aborted;
+    caller.abort("test cleanup");
+
+    expect(siblingWasAborted).toBe(true);
+  });
+
+  it("classifies DNS failures with the underlying cause code", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new TypeError("fetch failed", {
+        cause: Object.assign(new Error("lookup failed"), { code: "ENOTFOUND" }),
+      }),
+    );
+    const client = new KibanaClient(config);
+
+    await expect(
+      client.execute({
+        source,
+        resolvedFilters: [],
+        resolvedNestedFilters: [],
+        resolvedSortBy: "@timestamp",
+        advisories: [],
+        request: { body: { size: 0 } },
+      }),
+    ).rejects.toMatchObject({
+      code: "KIBANA_DNS",
+      phase: "request",
+      sourceId: "app-logs",
+      causeCode: "ENOTFOUND",
+    });
   });
 
   it("fails clearly when schema backend configuration is missing", async () => {

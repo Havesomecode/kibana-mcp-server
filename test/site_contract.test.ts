@@ -33,6 +33,13 @@ describe("site contract", () => {
     }
 
     expect(html).toContain("@havesomecode/kibana-mcp-server");
+    expect(html).toContain("bootstrap --client codex");
+    expect(html).not.toContain("--index");
+    expect(html).toContain("Ask the user which exact Kibana index or index pattern to use.");
+    expect(html).toContain("configure_index");
+    expect(html).toContain("npx skills add Havesomecode/kibana-mcp-server");
+    expect(html).toContain("kibana-log-investigation");
+    expect(html).not.toContain("@havesomecode/kibana-mcp-server setup");
     expect(html).toContain("Repo + Codex");
     expect(html).toContain("Read-only by design");
     expect(html).toContain("Schema-aware features depend on the deployment");

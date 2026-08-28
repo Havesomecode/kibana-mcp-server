@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
 
@@ -82,9 +83,36 @@ export const sourceDefinitionSchema = z.object({
   evidenceFields: z.array(z.string().min(1)).default([]),
 });
 
-export const sourceCatalogSchema = z.object({
-  sources: z.array(sourceDefinitionSchema).min(1),
-});
+export const sourceCatalogSchema = z
+  .object({
+    generatedBy: z
+      .object({
+        tool: z.literal("@havesomecode/kibana-mcp-server"),
+        formatVersion: z.literal(1),
+        sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
+      })
+      .optional(),
+    sources: z.array(sourceDefinitionSchema),
+  })
+  .superRefine((catalog, context) => {
+    if (catalog.sources.length !== 0) return;
+    if (!catalog.generatedBy) {
+      context.addIssue({
+        code: "custom",
+        path: ["sources"],
+        message: "Empty source catalogs must be managed by @havesomecode/kibana-mcp-server.",
+      });
+      return;
+    }
+    const expectedHash = createHash("sha256").update(JSON.stringify(catalog.sources)).digest("hex");
+    if (catalog.generatedBy.sourceHash !== expectedHash) {
+      context.addIssue({
+        code: "custom",
+        path: ["generatedBy", "sourceHash"],
+        message: "Empty source catalogs require valid managed provenance.",
+      });
+    }
+  });
 
 function buildKibanaConfig(env: z.output<typeof bootstrapEnvSchema>): AppConfig["kibana"] {
   return {
@@ -202,11 +230,21 @@ export async function persistSourceCatalog(
   options: {
     envInput?: NodeJS.ProcessEnv;
     sourceCatalogPath?: string;
+    catalog?: unknown;
   } = {},
 ): Promise<string> {
   const sourceCatalogPath = options.sourceCatalogPath ?? resolveSourceCatalogPath(options.envInput);
   await mkdir(dirname(sourceCatalogPath), { recursive: true });
-  await writeFile(sourceCatalogPath, `${JSON.stringify({ sources }, null, 2)}\n`, "utf8");
+  const temporaryPath = `${sourceCatalogPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(options.catalog ?? { sources }, null, 2)}\n`, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    await rename(temporaryPath, sourceCatalogPath);
+  } finally {
+    await rm(temporaryPath, { force: true }).catch(() => {});
+  }
   return sourceCatalogPath;
 }
 
