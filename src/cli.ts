@@ -1,7 +1,10 @@
 import { createInterface } from "node:readline/promises";
 import { type Readable, Writable } from "node:stream";
 import type { ReadStream } from "node:tty";
+import { parseArgs } from "node:util";
 
+import { type BootstrapResult, runBootstrap } from "./bootstrap.js";
+import { PROFILE_NAME_ENV } from "./config.js";
 import { startMcpServer } from "./mcp_runtime.js";
 import type { SetupFlowResult, SetupPrompter } from "./setup_flow.js";
 import { runSetupFlow } from "./setup_flow.js";
@@ -14,9 +17,37 @@ function renderHelp(): string {
     "  kibana-mcp-server [command]",
     "",
     "Commands:",
-    "  setup    Run guided machine setup",
-    "  serve    Start the stdio MCP server",
-    "  help     Show this help output",
+    "  setup      Run guided machine setup",
+    "  bootstrap  Verify, save, and register a profile without prompts",
+    "  serve      Start the stdio MCP server",
+    "  help       Show this help output",
+  ].join("\n");
+}
+
+function renderBootstrapHelp(): string {
+  return [
+    "Usage:",
+    "  kibana-mcp-server bootstrap [options]",
+    "  kibana-mcp-server setup [options]  # compatible non-interactive alias",
+    "",
+    "Bootstrap verifies and saves only the Kibana connection; it does not inspect or configure indexes.",
+    "After installation, ask the agent to configure a specific index or index pattern.",
+    "",
+    "Connection options use KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD as fallbacks.",
+    "Passwords are accepted only through --password-stdin, --password-env <NAME>, or KIBANA_PASSWORD.",
+    "",
+    "Options:",
+    "  --profile <name>        Saved profile name (default: KIBANA_PROFILE or default)",
+    "  --url <url>             Kibana base URL",
+    "  --username <name>       Kibana basic-auth username",
+    "  --password-stdin        Read the password from stdin",
+    "  --password-env <name>   Read the password from a named environment variable",
+
+    "  --client <codex|none>   Register Codex or skip client registration (default: codex)",
+    "  --package <specifier>   Exact package specifier used by the Codex registration",
+    "  --mcp-name <name>       Base name for the transport-hashed Codex registration",
+    "  --replace               Explicitly replace an existing catalog with an empty managed catalog",
+    "  --no-default            Do not make this profile the default",
   ].join("\n");
 }
 
@@ -28,24 +59,48 @@ export async function runCli(
     stdin?: Readable;
     stdoutStream?: NodeJS.WriteStream;
     stdinIsTTY?: boolean;
+    env?: NodeJS.ProcessEnv;
   } = {},
   dependencies: {
     startMcpServerFn?: typeof startMcpServer;
     runSetupFlowFn?: (prompter: SetupPrompter) => Promise<SetupFlowResult>;
+    runBootstrapFn?: typeof runBootstrap;
   } = {},
 ): Promise<number> {
   const stdout = io.stdout ?? ((text: string) => process.stdout.write(`${text}\n`));
   const stderr = io.stderr ?? ((text: string) => process.stderr.write(`${text}\n`));
   const stdin = io.stdin ?? process.stdin;
   const stdoutStream = io.stdoutStream ?? process.stdout;
+  const env = io.env ?? process.env;
   const [command, ...rest] = argv;
 
   switch (command) {
-    case undefined:
+    case undefined: {
+      try {
+        await (dependencies.startMcpServerFn ?? startMcpServer)(env);
+        return 0;
+      } catch (error) {
+        stderr(error instanceof Error ? error.message : String(error));
+        return 1;
+      }
+    }
     case "setup": {
       if (rest.length > 0) {
-        stderr(`Unknown arguments for setup: ${rest.join(" ")}`);
-        return 1;
+        if (rest.includes("--help") || rest.includes("-h")) {
+          stdout(renderBootstrapHelp());
+          return 0;
+        }
+        try {
+          const options = await parseBootstrapOptions(rest, stdin, env);
+          const result: BootstrapResult = await (dependencies.runBootstrapFn ?? runBootstrap)(
+            options,
+          );
+          stdout(renderBootstrapResult(result));
+          return 0;
+        } catch (error) {
+          stderr(error instanceof Error ? error.message : String(error));
+          return 1;
+        }
       }
 
       const promptIo = await createPromptIo(stdout, {
@@ -69,12 +124,39 @@ export async function runCli(
       stdout(renderHelp());
       return 0;
     }
-    case "serve": {
-      if (rest.length > 0) {
-        stderr(`Unknown arguments for serve: ${rest.join(" ")}`);
+    case "bootstrap": {
+      if (rest.includes("--help") || rest.includes("-h")) {
+        stdout(renderBootstrapHelp());
+        return 0;
+      }
+      try {
+        const options = await parseBootstrapOptions(rest, stdin, env);
+        const result: BootstrapResult = await (dependencies.runBootstrapFn ?? runBootstrap)(
+          options,
+        );
+        stdout(renderBootstrapResult(result));
+        return 0;
+      } catch (error) {
+        stderr(error instanceof Error ? error.message : String(error));
         return 1;
       }
-      await (dependencies.startMcpServerFn ?? startMcpServer)();
+    }
+    case "serve": {
+      try {
+        const { values } = parseArgs({
+          args: rest,
+          allowPositionals: false,
+          strict: true,
+          options: {
+            profile: { type: "string" },
+          },
+        });
+        const serveEnv = values.profile ? { ...env, [PROFILE_NAME_ENV]: values.profile } : env;
+        await (dependencies.startMcpServerFn ?? startMcpServer)(serveEnv);
+      } catch (error) {
+        stderr(error instanceof Error ? error.message : String(error));
+        return 1;
+      }
       return 0;
     }
     default: {
@@ -83,6 +165,104 @@ export async function runCli(
       return 1;
     }
   }
+}
+
+async function parseBootstrapOptions(
+  args: string[],
+  stdin: Readable,
+  env: NodeJS.ProcessEnv,
+): Promise<Parameters<typeof runBootstrap>[0]> {
+  const { values } = parseArgs({
+    args,
+    allowPositionals: false,
+    strict: true,
+    options: {
+      profile: { type: "string" },
+      url: { type: "string" },
+      username: { type: "string" },
+      "password-stdin": { type: "boolean" },
+      "password-env": { type: "string" },
+
+      timeout: { type: "string" },
+      client: { type: "string" },
+      package: { type: "string" },
+      "mcp-name": { type: "string" },
+      replace: { type: "boolean" },
+      "no-default": { type: "boolean" },
+    },
+  });
+
+  const baseUrl = values.url?.trim() || env.KIBANA_BASE_URL?.trim();
+  if (!baseUrl) {
+    throw new Error("Kibana base URL is required via --url or KIBANA_BASE_URL.");
+  }
+  const username = values.username?.trim() || env.KIBANA_USERNAME?.trim();
+  if (!username) {
+    throw new Error("Kibana username is required via --username or KIBANA_USERNAME.");
+  }
+  if (values["password-stdin"] && values["password-env"]) {
+    throw new Error("Use only one of --password-stdin or --password-env.");
+  }
+
+  let password: string | undefined;
+  if (values["password-stdin"]) {
+    password = (await readAllInput(stdin)).replace(/\r?\n$/, "");
+  } else if (values["password-env"]) {
+    password = env[values["password-env"]];
+    if (password === undefined) {
+      throw new Error(`Password environment variable '${values["password-env"]}' is not set.`);
+    }
+  } else {
+    password = env.KIBANA_PASSWORD;
+  }
+  if (!password) {
+    throw new Error(
+      "Kibana password is required via --password-stdin, --password-env, or KIBANA_PASSWORD.",
+    );
+  }
+
+  const client = values.client ?? "codex";
+  if (client !== "codex" && client !== "none") {
+    throw new Error("--client must be either 'codex' or 'none'.");
+  }
+  const timeoutMs = values.timeout === undefined ? undefined : Number(values.timeout);
+  if (timeoutMs !== undefined && !Number.isFinite(timeoutMs)) {
+    throw new Error("--timeout must be a number of milliseconds.");
+  }
+
+  return {
+    profileName: values.profile?.trim() || env[PROFILE_NAME_ENV]?.trim() || "default",
+    baseUrl,
+    username,
+    password,
+    client,
+    packageSpecifier: values.package,
+    mcpName: values["mcp-name"],
+    makeDefault: !values["no-default"],
+    replaceExisting: values.replace ?? false,
+
+    timeoutMs,
+  };
+}
+
+function renderBootstrapResult(result: BootstrapResult): string {
+  return [
+    `Bootstrap verified for profile '${result.profileName}'.`,
+    result.sourceCount === 0
+      ? "Source catalog is empty. No Kibana indexes were inspected or configured. Ask the user which index or index pattern to configure before querying logs."
+      : `Preserved ${result.sourceCount} explicitly configured source${result.sourceCount === 1 ? "" : "s"}; bootstrap did not inspect them.`,
+    result.registered
+      ? `Codex MCP registration is installed and verified for profile '${result.profileName}'.`
+      : "Client registration was skipped by request.",
+  ].join("\n");
+}
+
+async function readAllInput(stdin: Readable): Promise<string> {
+  let rawInput = "";
+  for await (const chunk of stdin) {
+    rawInput += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+  }
+  return rawInput;
 }
 
 export interface PromptIo extends SetupPrompter {

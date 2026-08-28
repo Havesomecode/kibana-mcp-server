@@ -113,6 +113,7 @@ export async function executeFilter(
   kibanaClient: Pick<KibanaClient, "executeMany">,
   options?: {
     schemaCatalog?: SchemaCatalog;
+    callerSignal?: AbortSignal;
   },
 ): Promise<z.infer<typeof filterOutputSchema>> {
   return executeQuery(
@@ -139,6 +140,7 @@ export async function executeFilter(
       resolveFieldAliases: false,
       resolvePreferredExactFields: true,
       schemaCatalog: options?.schemaCatalog,
+      callerSignal: options?.callerSignal,
     },
   );
 }

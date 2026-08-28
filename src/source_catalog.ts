@@ -7,6 +7,10 @@ export class SourceCatalog {
     this.sourceMap = new Map(sources.map((source) => [source.id, source]));
   }
 
+  count(): number {
+    return this.sources.length;
+  }
+
   list(query?: string, limit = 20): DiscoverSourceResult[] {
     const normalizedQuery = query?.trim().toLowerCase();
     const filtered = normalizedQuery
