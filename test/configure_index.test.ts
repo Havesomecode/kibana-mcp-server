@@ -83,6 +83,8 @@ describe("configure_index", () => {
     const { root, catalogPath } = await createEmptyCatalog();
     const inspectedIndexes: unknown[] = [];
     const executedIndexes: unknown[] = [];
+    const receivedSignals: Array<AbortSignal | undefined> = [];
+    const controller = new AbortController();
 
     const result = await executeConfigureIndex(
       {
@@ -93,23 +95,27 @@ describe("configure_index", () => {
         config: config(catalogPath),
         stateRoot: root,
         kibanaClient: {
-          async describeFields(source: SourceDefinition) {
+          async describeFields(source: SourceDefinition, signal?: AbortSignal) {
             inspectedIndexes.push(source.schema?.index);
+            receivedSignals.push(signal);
             return fields;
           },
-          async execute(compiledQuery) {
+          async execute(compiledQuery, signal) {
             executedIndexes.push(compiledQuery.source.backend.index);
+            receivedSignals.push(signal);
             return {
               source: compiledQuery.source,
               rawResponse: { hits: { total: { value: 0 }, hits: [] } },
             } as KibanaSearchExecutionResult;
           },
         },
+        callerSignal: controller.signal,
       },
     );
 
     expect(inspectedIndexes).toEqual(["consumer-*"]);
     expect(executedIndexes).toEqual(["consumer-*"]);
+    expect(receivedSignals).toEqual([controller.signal, controller.signal]);
     expect(result.result).toMatchObject({
       configured: true,
       source_id: "consumer-logs",
