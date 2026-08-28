@@ -19,6 +19,35 @@ class KibanaHttpError extends Error {
   }
 }
 
+export type KibanaRequestErrorCode =
+  | "KIBANA_AUTHENTICATION"
+  | "KIBANA_CANCELLED"
+  | "KIBANA_CONNECTION"
+  | "KIBANA_DNS"
+  | "KIBANA_HTTP"
+  | "KIBANA_NETWORK"
+  | "KIBANA_OVERLOADED"
+  | "KIBANA_RESPONSE"
+  | "KIBANA_TIMEOUT"
+  | "KIBANA_TLS";
+export type KibanaRequestPhase = "queue" | "request" | "response";
+
+export class KibanaRequestError extends Error {
+  constructor(
+    readonly code: KibanaRequestErrorCode,
+    readonly phase: KibanaRequestPhase,
+    readonly sourceId: string | undefined,
+    readonly timeoutMs: number,
+    message: string,
+    cause?: unknown,
+    readonly status?: number,
+    readonly causeCode?: string,
+  ) {
+    super(message, { cause });
+    this.name = "KibanaRequestError";
+  }
+}
+
 function joinUrl(baseUrl: string, path: string): string {
   return path.startsWith("http://") || path.startsWith("https://")
     ? path
@@ -27,6 +56,45 @@ function joinUrl(baseUrl: string, path: string): string {
 
 function encodeBasicAuth(username: string, password: string): string {
   return Buffer.from(`${username}:${password}`).toString("base64");
+}
+
+function getNetworkCauseCode(error: unknown): string | undefined {
+  if (!(error instanceof Error) || !error.cause || typeof error.cause !== "object") {
+    return undefined;
+  }
+  const code = (error.cause as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
+function classifyNetworkError(causeCode: string | undefined): KibanaRequestErrorCode {
+  if (causeCode === "ENOTFOUND" || causeCode === "EAI_AGAIN") {
+    return "KIBANA_DNS";
+  }
+  if (
+    causeCode?.startsWith("CERT_") ||
+    causeCode?.startsWith("ERR_TLS_") ||
+    [
+      "DEPTH_ZERO_SELF_SIGNED_CERT",
+      "SELF_SIGNED_CERT_IN_CHAIN",
+      "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+    ].includes(causeCode ?? "")
+  ) {
+    return "KIBANA_TLS";
+  }
+  if (
+    [
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "EHOSTUNREACH",
+      "ENETUNREACH",
+      "ETIMEDOUT",
+      "UND_ERR_CONNECT_TIMEOUT",
+      "UND_ERR_SOCKET",
+    ].includes(causeCode ?? "")
+  ) {
+    return "KIBANA_CONNECTION";
+  }
+  return "KIBANA_NETWORK";
 }
 
 function unwrapSearchResponse(raw: unknown): Record<string, unknown> {
@@ -66,7 +134,19 @@ function asArray(value: unknown): unknown[] {
 }
 
 function normalizeFieldCapsResponse(raw: unknown): SourceFieldDescriptor[] {
-  const fields = asRecord(asRecord(raw).fields);
+  const record = asRecord(raw);
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    Array.isArray(raw) ||
+    !("fields" in record) ||
+    !record.fields ||
+    typeof record.fields !== "object" ||
+    Array.isArray(record.fields)
+  ) {
+    throw new Error("Unexpected Elasticsearch field capabilities response shape");
+  }
+  const fields = asRecord(record.fields);
 
   return Object.entries(fields)
     .map(([name, typeEntries]) => {
@@ -87,15 +167,23 @@ function normalizeFieldCapsResponse(raw: unknown): SourceFieldDescriptor[] {
 }
 
 function normalizeKibanaFieldsResponse(raw: unknown): SourceFieldDescriptor[] {
-  const rawFields = Array.isArray(raw) ? raw : asArray(asRecord(raw).fields);
+  const record = asRecord(raw);
+  const rawFields = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object" && !Array.isArray(raw) && Array.isArray(record.fields)
+      ? record.fields
+      : undefined;
+  if (!rawFields) {
+    throw new Error("Unexpected Kibana fields response shape");
+  }
 
   return rawFields
-    .map((field): SourceFieldDescriptor | null => {
+    .map((field): SourceFieldDescriptor => {
       const fieldRecord = asRecord(field);
       const name = fieldRecord.name;
 
       if (typeof name !== "string") {
-        return null;
+        throw new Error("Kibana fields response contained an entry without a field name");
       }
 
       const subType = asRecord(fieldRecord.subType);
@@ -114,7 +202,6 @@ function normalizeKibanaFieldsResponse(raw: unknown): SourceFieldDescriptor[] {
         subfields: [],
       };
     })
-    .filter((field): field is SourceFieldDescriptor => field !== null)
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
@@ -187,6 +274,16 @@ function inferPrimitiveFieldType(value: unknown, fieldName?: string): string | u
   if (typeof value === "string") {
     if (fieldName?.endsWith(".keyword")) {
       return "keyword";
+    }
+
+    if (
+      fieldName &&
+      /(^@timestamp$)|((^|[._-])(timestamp|time|date|created|ingested|updated)([._-]|$))/i.test(
+        fieldName,
+      ) &&
+      !Number.isNaN(Date.parse(value))
+    ) {
+      return "date";
     }
 
     return "text";
@@ -347,8 +444,91 @@ function normalizeSearchSampleFields(raw: unknown): SourceFieldDescriptor[] {
   return [...fieldMap.values()].sort((left, right) => left.name.localeCompare(right.name));
 }
 
+class RequestGate {
+  private active = 0;
+  private readonly waiters: Array<{
+    signal: AbortSignal;
+    resolve: (release: () => void) => void;
+    reject: (error: unknown) => void;
+    onAbort: () => void;
+  }> = [];
+
+  constructor(
+    private readonly maxConcurrency: number,
+    private readonly maxQueueDepth: number,
+  ) {}
+
+  acquire(signal: AbortSignal): Promise<() => void> {
+    if (signal.aborted) {
+      return Promise.reject(signal.reason);
+    }
+    if (this.active >= this.maxConcurrency && this.waiters.length >= this.maxQueueDepth) {
+      return Promise.reject(new RequestQueueFullError(this.maxQueueDepth));
+    }
+
+    return new Promise((resolve, reject) => {
+      const waiter = {
+        signal,
+        resolve,
+        reject,
+        onAbort: () => {
+          const index = this.waiters.indexOf(waiter);
+          if (index >= 0) {
+            this.waiters.splice(index, 1);
+          }
+          reject(signal.reason);
+        },
+      };
+      signal.addEventListener("abort", waiter.onAbort, { once: true });
+      this.waiters.push(waiter);
+      this.dispatch();
+    });
+  }
+
+  private dispatch(): void {
+    while (this.active < this.maxConcurrency) {
+      const waiter = this.waiters.shift();
+      if (!waiter) {
+        return;
+      }
+      waiter.signal.removeEventListener("abort", waiter.onAbort);
+      if (waiter.signal.aborted) {
+        waiter.reject(waiter.signal.reason);
+        continue;
+      }
+
+      this.active += 1;
+      let released = false;
+      waiter.resolve(() => {
+        if (released) {
+          return;
+        }
+        released = true;
+        this.active -= 1;
+        this.dispatch();
+      });
+    }
+  }
+}
+
+class RequestQueueFullError extends Error {
+  constructor(readonly maxQueueDepth: number) {
+    super(`Kibana request queue is full (${maxQueueDepth} waiting requests)`);
+    this.name = "RequestQueueFullError";
+  }
+}
+
 export class KibanaClient {
-  constructor(private readonly config: AppConfig["kibana"]) {}
+  private readonly requestGate: RequestGate;
+  private readonly queueTimeoutMs: number;
+
+  constructor(
+    private readonly config: AppConfig["kibana"],
+    options: { maxConcurrency?: number; maxQueueDepth?: number; queueTimeoutMs?: number } = {},
+  ) {
+    this.requestGate = new RequestGate(options.maxConcurrency ?? 8, options.maxQueueDepth ?? 32);
+    this.queueTimeoutMs = Math.min(options.queueTimeoutMs ?? config.timeoutMs, config.timeoutMs);
+  }
 
   private async requestJson(
     url: string,
@@ -356,15 +536,40 @@ export class KibanaClient {
       method?: "GET" | "POST";
       body?: unknown;
       headers?: Record<string, string>;
+      callerSignal?: AbortSignal;
+      sourceId?: string;
     } = {},
   ): Promise<unknown> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
+    const timeoutController = new AbortController();
+    const timeout = setTimeout(
+      () =>
+        timeoutController.abort(
+          new DOMException(`Timed out after ${this.config.timeoutMs}ms`, "TimeoutError"),
+        ),
+      this.config.timeoutMs,
+    );
+    const signal = options.callerSignal
+      ? AbortSignal.any([timeoutController.signal, options.callerSignal])
+      : timeoutController.signal;
+    const queueController = new AbortController();
+    const queueTimeout = setTimeout(
+      () =>
+        queueController.abort(
+          new DOMException(`Queue wait timed out after ${this.queueTimeoutMs}ms`, "TimeoutError"),
+        ),
+      this.queueTimeoutMs,
+    );
+    const queueSignal = AbortSignal.any([signal, queueController.signal]);
+    let phase: KibanaRequestPhase = "queue";
+    let release: (() => void) | undefined;
 
     try {
+      release = await this.requestGate.acquire(queueSignal);
+      clearTimeout(queueTimeout);
+      phase = "request";
       const response = await fetch(url, {
         method: options.method ?? "GET",
-        signal: controller.signal,
+        signal,
         headers: {
           Authorization: `Basic ${encodeBasicAuth(this.config.username, this.config.password)}`,
           "Content-Type": "application/json",
@@ -372,136 +577,221 @@ export class KibanaClient {
         },
         ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
       });
+      phase = "response";
 
       if (!response.ok) {
         const errorBody = await response.text();
         throw new KibanaHttpError(response.status, errorBody);
       }
 
-      return response.json();
+      return await response.json();
+    } catch (error) {
+      const sourceLabel = options.sourceId ? ` for source '${options.sourceId}'` : "";
+      if (error instanceof KibanaRequestError) {
+        throw error;
+      }
+      if (options.callerSignal?.aborted) {
+        throw new KibanaRequestError(
+          "KIBANA_CANCELLED",
+          phase,
+          options.sourceId,
+          this.config.timeoutMs,
+          `[KIBANA_CANCELLED] Kibana request${sourceLabel} was cancelled during ${phase}`,
+          error,
+        );
+      }
+      if (error instanceof RequestQueueFullError) {
+        throw new KibanaRequestError(
+          "KIBANA_OVERLOADED",
+          "queue",
+          options.sourceId,
+          this.queueTimeoutMs,
+          `[KIBANA_OVERLOADED] Kibana request queue${sourceLabel} is full (${error.maxQueueDepth} waiting requests)`,
+          error,
+        );
+      }
+      if (queueController.signal.aborted) {
+        throw new KibanaRequestError(
+          "KIBANA_TIMEOUT",
+          "queue",
+          options.sourceId,
+          this.queueTimeoutMs,
+          `[KIBANA_TIMEOUT] Kibana request${sourceLabel} exceeded the ${this.queueTimeoutMs}ms queue-wait timeout`,
+          error,
+        );
+      }
+      if (timeoutController.signal.aborted) {
+        throw new KibanaRequestError(
+          "KIBANA_TIMEOUT",
+          phase,
+          options.sourceId,
+          this.config.timeoutMs,
+          `[KIBANA_TIMEOUT] Kibana request${sourceLabel} timed out after ${this.config.timeoutMs}ms during ${phase}`,
+          error,
+        );
+      }
+      if (error instanceof KibanaHttpError) {
+        const code =
+          error.status === 401 || error.status === 403 ? "KIBANA_AUTHENTICATION" : "KIBANA_HTTP";
+        throw new KibanaRequestError(
+          code,
+          "response",
+          options.sourceId,
+          this.config.timeoutMs,
+          `[${code}] Kibana request${sourceLabel} returned HTTP ${error.status}`,
+          error,
+          error.status,
+        );
+      }
+
+      const causeCode = getNetworkCauseCode(error);
+      const code =
+        phase === "response" && !causeCode ? "KIBANA_RESPONSE" : classifyNetworkError(causeCode);
+      throw new KibanaRequestError(
+        code,
+        phase,
+        options.sourceId,
+        this.config.timeoutMs,
+        `[${code}] Kibana request${sourceLabel} failed during ${phase}${causeCode ? ` (${causeCode})` : ""}`,
+        error,
+        undefined,
+        causeCode,
+      );
     } finally {
+      release?.();
+      clearTimeout(queueTimeout);
       clearTimeout(timeout);
     }
   }
 
-  async execute(compiledQuery: CompiledSourceQuery): Promise<KibanaSearchExecutionResult> {
+  async verifyConnection(): Promise<void> {
+    const response = await this.requestJson(joinUrl(this.config.baseUrl, "/api/status"));
+    const overall = asRecord(asRecord(asRecord(response).status).overall);
+    const indicator = overall.level ?? overall.state;
+    if (typeof indicator !== "string" || !indicator.trim()) {
+      throw new Error(
+        "Kibana connection verification did not return a valid Kibana status response.",
+      );
+    }
+  }
+
+  async execute(
+    compiledQuery: CompiledSourceQuery,
+    callerSignal?: AbortSignal,
+  ): Promise<KibanaSearchExecutionResult> {
     const source = compiledQuery.source;
     const endpoint = joinUrl(this.config.baseUrl, source.backend.path);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
+    const body =
+      source.backend.kind === "kibana_internal_search_es"
+        ? {
+            params: {
+              ...(source.backend.index ? { index: source.backend.index } : {}),
+              body: compiledQuery.request.body,
+            },
+          }
+        : compiledQuery.request.body;
+    const responseJson = await this.requestJson(endpoint, {
+      method: "POST",
+      callerSignal,
+      sourceId: source.id,
+      headers:
+        source.backend.kind === "kibana_internal_search_es"
+          ? { "kbn-xsrf": "kibana-mcp-server" }
+          : undefined,
+      body,
+    });
 
     try {
-      const body =
-        source.backend.kind === "kibana_internal_search_es"
-          ? {
-              params: {
-                ...(source.backend.index ? { index: source.backend.index } : {}),
-                body: compiledQuery.request.body,
-              },
-            }
-          : compiledQuery.request.body;
-
-      const response = await fetch(endpoint, {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          Authorization: `Basic ${encodeBasicAuth(this.config.username, this.config.password)}`,
-          "Content-Type": "application/json",
-          ...(source.backend.kind === "kibana_internal_search_es"
-            ? { "kbn-xsrf": "kibana-mcp-server" }
-            : {}),
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(
-          `Kibana request failed for source '${source.id}' with status ${response.status}: ${errorBody}`,
-        );
-      }
-
-      const responseJson = (await response.json()) as unknown;
       return {
         source,
         rawResponse: unwrapSearchResponse(responseJson),
       };
-    } finally {
-      clearTimeout(timeout);
+    } catch (error) {
+      throw new KibanaRequestError(
+        "KIBANA_RESPONSE",
+        "response",
+        source.id,
+        this.config.timeoutMs,
+        `[KIBANA_RESPONSE] Kibana returned an unexpected search response for source '${source.id}'`,
+        error,
+      );
     }
   }
 
-  async executeMany(sourceQueries: CompiledSourceQuery[]): Promise<KibanaSearchExecutionResult[]> {
-    return Promise.all(sourceQueries.map((sourceQuery) => this.execute(sourceQuery)));
+  async executeMany(
+    sourceQueries: CompiledSourceQuery[],
+    callerSignal?: AbortSignal,
+  ): Promise<KibanaSearchExecutionResult[]> {
+    const siblingController = new AbortController();
+    const signal = callerSignal
+      ? AbortSignal.any([callerSignal, siblingController.signal])
+      : siblingController.signal;
+    const executions = sourceQueries.map((sourceQuery) => this.execute(sourceQuery, signal));
+
+    try {
+      return await Promise.all(executions);
+    } catch (error) {
+      siblingController.abort(error);
+      await Promise.allSettled(executions);
+      throw error;
+    }
   }
 
   private async describeFieldsViaSearchBackend(
     source: SourceDefinition,
+    callerSignal?: AbortSignal,
   ): Promise<SourceFieldDescriptor[]> {
     const endpoint = joinUrl(this.config.baseUrl, source.backend.path);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.config.timeoutMs);
-
-    try {
-      const body =
-        source.backend.kind === "kibana_internal_search_es"
-          ? {
-              params: {
-                ...(source.backend.index ? { index: source.backend.index } : {}),
-                body: {
-                  size: 20,
-                  sort: [{ [source.timeField]: { order: "desc" } }],
-                  fields: ["*"],
-                  _source: true,
-                  track_total_hits: false,
-                },
+    const body =
+      source.backend.kind === "kibana_internal_search_es"
+        ? {
+            params: {
+              ...(source.backend.index ? { index: source.backend.index } : {}),
+              body: {
+                size: 20,
+                fields: ["*"],
+                _source: true,
+                track_total_hits: false,
               },
-            }
-          : {
-              size: 20,
-              sort: [{ [source.timeField]: { order: "desc" } }],
-              fields: ["*"],
-              _source: true,
-              track_total_hits: false,
-            };
+            },
+          }
+        : {
+            size: 20,
+            fields: ["*"],
+            _source: true,
+            track_total_hits: false,
+          };
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          Authorization: `Basic ${encodeBasicAuth(this.config.username, this.config.password)}`,
-          "Content-Type": "application/json",
-          ...(source.backend.kind === "kibana_internal_search_es"
-            ? { "kbn-xsrf": "kibana-mcp-server" }
-            : {}),
-        },
-        body: JSON.stringify(body),
-      });
+    const responseJson = await this.requestJson(endpoint, {
+      method: "POST",
+      callerSignal,
+      sourceId: source.id,
+      headers:
+        source.backend.kind === "kibana_internal_search_es"
+          ? { "kbn-xsrf": "kibana-mcp-server" }
+          : undefined,
+      body,
+    });
+    const rawResponse = unwrapSearchResponse(responseJson);
+    const fields = normalizeSearchSampleFields(rawResponse);
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(
-          `Search transport fallback failed for source '${source.id}' with status ${response.status}: ${errorBody}`,
-        );
-      }
-
-      const responseJson = (await response.json()) as unknown;
-      const rawResponse = unwrapSearchResponse(responseJson);
-      const fields = normalizeSearchSampleFields(rawResponse);
-
-      if (fields.length === 0) {
-        throw new Error(
-          `Search transport fallback returned no fields for source '${source.id}'. Sample hits may be empty for the requested index pattern.`,
-        );
-      }
-
-      return fields;
-    } finally {
-      clearTimeout(timeout);
+    if (fields.length === 0) {
+      throw new KibanaRequestError(
+        "KIBANA_RESPONSE",
+        "response",
+        source.id,
+        this.config.timeoutMs,
+        `[KIBANA_RESPONSE] Search transport fallback returned no fields for source '${source.id}'. Sample hits may be empty for the requested index pattern.`,
+      );
     }
+
+    return fields;
   }
 
-  async describeFields(source: SourceDefinition): Promise<SourceFieldDescriptor[]> {
+  async describeFields(
+    source: SourceDefinition,
+    callerSignal?: AbortSignal,
+  ): Promise<SourceFieldDescriptor[]> {
     const schemaBackend = source.schema;
 
     if (!schemaBackend) {
@@ -528,8 +818,13 @@ export class KibanaClient {
       try {
         responseJson = await this.requestJson(url, {
           method: "GET",
+          callerSignal,
+          sourceId: source.id,
         });
       } catch (error) {
+        if (error instanceof KibanaRequestError) {
+          throw error;
+        }
         throw new Error(
           `Schema backend '${schemaBackend.kind}' request failed for source '${source.id}' at '${schemaPath}': ${
             error instanceof Error ? error.message : String(error)
@@ -539,10 +834,15 @@ export class KibanaClient {
       try {
         return normalizeFieldCapsResponse(responseJson);
       } catch (error) {
-        throw new Error(
-          `Schema backend '${schemaBackend.kind}' returned an unexpected field capabilities payload for source '${source.id}': ${
+        throw new KibanaRequestError(
+          "KIBANA_RESPONSE",
+          "response",
+          source.id,
+          this.config.timeoutMs,
+          `[KIBANA_RESPONSE] Schema backend '${schemaBackend.kind}' returned an unexpected field capabilities payload for source '${source.id}': ${
             error instanceof Error ? error.message : String(error)
           }`,
+          error,
         );
       }
     }
@@ -555,6 +855,8 @@ export class KibanaClient {
       try {
         const responseJson = await this.requestJson(url, {
           method: "GET",
+          callerSignal,
+          sourceId: source.id,
           headers: {
             "kbn-xsrf": "kibana-mcp-server",
           },
@@ -563,16 +865,24 @@ export class KibanaClient {
         try {
           return normalizeKibanaFieldsResponse(responseJson);
         } catch (error) {
-          throw new Error(
-            `Schema backend '${schemaBackend.kind}' returned an unexpected Kibana field payload for source '${source.id}' from '${schemaPath}': ${
+          throw new KibanaRequestError(
+            "KIBANA_RESPONSE",
+            "response",
+            source.id,
+            this.config.timeoutMs,
+            `[KIBANA_RESPONSE] Schema backend '${schemaBackend.kind}' returned an unexpected Kibana field payload for source '${source.id}' from '${schemaPath}': ${
               error instanceof Error ? error.message : String(error)
             }`,
+            error,
           );
         }
       } catch (error) {
-        if (error instanceof KibanaHttpError && error.status === 404) {
+        if (error instanceof KibanaRequestError && error.status === 404) {
           attempts.push(`${schemaPath} -> 404`);
           continue;
+        }
+        if (error instanceof KibanaRequestError) {
+          throw error;
         }
 
         throw new Error(
@@ -583,7 +893,10 @@ export class KibanaClient {
       }
     }
 
-    return this.describeFieldsViaSearchBackend(source).catch((fallbackError) => {
+    return this.describeFieldsViaSearchBackend(source, callerSignal).catch((fallbackError) => {
+      if (fallbackError instanceof KibanaRequestError) {
+        throw fallbackError;
+      }
       throw new Error(
         `Schema backend '${schemaBackend.kind}' returned 404 for source '${source.id}' on every known Kibana field-discovery path (${attempts.join(", ")}). Search transport fallback also failed: ${
           fallbackError instanceof Error ? fallbackError.message : String(fallbackError)

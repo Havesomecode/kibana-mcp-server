@@ -6,6 +6,8 @@ import { sourceCatalogSchema } from "./config.js";
 import { type ProfilePaths, resolveProfilePaths } from "./profile_paths.js";
 import { ProfileStore, deriveProfileId } from "./profile_store.js";
 import { type SecretStore, SecretStoreError, createSecretStore } from "./secret_store.js";
+import { acquireStateLock } from "./state_lock.js";
+import type { SavedProfile } from "./types.js";
 
 const DEFAULT_TIMEOUT_MS = 10000;
 const KNOWN_ENDPOINT_PATHS = [
@@ -61,62 +63,72 @@ export async function runSetupFlow(
 
   let continueAddingProfiles = true;
   while (continueAddingProfiles) {
-    const existingProfiles = await profileStore.listProfiles();
+    const stateBeforePrompts = await profileStore.load();
+    const existingProfiles = stateBeforePrompts.profiles;
     const profileName = await promptForProfileName(
       prompter,
       existingProfiles.map((profile) => profile.name),
     );
-    const existingProfile = existingProfiles.find(
-      (profile) => profile.name.toLowerCase() === profileName.toLowerCase(),
-    );
-    const profileId =
-      existingProfile?.id ??
-      deriveProfileId(
-        profileName,
-        existingProfiles.map((profile) => profile.id),
-      );
     const baseUrl = await promptForBaseUrl(prompter);
     const username = await promptForRequiredValue(prompter, "Kibana username");
     const password = await promptForRequiredValue(prompter, "Kibana password", { secret: true });
     const importPath = await promptForSourceCatalogPath(prompter, cwd);
-    const importedCatalogPath = join(paths.sourceCatalogsDir, `${profileId}.json`);
+    const makeDefault =
+      existingProfiles.length === 0
+        ? true
+        : await prompter.confirm(
+            `Make '${profileName}' the default environment for new threads?`,
+            false,
+          );
 
-    await copyValidatedSourceCatalog(importPath, importedCatalogPath, {
-      readFile: readFileImpl,
-      writeFile: writeFileImpl,
-      mkdir: mkdirImpl,
-    });
-
+    const releaseLock = await acquireStateLock(paths.stateRoot);
+    let profile: SavedProfile;
+    let importedCatalogPath: string;
     try {
-      await secretStore.save(profileId, { username, password });
-    } catch (error) {
-      if (error instanceof SecretStoreError) {
-        throw new Error(`Could not save Kibana credentials securely: ${error.message}`);
+      const currentState = await profileStore.load();
+      if (JSON.stringify(currentState) !== JSON.stringify(stateBeforePrompts)) {
+        throw new Error(
+          "Saved Kibana profiles changed while setup was collecting input. Re-run setup to avoid overwriting concurrent changes.",
+        );
       }
-      throw error;
-    }
-
-    const profile = await profileStore.upsertProfile(
-      {
-        id: profileId,
-        name: profileName,
-        baseUrl,
-        timeoutMs: DEFAULT_TIMEOUT_MS,
-        sourceCatalogPath: importedCatalogPath,
-      },
-      {
-        makeDefault: existingProfiles.length === 0,
-      },
-    );
-
-    if (existingProfiles.length > 0) {
-      const makeDefault = await prompter.confirm(
-        `Make '${profile.name}' the default environment for new threads?`,
-        false,
+      const existingProfile = currentState.profiles.find(
+        (candidate) => candidate.name.toLowerCase() === profileName.toLowerCase(),
       );
-      if (makeDefault) {
-        await profileStore.setDefaultProfile(profile.id);
+      const profileId =
+        existingProfile?.id ??
+        deriveProfileId(
+          profileName,
+          currentState.profiles.map((candidate) => candidate.id),
+        );
+      importedCatalogPath = join(paths.sourceCatalogsDir, `${profileId}.json`);
+
+      await copyValidatedSourceCatalog(importPath, importedCatalogPath, {
+        readFile: readFileImpl,
+        writeFile: writeFileImpl,
+        mkdir: mkdirImpl,
+      });
+
+      try {
+        await secretStore.save(profileId, { username, password });
+      } catch (error) {
+        if (error instanceof SecretStoreError) {
+          throw new Error(`Could not save Kibana credentials securely: ${error.message}`);
+        }
+        throw error;
       }
+
+      profile = await profileStore.upsertProfile(
+        {
+          id: profileId,
+          name: profileName,
+          baseUrl,
+          timeoutMs: DEFAULT_TIMEOUT_MS,
+          sourceCatalogPath: importedCatalogPath,
+        },
+        { makeDefault },
+      );
+    } finally {
+      await releaseLock();
     }
 
     savedProfileNames.push(profile.name);
@@ -203,23 +215,27 @@ async function promptForRequiredValue(
 }
 
 async function promptForSourceCatalogPath(prompter: SetupPrompter, cwd: string): Promise<string> {
-  const bundledCatalogPath = await resolveBundledSourceCatalogPath();
-
   while (true) {
     const rawValue = (
-      await prompter.prompt("Source catalog path to import", {
-        defaultValue: bundledCatalogPath,
-      })
+      await prompter.prompt("Source catalog path to import (or type 'example')")
     ).trim();
-    const importPath = rawValue ? resolve(cwd, rawValue) : bundledCatalogPath;
+    if (!rawValue) {
+      await prompter.info(
+        "A source catalog is required. Enter a JSON path or type 'example' explicitly.",
+      );
+      continue;
+    }
+
+    const importPath =
+      rawValue.toLowerCase() === "example"
+        ? await resolveBundledSourceCatalogPath()
+        : resolve(cwd, rawValue);
 
     try {
       await access(importPath);
       return importPath;
     } catch {
-      await prompter.info(
-        `Source catalog not found at ${importPath}. Use a JSON file or accept the bundled example.`,
-      );
+      await prompter.info(`Source catalog not found at ${importPath}.`);
     }
   }
 }

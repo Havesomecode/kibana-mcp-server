@@ -21,6 +21,7 @@
     "dist/**",
     "plugins/kibana-log-investigation/.mcp.json",
     "plugins/kibana-log-investigation/.codex-plugin/plugin.json",
+    "skills/kibana-log-investigation/**",
     "README.md",
     "LICENSE",
     "config/sources.example.json",
