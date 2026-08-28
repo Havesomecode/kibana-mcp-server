@@ -72,25 +72,46 @@ function mergeFieldHints(
 }
 
 export class SchemaCatalog {
-  private readonly cache = new Map<string, Promise<SourceFieldDescriptor[]>>();
+  private readonly cache = new Map<string, SourceFieldDescriptor[]>();
+  private readonly inFlight = new Map<string, Promise<SourceFieldDescriptor[]>>();
 
   constructor(
     private readonly client: {
-      describeFields: (source: SourceDefinition) => Promise<SourceFieldDescriptor[]>;
+      describeFields: (
+        source: SourceDefinition,
+        callerSignal?: AbortSignal,
+      ) => Promise<SourceFieldDescriptor[]>;
     },
   ) {}
 
-  async getFields(source: SourceDefinition): Promise<SourceFieldDescriptor[]> {
+  async getFields(
+    source: SourceDefinition,
+    callerSignal?: AbortSignal,
+  ): Promise<SourceFieldDescriptor[]> {
     const existing = this.cache.get(source.id);
     if (existing) {
       return existing;
     }
 
-    const pending = this.client
-      .describeFields(source)
-      .then((fields) => linkFieldRelationships(mergeFieldHints(source, fields)));
-    this.cache.set(source.id, pending);
-    return pending;
+    const pending = this.inFlight.get(source.id);
+    if (pending) {
+      return pending;
+    }
+
+    const discovery = this.client.describeFields(source, callerSignal).then((fields) => {
+      const resolved = linkFieldRelationships(mergeFieldHints(source, fields));
+      this.cache.set(source.id, resolved);
+      return resolved;
+    });
+    this.inFlight.set(source.id, discovery);
+
+    try {
+      return await discovery;
+    } finally {
+      if (this.inFlight.get(source.id) === discovery) {
+        this.inFlight.delete(source.id);
+      }
+    }
   }
 
   filterFields(

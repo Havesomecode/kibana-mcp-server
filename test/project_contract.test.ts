@@ -43,4 +43,16 @@ describe("project contract", () => {
     expect(workflow).toContain("id-token: write");
     expect(workflow).toContain("name: github-pages");
   });
+
+  it("keeps the Codex plugin handoff connection-only", () => {
+    const plugin = readFileSync(
+      resolve(repoRoot, "plugins/kibana-log-investigation/.codex-plugin/plugin.json"),
+      "utf8",
+    );
+
+    expect(plugin).toContain("connection-only bootstrap");
+    expect(plugin).toContain("ask me which exact index or pattern to configure");
+    expect(plugin).not.toContain("bootstrap from my Elasticsearch index");
+    expect(plugin).not.toContain("profile from an Elasticsearch index");
+  });
 });
