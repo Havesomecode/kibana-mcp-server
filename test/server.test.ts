@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { KibanaRequestError } from "../src/kibana_client.js";
 import { createApplication } from "../src/server.js";
 import type { AppConfig } from "../src/types.js";
 
@@ -162,6 +163,61 @@ describe("createApplication", () => {
     expect(result.query_echo.sort_by).toBe("duration_ms");
   });
 
+  it("uses one timeout budget across all backend work for a tool call", async () => {
+    const timeoutMs = 30;
+    const sources = ["one", "two", "three", "four"].map((id) => ({
+      ...config.sources[0],
+      id,
+      name: id,
+    }));
+    let schemaAttempts = 0;
+    const application = createApplication(
+      {
+        ...config,
+        kibana: { ...config.kibana, timeoutMs },
+        sources,
+      },
+      {
+        kibanaClient: {
+          describeFields: async (_source: unknown, signal?: AbortSignal) => {
+            schemaAttempts += 1;
+            return await new Promise<never>((_resolve, reject) => {
+              const timer = setTimeout(() => reject(new Error("per-request timeout")), timeoutMs);
+              signal?.addEventListener(
+                "abort",
+                () => {
+                  clearTimeout(timer);
+                  reject(
+                    new KibanaRequestError(
+                      "KIBANA_CANCELLED",
+                      "request",
+                      undefined,
+                      timeoutMs,
+                      "cancelled",
+                    ),
+                  );
+                },
+                { once: true },
+              );
+            });
+          },
+          executeMany: async () => [],
+        } as never,
+      },
+    );
+
+    await expect(
+      application.handlers.query({
+        source_ids: sources.map((source) => source.id),
+        start_time: "2026-04-02T12:00:00Z",
+        end_time: "2026-04-02T12:05:00Z",
+        mode: "hits",
+        sort_by: "duration_ms",
+      }),
+    ).rejects.toMatchObject({ code: "KIBANA_TIMEOUT", timeoutMs });
+    expect(schemaAttempts).toBe(1);
+  });
+
   it("supports runtime configuration from the client", async () => {
     const executeMany = async () => [
       {
@@ -251,5 +307,56 @@ describe("createApplication", () => {
     });
 
     expect(describeFieldsResult.source_id).toBe("consumer");
+  });
+
+  it("propagates handler cancellation signals to backend work", async () => {
+    const controller = new AbortController();
+    let querySignal: AbortSignal | undefined;
+    let schemaSignal: AbortSignal | undefined;
+    const application = createApplication(config, {
+      kibanaClient: {
+        executeMany: async (_queries: unknown, signal?: AbortSignal) => {
+          querySignal = signal;
+          return [
+            {
+              source: config.sources[0],
+              rawResponse: {
+                hits: {
+                  total: { value: 0 },
+                  hits: [],
+                },
+              },
+            },
+          ];
+        },
+        describeFields: async (_source: unknown, signal?: AbortSignal) => {
+          schemaSignal = signal;
+          return [];
+        },
+      } as never,
+    });
+
+    await application.handlers.query(
+      {
+        source_ids: ["consumer"],
+        start_time: "2026-04-02T12:00:00Z",
+        end_time: "2026-04-02T12:05:00Z",
+        mode: "count",
+      },
+      controller.signal,
+    );
+    await application.handlers.describe_fields(
+      {
+        source_id: "consumer",
+        limit: 20,
+      },
+      controller.signal,
+    );
+
+    expect(querySignal?.aborted).toBe(false);
+    expect(schemaSignal?.aborted).toBe(false);
+    controller.abort();
+    expect(querySignal?.aborted).toBe(true);
+    expect(schemaSignal?.aborted).toBe(true);
   });
 });

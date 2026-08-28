@@ -250,6 +250,66 @@ describe("KibanaClient", () => {
     );
   });
 
+  it("aborts sibling source requests when one source fails", async () => {
+    let stalledSignal: AbortSignal | undefined;
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      if (String(input).endsWith("/fail")) {
+        return Promise.resolve(new Response("failed", { status: 503 }));
+      }
+      stalledSignal = init?.signal ?? undefined;
+      return new Promise((_resolve, reject) => {
+        stalledSignal?.addEventListener("abort", () => reject(stalledSignal?.reason), {
+          once: true,
+        });
+      });
+    });
+    const queryFor = (id: string, path: string): CompiledSourceQuery => ({
+      source: { ...source, id, backend: { ...source.backend, path } },
+      resolvedFilters: [],
+      resolvedNestedFilters: [],
+      resolvedSortBy: "@timestamp",
+      advisories: [],
+      request: { body: { size: 0 } },
+    });
+    const caller = new AbortController();
+    const client = new KibanaClient(config);
+    const execution = client.executeMany(
+      [queryFor("failing", "/fail"), queryFor("stalled", "/stall")],
+      caller.signal,
+    );
+
+    await expect(execution).rejects.toMatchObject({ code: "KIBANA_HTTP", status: 503 });
+    const siblingWasAborted = stalledSignal?.aborted;
+    caller.abort("test cleanup");
+
+    expect(siblingWasAborted).toBe(true);
+  });
+
+  it("classifies DNS failures with the underlying cause code", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new TypeError("fetch failed", {
+        cause: Object.assign(new Error("lookup failed"), { code: "ENOTFOUND" }),
+      }),
+    );
+    const client = new KibanaClient(config);
+
+    await expect(
+      client.execute({
+        source,
+        resolvedFilters: [],
+        resolvedNestedFilters: [],
+        resolvedSortBy: "@timestamp",
+        advisories: [],
+        request: { body: { size: 0 } },
+      }),
+    ).rejects.toMatchObject({
+      code: "KIBANA_DNS",
+      phase: "request",
+      sourceId: "app-logs",
+      causeCode: "ENOTFOUND",
+    });
+  });
+
   it("fails clearly when schema backend configuration is missing", async () => {
     const client = new KibanaClient(config);
 

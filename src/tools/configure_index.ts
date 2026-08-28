@@ -44,6 +44,7 @@ export async function executeConfigureIndex(
     config: ResolvedAppConfig;
     kibanaClient: ConfigureIndexClient;
     stateRoot?: string;
+    callerSignal?: AbortSignal;
   },
 ): Promise<{
   sources: SourceDefinition[];
@@ -82,7 +83,10 @@ export async function executeConfigureIndex(
       );
     }
 
-    const discoveredFields = await options.kibanaClient.describeFields(proposedSource);
+    const discoveredFields = await options.kibanaClient.describeFields(
+      proposedSource,
+      options.callerSignal,
+    );
     if (discoveredFields.length === 0) {
       throw new Error(
         `Explicit index pattern '${input.index}' resolved to no fields. Check the index and Kibana permissions.`,
@@ -94,20 +98,23 @@ export async function executeConfigureIndex(
       ...generatedFields,
     };
 
-    await options.kibanaClient.execute({
-      source: verifiedSource,
-      request: {
-        body: {
-          size: 1,
-          track_total_hits: false,
-          query: { match_all: {} },
+    await options.kibanaClient.execute(
+      {
+        source: verifiedSource,
+        request: {
+          body: {
+            size: 1,
+            track_total_hits: false,
+            query: { match_all: {} },
+          },
         },
+        resolvedFilters: [],
+        resolvedNestedFilters: [],
+        resolvedSortBy: verifiedSource.timeField,
+        advisories: [],
       },
-      resolvedFilters: [],
-      resolvedNestedFilters: [],
-      resolvedSortBy: verifiedSource.timeField,
-      advisories: [],
-    });
+      options.callerSignal,
+    );
 
     const sources = existingSource
       ? existingCatalog.sources.map((source) =>
