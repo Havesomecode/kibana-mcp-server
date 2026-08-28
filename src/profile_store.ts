@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
 
@@ -151,11 +152,29 @@ export class ProfileStore {
     });
   }
 
+  async replaceState(state: SavedProfileStoreState): Promise<void> {
+    await this.save(savedProfileStoreStateSchema.parse(state));
+  }
+
   private async save(state: SavedProfileStoreState): Promise<void> {
     const mkdirImpl = this.io.mkdir ?? mkdir;
     const writeFileImpl = this.io.writeFile ?? writeFile;
     await mkdirImpl(dirname(this.paths.profilesPath), { recursive: true });
-    await writeFileImpl(this.paths.profilesPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+    if (this.io.writeFile) {
+      await writeFileImpl(this.paths.profilesPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+      return;
+    }
+
+    const temporaryPath = `${this.paths.profilesPath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await writeFileImpl(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+      await rename(temporaryPath, this.paths.profilesPath);
+    } finally {
+      await rm(temporaryPath, { force: true }).catch(() => {});
+    }
   }
 }
 

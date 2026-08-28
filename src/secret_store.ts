@@ -68,15 +68,12 @@ class MacOsSecretStore implements SecretStore {
   }
 
   async save(profileId: string, secret: SavedSecret): Promise<void> {
-    await this.execute("add-generic-password", [
-      "-U",
-      "-s",
-      this.serviceName,
-      "-a",
-      profileId,
-      "-w",
-      serializeSecret(secret),
-    ]);
+    const serialized = serializeSecret(secret);
+    await this.execute(
+      "add-generic-password",
+      ["-U", "-s", this.serviceName, "-a", profileId, "-w"],
+      `${serialized}\n${serialized}\n`,
+    );
   }
 
   async delete(profileId: string): Promise<void> {
@@ -90,9 +87,13 @@ class MacOsSecretStore implements SecretStore {
     }
   }
 
-  private async execute(subcommand: string, args: string[]): Promise<CommandResult> {
+  private async execute(
+    subcommand: string,
+    args: string[],
+    stdin?: string,
+  ): Promise<CommandResult> {
     try {
-      const result = await this.runner("security", [subcommand, ...args]);
+      const result = await this.runner("security", [subcommand, ...args], { stdin });
       if (result.exitCode === 44) {
         throw new SecretStoreError(
           `No saved credentials found for profile '${args.at(-1)}'.`,
@@ -158,7 +159,11 @@ class LinuxSecretStore implements SecretStore {
       const result = await this.runner("secret-tool", [command, ...args], { stdin });
       if (result.exitCode !== 0) {
         const stderr = result.stderr.trim().toLowerCase();
-        if (stderr.includes("not found")) {
+        const missingWithoutMessage =
+          (command === "lookup" || command === "clear") &&
+          result.exitCode === 1 &&
+          stderr.length === 0;
+        if (stderr.includes("not found") || missingWithoutMessage) {
           throw new SecretStoreError(
             `No saved credentials found for profile '${args.at(-1) ?? "unknown"}'.`,
             "NOT_FOUND",
@@ -190,8 +195,9 @@ class WindowsSecretStore implements SecretStore {
       `
 [void][Windows.Security.Credentials.PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime]
 $vault = New-Object Windows.Security.Credentials.PasswordVault
+$payload = ConvertFrom-Json ([Console]::In.ReadToEnd())
 try {
-  $credential = $vault.Retrieve($args[0], $args[1])
+  $credential = $vault.Retrieve($payload.serviceName, $payload.profileId)
   $credential.RetrievePassword()
   [Console]::Out.Write($credential.Password)
   exit 0
@@ -199,7 +205,7 @@ try {
   exit 3
 }
       `,
-      [this.serviceName, profileId],
+      profileId,
     );
 
     return parseStoredSecret(result.stdout);
@@ -210,14 +216,16 @@ try {
       `
 [void][Windows.Security.Credentials.PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime]
 $vault = New-Object Windows.Security.Credentials.PasswordVault
+$payload = ConvertFrom-Json ([Console]::In.ReadToEnd())
 try {
-  $existing = $vault.Retrieve($args[0], $args[1])
+  $existing = $vault.Retrieve($payload.serviceName, $payload.profileId)
   $vault.Remove($existing)
 } catch {}
-$credential = New-Object Windows.Security.Credentials.PasswordCredential($args[0], $args[1], $args[2])
+$credential = New-Object Windows.Security.Credentials.PasswordCredential($payload.serviceName, $payload.profileId, $payload.secret)
 $vault.Add($credential)
       `,
-      [this.serviceName, profileId, serializeSecret(secret)],
+      profileId,
+      secret,
     );
   }
 
@@ -227,15 +235,16 @@ $vault.Add($credential)
         `
 [void][Windows.Security.Credentials.PasswordVault,Windows.Security.Credentials,ContentType=WindowsRuntime]
 $vault = New-Object Windows.Security.Credentials.PasswordVault
+$payload = ConvertFrom-Json ([Console]::In.ReadToEnd())
 try {
-  $credential = $vault.Retrieve($args[0], $args[1])
+  $credential = $vault.Retrieve($payload.serviceName, $payload.profileId)
   $vault.Remove($credential)
   exit 0
 } catch {
   exit 3
 }
         `,
-        [this.serviceName, profileId],
+        profileId,
       );
     } catch (error) {
       if (error instanceof SecretStoreError && error.code === "NOT_FOUND") {
@@ -245,18 +254,25 @@ try {
     }
   }
 
-  private async execute(script: string, args: string[]): Promise<CommandResult> {
+  private async execute(
+    script: string,
+    profileId: string,
+    secret?: SavedSecret,
+  ): Promise<CommandResult> {
     try {
-      const result = await this.runner("powershell.exe", [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        script.trim(),
-        ...args,
-      ]);
+      const stdin = JSON.stringify({
+        serviceName: this.serviceName,
+        profileId,
+        ...(secret ? { secret: serializeSecret(secret) } : {}),
+      });
+      const result = await this.runner(
+        "powershell.exe",
+        ["-NoProfile", "-NonInteractive", "-Command", script.trim()],
+        { stdin },
+      );
       if (result.exitCode === 3) {
         throw new SecretStoreError(
-          `No saved credentials found for profile '${args[1]}'.`,
+          `No saved credentials found for profile '${profileId}'.`,
           "NOT_FOUND",
         );
       }
@@ -330,6 +346,17 @@ async function runCommand(
 
     let stdout = "";
     let stderr = "";
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
+    const timeout = setTimeout(() => {
+      child.kill("SIGTERM");
+      finish(() => reject(new Error("Credential-store command timed out after 30000ms.")));
+    }, 30000);
 
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
@@ -340,13 +367,16 @@ async function runCommand(
     child.stderr.on("data", (chunk: string) => {
       stderr += chunk;
     });
-    child.on("error", reject);
+    child.on("error", (error) => finish(() => reject(error)));
+    child.stdin.on("error", (error) => finish(() => reject(error)));
     child.on("close", (exitCode) => {
-      resolve({
-        stdout,
-        stderr,
-        exitCode: exitCode ?? 1,
-      });
+      finish(() =>
+        resolve({
+          stdout,
+          stderr,
+          exitCode: exitCode ?? 1,
+        }),
+      );
     });
 
     if (options.stdin) {

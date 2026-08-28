@@ -78,4 +78,61 @@ describe("SchemaCatalog", () => {
 
     expect(callCount).toBe(1);
   });
+
+  it("coalesces concurrent schema discovery for the same source", async () => {
+    let callCount = 0;
+    let resolveDiscovery: ((fields: SourceFieldDescriptor[]) => void) | undefined;
+    const catalog = new SchemaCatalog({
+      describeFields: async () => {
+        callCount += 1;
+        return await new Promise<SourceFieldDescriptor[]>((resolve) => {
+          resolveDiscovery = resolve;
+        });
+      },
+    });
+
+    const first = catalog.getFields(source);
+    const second = catalog.getFields(source);
+    expect(callCount).toBe(1);
+    resolveDiscovery?.(fieldDescriptors);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      expect.arrayContaining(fieldDescriptors),
+      expect.arrayContaining(fieldDescriptors),
+    ]);
+    expect(callCount).toBe(1);
+  });
+
+  it("retries schema discovery after a transient failure", async () => {
+    let callCount = 0;
+    const catalog = new SchemaCatalog({
+      describeFields: async () => {
+        callCount += 1;
+        if (callCount === 1) {
+          throw new Error("temporary backend failure");
+        }
+        return fieldDescriptors;
+      },
+    });
+
+    await expect(catalog.getFields(source)).rejects.toThrow("temporary backend failure");
+    await expect(catalog.getFields(source)).resolves.toHaveLength(fieldDescriptors.length);
+
+    expect(callCount).toBe(2);
+  });
+
+  it("propagates the caller cancellation signal to schema discovery", async () => {
+    const controller = new AbortController();
+    let receivedSignal: AbortSignal | undefined;
+    const catalog = new SchemaCatalog({
+      describeFields: async (_source, signal) => {
+        receivedSignal = signal;
+        return fieldDescriptors;
+      },
+    });
+
+    await catalog.getFields(source, controller.signal);
+
+    expect(receivedSignal).toBe(controller.signal);
+  });
 });

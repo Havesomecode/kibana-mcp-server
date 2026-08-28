@@ -6,18 +6,18 @@ updated: 2026-04-09
 
 # npm Publishing Setup
 
-This repo is prepared for npm trusted publishing from GitHub Actions, but npm-side setup is still required before the first successful publish.
+This repo publishes to npm from GitHub Actions using trusted publishing.
 
 ## Package Identity
 
-The intended published package is `@havesomecode/kibana-mcp-server`.
+The published package is `@havesomecode/kibana-mcp-server`.
 
-Before enabling trusted publishing, confirm both of these are true:
+The release workflow assumes both of these remain true:
 
-- the npm scope `@havesomecode` is owned by the maintainer account that will publish this package
-- the package `@havesomecode/kibana-mcp-server` is either unclaimed or already owned by that scope
+- the maintainer account controls the npm scope `@havesomecode` and the published package
+- npm trusted publishing points to this repository's `release.yml` workflow
 
-Do not configure trusted publishing against a package or scope you do not control.
+If the owner or workflow changes, update the trusted publisher before the next release.
 
 ## Repo-Side Publish Workflow
 
@@ -33,19 +33,19 @@ It is responsible for:
 
 ## npm-Side Setup
 
-After package ownership is resolved:
+For future maintenance:
 
 1. Open the package settings on npmjs.com.
 2. Add a trusted publisher.
 3. Choose GitHub Actions.
 4. Set:
-   - Organization or user: `Zacaria`
+   - Organization or user: `Havesomecode`
    - Repository: `kibana-mcp-server`
    - Workflow filename: `release.yml`
    - Environment name: leave blank unless GitHub environments are added later
 5. Save the trusted publisher.
 6. Merge a PR into `master` with a semantic title such as `feat: ...` or `fix: ...`.
-7. After the first successful publish, disable token-based publishing in npm package settings.
+7. Keep token-based publishing disabled in npm package settings after trusted publishing is verified.
 
 ## Publish Expectations
 
@@ -55,3 +55,4 @@ After package ownership is resolved:
 - The package `repository` field must match this public GitHub repository exactly.
 - The npm package name in `package.json` must stay aligned with the package configured in npm trusted publishers.
 - Squash merge should be enabled so the semantic PR title becomes the final commit title on `master`.
+- The published version is determined by `semantic-release` and recorded in npm, tags, and GitHub Releases; the `package.json` version committed in git is not the canonical released version.

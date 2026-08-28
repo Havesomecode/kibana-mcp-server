@@ -5,6 +5,8 @@ Read-only MCP server for agent-driven log investigation against Kibana-backed se
 The server is intentionally small:
 
 - `setup` saves one or more machine-level Kibana profiles for later threads
+- `bootstrap` verifies only the Kibana connection, creates an empty managed catalog, saves credentials, and registers Codex without prompts or config-file edits
+- `configure_index` validates and persists exactly one index or pattern after the user explicitly names it
 - `configure` still exists for advanced MCP clients that want to drive credentials and source catalogs at runtime
 - `describe_fields` exposes effective field capabilities for one configured source
 - `discover` lists configured logical sources and field hints
@@ -17,17 +19,21 @@ It is designed as a general-purpose log investigation MCP for environments where
 
 - Node.js 22+
 - A Kibana-compatible read endpoint reachable with basic auth
-- A source catalog JSON file describing the logical log sources to expose, or the bundled `config/sources.example.json`
+- One or more Elasticsearch index patterns. `bootstrap` generates the source catalog; hand-authored catalogs remain supported for advanced setups.
 
 ## Project Status
 
-This repo targets external adoption and AI-agent usability. It is safe for real investigations, but the install and release posture is still evolving.
+This repo is live for external adoption and AI-agent use.
 
-- Guaranteed: repo-local Codex plugin install (see `INSTALL.md`)
-- Guaranteed: guided machine setup through `npm run setup`
-- In progress: package binary contract for agent-friendly `npx` execution
-- In progress: semantic-release automation for tags, npm publish, and GitHub Releases
-- Planned: first public package release after trusted publishing is enabled
+- Homepage: `https://havesomecode.github.io/kibana-mcp-server/`
+- Published package: `npx -y @havesomecode/kibana-mcp-server`
+- Agent skill: `npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation`
+- Repo-local Codex plugin install remains a first-class path for cloned checkouts
+
+- Guaranteed: prompt-free package bootstrap and Codex registration (see `INSTALL.md`)
+- Supported: guided machine setup through `npm run setup` for hand-authored catalogs
+- Available: published package install via `npx -y @havesomecode/kibana-mcp-server`
+- Active: semantic-release automation for tags, npm publish, and GitHub Releases
 - Support posture and compatibility details live in `docs/project/support-policy.md`
 - Contributing and security reporting live in `CONTRIBUTING.md` and `SECURITY.md`
 
@@ -38,20 +44,48 @@ This repo targets external adoption and AI-agent usability. It is safe for real 
 - Release checklist: `docs/project/release-checklist.md`
 - npm publishing setup: `docs/project/npm-publishing.md`
 - GitHub Releases are the canonical release notes and version record
+- The `version` field in `package.json` inside git is not the release source of truth
 
 ## Installation
 
+### Prompt-free connection bootstrap
+
+Pre-provision the connection values in the environment:
+
 ```bash
-npm install
-npm run build
-npm run setup
+export KIBANA_BASE_URL='https://kibana.example.com'
+export KIBANA_USERNAME='elastic'
+export KIBANA_PASSWORD='use-a-secret-provider'
+
+npx -y @havesomecode/kibana-mcp-server bootstrap \
+  --client codex
 ```
+
+This command performs no prompts and does not edit Codex configuration files directly. It verifies only the Kibana connection, writes an empty managed source catalog on first install, stores credentials securely, and registers the exact running package transport. It does not list, scan, infer, or configure indexes.
+
+After bootstrap, call `discover`. When no source is configured, the agent must ask the user which exact Kibana index or index pattern to use. Only after the user answers may the agent call `configure_index` with that value. That tool validates only the approved index and persists it without accepting credentials.
+
+Bootstrap reruns preserve sources that were configured through this explicit flow. It refuses to replace a hand-authored or modified catalog unless `--replace` is supplied explicitly; `--replace` creates an empty managed catalog.
+
+Never pass passwords as command-line arguments. Use `KIBANA_PASSWORD`, `--password-env NAME`, or `--password-stdin`.
+
+### Install the agent skill
+
+The repository contains a standard Agent Skill discoverable by the `skills` CLI and skills.sh:
+
+```bash
+npx skills add Havesomecode/kibana-mcp-server \
+  --skill kibana-log-investigation \
+  --agent codex \
+  --global \
+  --yes
+```
+
+The skill teaches compatible agents to run the same verified bootstrap instead of editing MCP config files. Its source is `skills/kibana-log-investigation/SKILL.md`.
 
 ## Use In Codex
 
-This repo includes a repo-scoped Codex plugin so a cloned checkout can install the MCP without any extra packaging or hosted infrastructure.
-
-The packaged CLI surface is also prepared for a future public install path. Once npm publishing is enabled, AI agents will be able to run the server with `npx -y @havesomecode/kibana-mcp-server` instead of cloning the repo first.
+The prompt-free package bootstrap above is the primary Codex path. The repo-scoped plugin remains available for contributors working from a cloned checkout.
 
 ### Quick path
 
@@ -64,19 +98,14 @@ The packaged CLI surface is also prepared for a future public install path. Once
 ```bash
 npm install
 npm run build
-npm run setup
 ```
 
 4. Open the cloned repo in Codex.
 5. Open the plugin directory in Codex and install `Kibana Log Investigation` from the repo marketplace.
    - if the current model cannot complete that install itself, do the Codex UI click manually and let the agent continue with configuration afterward
 6. Restart Codex if the new MCP server does not appear immediately.
-7. Run guided setup once:
-   - `npm run setup`
-   - provide the environment name, Kibana base URL, username, password, and a source catalog file to import
-   - use the bundled `config/sources.example.json` unless you already have a better catalog JSON
-8. Let later threads reuse the saved default profile automatically.
-   - if you add more than one environment during setup, select non-default ones with `KIBANA_PROFILE=<PROFILE_NAME>`
+7. Run `node dist/src/index.js bootstrap --client none` to verify the connection and save an empty profile. The repo plugin already supplies the client registration.
+8. In a fresh thread, call `discover`, ask the user for the exact index or pattern, then call `configure_index` only after they answer.
 
 Repo-scoped plugin files:
 
@@ -89,12 +118,21 @@ Repo-scoped plugin files:
 If you are handing only the repo link to another Codex agent, this usually works:
 
 ```text
-Clone this repo, ensure Node.js 22+ is installed at user level for the current OS, run npm install, npm run build, and npm run setup, install the repo plugin named "Kibana Log Investigation", import a source catalog during setup, and verify discover plus one query work in Codex without needing a later manual configure step.
+Install the `kibana-log-investigation` skill from Havesomecode/kibana-mcp-server, then run its connection-only bootstrap with the provisioned KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD values. Do not edit Codex config files, import the example catalog, or inspect indexes. After install, ask me which exact index or pattern to configure before calling configure_index.
 ```
 
 ## Configuration
 
-The preferred path is guided machine setup:
+The preferred path is deterministic connection-only bootstrap:
+
+- `npx -y @havesomecode/kibana-mcp-server bootstrap --client codex`
+- verifies `/api/status` without touching an index endpoint
+- creates an empty managed source catalog on first install
+- rejects conflicting MCP registrations instead of overwriting them
+- saves non-secret profile metadata and credentials for later threads
+- exposes `configure_index` for one user-approved index or pattern at a time
+
+Guided setup remains available for hand-authored source catalogs:
 
 - `npm run setup` or `node dist/src/index.js setup`
 - saves non-secret profile metadata in the user’s machine-level app config directory
@@ -103,6 +141,7 @@ The preferred path is guided machine setup:
   - Windows Credential Manager
   - Linux Secret Service when available
 - imports the selected source catalog into machine-local state so later threads do not depend on the repo checkout
+- requires an explicit catalog path; type `example` to opt into the bundled example deliberately
 
 The server also supports two advanced compatibility paths:
 
@@ -137,6 +176,10 @@ Environment variables:
 - `KIBANA_PROFILE` optional, selects a saved non-default machine profile
 - `KIBANA_TIMEOUT_MS` optional, default `10000`
 - `KIBANA_SOURCE_CATALOG_PATH` optional, default `config/sources.runtime.json`
+
+`KIBANA_TIMEOUT_MS` bounds each Kibana HTTP request end to end: it includes waiting for a request slot, connecting, and reading the response body. The server allows at most eight concurrent Kibana requests and 32 queued requests per configured client; excess work fails immediately with `KIBANA_OVERLOADED`. Cancelled MCP tool calls abort their queued or in-flight backend work.
+
+Backend failures use stable diagnostic codes such as `KIBANA_TIMEOUT`, `KIBANA_CANCELLED`, `KIBANA_OVERLOADED`, `KIBANA_AUTHENTICATION`, `KIBANA_DNS`, `KIBANA_TLS`, `KIBANA_CONNECTION`, and `KIBANA_RESPONSE`. Failed backend tool results also expose the diagnostic fields in `_meta.kibana_request_error`.
 
 `KIBANA_BASE_URL` is the Kibana base prefix that the server joins with each configured backend or schema path.
 
@@ -260,6 +303,21 @@ npm run dev
 ```
 
 ## Tool Shapes
+
+### `configure_index`
+
+Use this tool only after the user explicitly names the exact index or index pattern to configure. It accepts no credentials and never lists or scans for candidate indexes.
+
+Input:
+
+```json
+{
+  "index": "app-logs-*",
+  "source_name": "Application logs"
+}
+```
+
+The tool inspects fields and runs one bounded validation search only for that index. It then persists the generated source in the managed catalog. Optional `source_id`, `time_field`, and `replace` fields support explicit collision or schema handling.
 
 ### `configure`
 

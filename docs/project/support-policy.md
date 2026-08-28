@@ -23,7 +23,7 @@ This MCP is designed for operators and AI agents that need read-only access to K
 - Fully autonomous repo-local plugin installation by prompting alone across all Codex model variants
 - Schema metadata endpoints (`kibana_data_views_fields`, `kibana_index_patterns_fields`, `elasticsearch_field_caps`)
 - Nested query features that depend on schema availability
-- Public package installs (once enabled)
+- Linux secure storage when a Secret Service-compatible keyring is missing or locked
 
 Best-effort means we will investigate issues but cannot guarantee behavior across all deployments.
 
@@ -45,6 +45,7 @@ If you find a security issue, report it through the process documented in `SECUR
 - Critical security reports: acknowledge within 3 business days.
 - Non-security issues: response cadence depends on maintainer availability.
 - Release notes and shipped version history are published through GitHub Releases and npm, not through committed changelog updates in the repository.
+- Questions about the current shipped version should be answered from npm or GitHub Releases, not from the `package.json` version committed in git.
 
 ## Out of Scope
 

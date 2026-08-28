@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kibana Log Investigation MCP</title>
+    <meta
+      name="description"
+      content="Structured, read-only Kibana investigation with prompt-free npx bootstrap and an installable Agent Skill."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2308111e'/%3E%3Cpath d='M18 16h10v14l14-14h12L38 32l18 16H43L28 35v13H18V16Z' fill='%23ffaf45'/%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <div class="page-shell">
+      <header class="hero" id="hero">
+        <nav class="topbar" aria-label="Primary">
+          <a class="brand" href="#hero">
+            <span class="brand-mark">K</span>
+            <span>Kibana Log Investigation MCP</span>
+          </a>
+          <div class="topbar-links">
+            <a href="#workflow">Workflow</a>
+            <a href="#install">Install</a>
+            <a href="https://github.com/Havesomecode/kibana-mcp-server/releases">Releases</a>
+          </div>
+        </nav>
+
+        <section class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Read-only MCP for Kibana-backed log investigation</p>
+            <h1>Structured Kibana investigations for agents and teams</h1>
+            <p class="hero-summary">
+              Give agents structured access to source discovery, field inspection, and focused
+              queries without relying on brittle UI automation.
+            </p>
+
+            <div class="hero-actions">
+              <a class="button button-primary" href="#install">Install</a>
+              <a class="button button-secondary" href="#workflow">See the workflow</a>
+            </div>
+
+            <section class="install-chooser" aria-labelledby="install-chooser-title">
+              <p class="chooser-lead" id="install-chooser-title">
+                Pick the install path that fits your workflow.
+              </p>
+              <div class="tablist" role="tablist" aria-label="Install path">
+                <button
+                  id="tab-npx"
+                  class="tab is-active"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="panel-npx"
+                  data-tab-target="panel-npx"
+                >
+                  npx
+                </button>
+                <button
+                  id="tab-repo"
+                  class="tab"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="panel-repo"
+                  data-tab-target="panel-repo"
+                  tabindex="-1"
+                >
+                  Repo + Codex
+                </button>
+              </div>
+              <div class="tab-panels">
+                <article id="panel-npx" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-npx">
+                  <p class="tab-label">Best for: verified machine install without prompts or config edits</p>
+                  <div class="hero-command-row">
+                    <code id="hero-command-npx">npx -y @havesomecode/kibana-mcp-server bootstrap --client codex</code>
+                    <button
+                      class="copy-icon-button"
+                      type="button"
+                      data-copy-target="hero-command-npx"
+                      aria-label="Copy npx command"
+                      title="Copy command"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M9 7.5A2.5 2.5 0 0 1 11.5 5h6A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-6A2.5 2.5 0 0 1 9 16.5z"
+                        />
+                        <path
+                          d="M6.5 15H6A2 2 0 0 1 4 13V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v.5"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </article>
+                <article id="panel-repo" class="tab-panel" role="tabpanel" aria-labelledby="tab-repo" hidden>
+                  <p class="tab-label">Best for: Codex users who want the repo-local plugin workflow</p>
+                  <div class="hero-command-row">
+                    <pre><code id="hero-command-repo">git clone https://github.com/Havesomecode/kibana-mcp-server.git
+cd kibana-mcp-server
+npm install
+npm run build
+node dist/src/index.js bootstrap --client none</code></pre>
+                    <button
+                      class="copy-icon-button"
+                      type="button"
+                      data-copy-target="hero-command-repo"
+                      aria-label="Copy repo command"
+                      title="Copy command"
+                    >
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          d="M9 7.5A2.5 2.5 0 0 1 11.5 5h6A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-6A2.5 2.5 0 0 1 9 16.5z"
+                        />
+                        <path
+                          d="M6.5 15H6A2 2 0 0 1 4 13V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v.5"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </section>
+
+            <ul class="hero-signals" aria-label="Key proof points">
+              <li>Read-only by design</li>
+              <li>Connection-only verified bootstrap</li>
+              <li>Explicit consent before index configuration</li>
+              <li>Saved machine profile for later threads</li>
+              <li>Works with the repo-local Codex plugin</li>
+            </ul>
+          </div>
+
+          <div class="hero-visual" aria-hidden="true">
+            <section class="visual-panel terminal-panel">
+              <header>
+                <span class="window-dot amber"></span>
+                <span class="window-dot steel"></span>
+                <span class="window-dot teal"></span>
+                <p>Install surface</p>
+              </header>
+              <div class="terminal-body">
+                <p><span class="prompt">$</span> kibana-mcp-server bootstrap</p>
+                <p><span class="success">✓</span> Kibana connection verified</p>
+                <p><span class="success">✓</span> Empty managed source catalog saved</p>
+                <p><span class="success">✓</span> No indexes inspected or configured</p>
+                <p><span class="success">✓</span> Machine profile saved atomically</p>
+                <p><span class="success">✓</span> Codex registration read back</p>
+                <p><span class="success">✓</span> No config file editing required</p>
+              </div>
+            </section>
+
+            <section class="visual-panel product-panel">
+              <header>
+                <p>Structured investigation output</p>
+                <span class="status-pill">synthetic example</span>
+              </header>
+              <div class="product-grid">
+                <div class="mini-card">
+                  <p class="mini-label">discover</p>
+                  <strong>Application Logs</strong>
+                  <span>app-logs-*</span>
+                </div>
+                <div class="mini-card">
+                  <p class="mini-label">describe_fields</p>
+                  <strong>trace.id</strong>
+                  <span>keyword</span>
+                </div>
+                <div class="result-stream">
+                  <p class="result-line">query: <span>checkout timeout last 30m</span></p>
+                  <p class="result-line">mode: <span>grouped_top_hits</span></p>
+                  <p class="result-line">count: <span>47 hits</span></p>
+                  <ul>
+                    <li>payment-api · 18</li>
+                    <li>checkout-worker · 14</li>
+                    <li>gateway-edge · 9</li>
+                    <li>job-runner · 6</li>
+                  </ul>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </header>
+
+      <main id="content">
+        <section class="section workflow-section" id="workflow">
+          <div class="section-heading">
+            <p class="eyebrow">Synthetic investigation example</p>
+            <h2>From source discovery to structured query output</h2>
+            <p>
+              This public example uses invented services and counts. It follows the supported flow
+              from source selection to structured results without exposing an operator's logs.
+            </p>
+          </div>
+
+          <div class="workflow-stage">
+            <div class="workflow-rail"></div>
+            <article class="workflow-node">
+              <span class="step-index">01</span>
+              <div>
+                <h3>Discover the sources you can trust</h3>
+                <p>
+                  Start from named sources instead of hunting through raw Kibana index structure.
+                </p>
+              </div>
+            </article>
+            <article class="workflow-node">
+              <span class="step-index">02</span>
+              <div>
+                <h3>Inspect fields before tightening the query</h3>
+                <p>
+                  When schema endpoints are available, agents can validate exact-match fields before
+                  pushing into grouped or filtered analysis.
+                </p>
+              </div>
+            </article>
+            <article class="workflow-node">
+              <span class="step-index">03</span>
+              <div>
+                <h3>Run focused queries that return structured results</h3>
+                <p>
+                  Ask for hits, counts, histograms, terms, stats, or grouped top hits. The response
+                  keeps the query bounds and filters visible beside the result.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="section narrative-section" id="why">
+          <div class="section-heading narrow">
+            <p class="eyebrow">Why it exists</p>
+            <h2>Kibana works for humans. Agents need structure.</h2>
+            <p>
+              Kibana is powerful, but repeatable agent workflows break down when every investigation
+              depends on UI state, local conventions, or one-off wrappers. This MCP adds a
+              structured path on top of the log sources you already expose.
+            </p>
+          </div>
+        </section>
+
+        <section class="trust-strip" aria-label="Trust signals">
+          <div>
+            <p class="trust-title">Read-only by design</p>
+            <p>No writes to Kibana, Elasticsearch, or data views.</p>
+          </div>
+          <div>
+            <p class="trust-title">Real install paths</p>
+            <p>Use `npx` directly or the repo-local Codex plugin workflow.</p>
+          </div>
+          <div>
+            <p class="trust-title">Maintained release path</p>
+            <p>Install from the package, inspect tagged releases, or review the repo directly.</p>
+          </div>
+        </section>
+
+        <section class="section feature-section" id="features">
+          <div class="section-heading">
+            <p class="eyebrow">Built for real investigation workflows</p>
+            <h2>Capabilities that matter during an investigation</h2>
+          </div>
+          <div class="feature-rows">
+            <article class="feature-row">
+              <div class="feature-lead">
+                <p class="feature-kicker">Discover sources</p>
+                <h3>Start from logical sources, not raw index details</h3>
+              </div>
+              <p>
+                The operator controls a bounded catalog of sources, names, tags, and field hints.
+                Agents investigate within that catalog instead of starting from raw index details.
+              </p>
+            </article>
+            <article class="feature-row">
+              <div class="feature-lead">
+                <p class="feature-kicker">Inspect fields</p>
+                <h3>Check exact-match fields before tightening filters</h3>
+              </div>
+              <p>
+                <code>describe_fields</code> helps when the deployment exposes schema metadata.
+                Without it, the rest of the query workflow still works.
+              </p>
+            </article>
+            <article class="feature-row">
+              <div class="feature-lead">
+                <p class="feature-kicker">Run tighter queries</p>
+                <h3>Move from broad search to grouped, filtered, or statistical output</h3>
+              </div>
+              <p>
+                Query and filter responses include a <code>query_echo</code> with the selected sources,
+                time bounds, filters, and mode, so their scope remains inspectable.
+              </p>
+            </article>
+            <article class="feature-row">
+              <div class="feature-lead">
+                <p class="feature-kicker">Reuse saved setup</p>
+                <h3>Install once, keep a default machine profile for later threads</h3>
+              </div>
+              <p>
+                Guided setup saves machine-level profile state so new threads do not need a manual
+                <code>configure</code> step just to get back to investigation work.
+              </p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section install-section" id="install">
+          <div class="section-heading">
+            <p class="eyebrow">Install</p>
+            <h2>Choose the path that matches your workflow</h2>
+            <p>
+              Both paths work. Pick the one that matches how you work today. Bootstrap creates an
+              empty catalog. Ask the user which exact Kibana index or index pattern to use. Only then
+              call <code>configure_index</code> with that value.
+            </p>
+          </div>
+
+          <div class="install-grid">
+            <article class="install-card">
+              <div class="install-meta">
+                <p class="install-label">npx</p>
+                <p class="install-best-for">Best for direct machine setup</p>
+              </div>
+              <pre><code id="command-npx">npx -y @havesomecode/kibana-mcp-server bootstrap --client codex</code></pre>
+              <button class="copy-button" type="button" data-copy-target="command-npx">Copy command</button>
+              <p class="install-note">
+                Verifies only the Kibana connection, creates an empty catalog, and registers Codex without prompts.
+              </p>
+            </article>
+
+            <article class="install-card">
+              <div class="install-meta">
+                <p class="install-label">Repo + Codex</p>
+                <p class="install-best-for">Best for repo-local plugin use in Codex</p>
+              </div>
+              <pre><code id="command-repo">git clone https://github.com/Havesomecode/kibana-mcp-server.git
+cd kibana-mcp-server
+npm install
+npm run build
+node dist/src/index.js bootstrap --client none</code></pre>
+              <button class="copy-button" type="button" data-copy-target="command-repo">Copy commands</button>
+              <p class="install-note">
+                Install the local plugin, bootstrap a verified profile, and let Codex threads reuse it.
+              </p>
+            </article>
+
+            <article class="install-card">
+              <div class="install-meta">
+                <p class="install-label">Agent Skill</p>
+                <p class="install-best-for">Best for agent-led installation from skills.sh</p>
+              </div>
+              <pre><code id="command-skill">npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation --agent codex --global --yes</code></pre>
+              <button class="copy-button" type="button" data-copy-target="command-skill">Copy command</button>
+              <p class="install-note">
+                Teaches the agent to ask for an exact index before calling configure_index.
+              </p>
+            </article>
+          </div>
+
+          <div class="install-links">
+            <a href="https://www.npmjs.com/package/@havesomecode/kibana-mcp-server">View npm package</a>
+            <a href="https://github.com/Havesomecode/kibana-mcp-server/blob/master/INSTALL.md">Open INSTALL.md</a>
+          </div>
+        </section>
+
+        <section class="section boundaries-section" id="boundaries">
+          <div class="section-heading narrow">
+            <p class="eyebrow">Environment notes</p>
+            <h2>What to expect in your environment</h2>
+            <p>
+              The main workflow works across deployments. Some features depend on schema metadata
+              being exposed.
+            </p>
+          </div>
+          <div class="boundary-grid">
+            <article>
+              <h3>What it handles well</h3>
+              <p>
+                Read-only source discovery, field inspection, exact-field filtering, and structured
+                queries over Kibana-backed logs.
+              </p>
+            </article>
+            <article>
+              <h3>What it will not do</h3>
+              <p>
+                It does not write to Kibana or Elasticsearch, and it does not try to turn log
+                investigation into a broader automation product.
+              </p>
+            </article>
+            <article>
+              <h3>What depends on your setup</h3>
+              <p>
+                Schema-aware features depend on the deployment. If metadata endpoints are blocked,
+                those features may be limited or unavailable.
+              </p>
+            </article>
+          </div>
+          <div class="support-links">
+            <a href="https://github.com/Havesomecode/kibana-mcp-server/blob/master/README.md">README</a>
+            <a href="https://github.com/Havesomecode/kibana-mcp-server/blob/master/INSTALL.md">INSTALL</a>
+            <a href="https://github.com/Havesomecode/kibana-mcp-server/blob/master/docs/project/support-policy.md">Support policy</a>
+            <a href="https://github.com/Havesomecode/kibana-mcp-server/releases">GitHub Releases</a>
+          </div>
+        </section>
+
+        <section class="section final-cta">
+          <div>
+            <p class="eyebrow">Ready to use it?</p>
+            <h2>Install it or inspect the repo</h2>
+          </div>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#install">Use the package</a>
+            <a class="button button-secondary" href="https://github.com/Havesomecode/kibana-mcp-server">
+              Open the repository
+            </a>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
