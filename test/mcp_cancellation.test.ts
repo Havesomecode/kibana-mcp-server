@@ -258,4 +258,70 @@ describe("MCP cancellation", () => {
     await clientTransport.close();
     await application.server.close();
   });
+
+  it("returns structured response diagnostics for describe_fields failures", async () => {
+    const application = createApplication(config, {
+      kibanaClient: {
+        executeMany: async () => [],
+        describeFields: async () => {
+          throw new KibanaRequestError(
+            "KIBANA_RESPONSE",
+            "response",
+            "consumer",
+            1000,
+            "[KIBANA_RESPONSE] Kibana returned an unexpected schema payload",
+          );
+        },
+      } as never,
+    });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const responses: Array<Record<string, unknown>> = [];
+    clientTransport.onmessage = (message) => {
+      responses.push(message as Record<string, unknown>);
+    };
+
+    await application.server.connect(serverTransport);
+    await clientTransport.start();
+    await clientTransport.send({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "schema-diagnostics-test", version: "1.0.0" },
+      },
+    });
+    await waitFor(() => responses.some((message) => message.id === 1));
+    await clientTransport.send({
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+      params: {},
+    });
+    await clientTransport.send({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "describe_fields",
+        arguments: { source_id: "consumer", limit: 20 },
+      },
+    });
+    await waitFor(() => responses.some((message) => message.id === 2));
+    const response = responses.find((message) => message.id === 2);
+    const result = response?.result as Record<string, unknown>;
+
+    expect(result.isError).toBe(true);
+    expect(result._meta).toEqual({
+      kibana_request_error: {
+        code: "KIBANA_RESPONSE",
+        phase: "response",
+        source_id: "consumer",
+        timeout_ms: 1000,
+      },
+    });
+
+    await clientTransport.close();
+    await application.server.close();
+  });
 });

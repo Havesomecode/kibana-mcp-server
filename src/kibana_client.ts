@@ -26,6 +26,7 @@ export type KibanaRequestErrorCode =
   | "KIBANA_DNS"
   | "KIBANA_HTTP"
   | "KIBANA_NETWORK"
+  | "KIBANA_OVERLOADED"
   | "KIBANA_RESPONSE"
   | "KIBANA_TIMEOUT"
   | "KIBANA_TLS";
@@ -133,7 +134,19 @@ function asArray(value: unknown): unknown[] {
 }
 
 function normalizeFieldCapsResponse(raw: unknown): SourceFieldDescriptor[] {
-  const fields = asRecord(asRecord(raw).fields);
+  const record = asRecord(raw);
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    Array.isArray(raw) ||
+    !("fields" in record) ||
+    !record.fields ||
+    typeof record.fields !== "object" ||
+    Array.isArray(record.fields)
+  ) {
+    throw new Error("Unexpected Elasticsearch field capabilities response shape");
+  }
+  const fields = asRecord(record.fields);
 
   return Object.entries(fields)
     .map(([name, typeEntries]) => {
@@ -154,15 +167,23 @@ function normalizeFieldCapsResponse(raw: unknown): SourceFieldDescriptor[] {
 }
 
 function normalizeKibanaFieldsResponse(raw: unknown): SourceFieldDescriptor[] {
-  const rawFields = Array.isArray(raw) ? raw : asArray(asRecord(raw).fields);
+  const record = asRecord(raw);
+  const rawFields = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object" && !Array.isArray(raw) && Array.isArray(record.fields)
+      ? record.fields
+      : undefined;
+  if (!rawFields) {
+    throw new Error("Unexpected Kibana fields response shape");
+  }
 
   return rawFields
-    .map((field): SourceFieldDescriptor | null => {
+    .map((field): SourceFieldDescriptor => {
       const fieldRecord = asRecord(field);
       const name = fieldRecord.name;
 
       if (typeof name !== "string") {
-        return null;
+        throw new Error("Kibana fields response contained an entry without a field name");
       }
 
       const subType = asRecord(fieldRecord.subType);
@@ -181,7 +202,6 @@ function normalizeKibanaFieldsResponse(raw: unknown): SourceFieldDescriptor[] {
         subfields: [],
       };
     })
-    .filter((field): field is SourceFieldDescriptor => field !== null)
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
@@ -433,11 +453,17 @@ class RequestGate {
     onAbort: () => void;
   }> = [];
 
-  constructor(private readonly maxConcurrency: number) {}
+  constructor(
+    private readonly maxConcurrency: number,
+    private readonly maxQueueDepth: number,
+  ) {}
 
   acquire(signal: AbortSignal): Promise<() => void> {
     if (signal.aborted) {
       return Promise.reject(signal.reason);
+    }
+    if (this.active >= this.maxConcurrency && this.waiters.length >= this.maxQueueDepth) {
+      return Promise.reject(new RequestQueueFullError(this.maxQueueDepth));
     }
 
     return new Promise((resolve, reject) => {
@@ -485,15 +511,22 @@ class RequestGate {
   }
 }
 
+class RequestQueueFullError extends Error {
+  constructor(readonly maxQueueDepth: number) {
+    super(`Kibana request queue is full (${maxQueueDepth} waiting requests)`);
+    this.name = "RequestQueueFullError";
+  }
+}
+
 export class KibanaClient {
   private readonly requestGate: RequestGate;
   private readonly queueTimeoutMs: number;
 
   constructor(
     private readonly config: AppConfig["kibana"],
-    options: { maxConcurrency?: number; queueTimeoutMs?: number } = {},
+    options: { maxConcurrency?: number; maxQueueDepth?: number; queueTimeoutMs?: number } = {},
   ) {
-    this.requestGate = new RequestGate(options.maxConcurrency ?? 8);
+    this.requestGate = new RequestGate(options.maxConcurrency ?? 8, options.maxQueueDepth ?? 32);
     this.queueTimeoutMs = Math.min(options.queueTimeoutMs ?? config.timeoutMs, config.timeoutMs);
   }
 
@@ -564,6 +597,16 @@ export class KibanaClient {
           options.sourceId,
           this.config.timeoutMs,
           `[KIBANA_CANCELLED] Kibana request${sourceLabel} was cancelled during ${phase}`,
+          error,
+        );
+      }
+      if (error instanceof RequestQueueFullError) {
+        throw new KibanaRequestError(
+          "KIBANA_OVERLOADED",
+          "queue",
+          options.sourceId,
+          this.queueTimeoutMs,
+          `[KIBANA_OVERLOADED] Kibana request queue${sourceLabel} is full (${error.maxQueueDepth} waiting requests)`,
           error,
         );
       }
@@ -733,8 +776,12 @@ export class KibanaClient {
     const fields = normalizeSearchSampleFields(rawResponse);
 
     if (fields.length === 0) {
-      throw new Error(
-        `Search transport fallback returned no fields for source '${source.id}'. Sample hits may be empty for the requested index pattern.`,
+      throw new KibanaRequestError(
+        "KIBANA_RESPONSE",
+        "response",
+        source.id,
+        this.config.timeoutMs,
+        `[KIBANA_RESPONSE] Search transport fallback returned no fields for source '${source.id}'. Sample hits may be empty for the requested index pattern.`,
       );
     }
 
@@ -787,10 +834,15 @@ export class KibanaClient {
       try {
         return normalizeFieldCapsResponse(responseJson);
       } catch (error) {
-        throw new Error(
-          `Schema backend '${schemaBackend.kind}' returned an unexpected field capabilities payload for source '${source.id}': ${
+        throw new KibanaRequestError(
+          "KIBANA_RESPONSE",
+          "response",
+          source.id,
+          this.config.timeoutMs,
+          `[KIBANA_RESPONSE] Schema backend '${schemaBackend.kind}' returned an unexpected field capabilities payload for source '${source.id}': ${
             error instanceof Error ? error.message : String(error)
           }`,
+          error,
         );
       }
     }
@@ -813,10 +865,15 @@ export class KibanaClient {
         try {
           return normalizeKibanaFieldsResponse(responseJson);
         } catch (error) {
-          throw new Error(
-            `Schema backend '${schemaBackend.kind}' returned an unexpected Kibana field payload for source '${source.id}' from '${schemaPath}': ${
+          throw new KibanaRequestError(
+            "KIBANA_RESPONSE",
+            "response",
+            source.id,
+            this.config.timeoutMs,
+            `[KIBANA_RESPONSE] Schema backend '${schemaBackend.kind}' returned an unexpected Kibana field payload for source '${source.id}' from '${schemaPath}': ${
               error instanceof Error ? error.message : String(error)
             }`,
+            error,
           );
         }
       } catch (error) {

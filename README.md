@@ -177,9 +177,9 @@ Environment variables:
 - `KIBANA_TIMEOUT_MS` optional, default `10000`
 - `KIBANA_SOURCE_CATALOG_PATH` optional, default `config/sources.runtime.json`
 
-`KIBANA_TIMEOUT_MS` bounds each Kibana HTTP request end to end: it includes waiting for a request slot, connecting, and reading the response body. The server allows at most eight concurrent Kibana requests per configured client, and cancelled MCP tool calls abort their queued or in-flight backend work.
+`KIBANA_TIMEOUT_MS` bounds each Kibana HTTP request end to end: it includes waiting for a request slot, connecting, and reading the response body. The server allows at most eight concurrent Kibana requests and 32 queued requests per configured client; excess work fails immediately with `KIBANA_OVERLOADED`. Cancelled MCP tool calls abort their queued or in-flight backend work.
 
-Backend failures use stable diagnostic codes such as `KIBANA_TIMEOUT`, `KIBANA_CANCELLED`, `KIBANA_AUTHENTICATION`, `KIBANA_DNS`, `KIBANA_TLS`, `KIBANA_CONNECTION`, and `KIBANA_RESPONSE`. Failed backend tool results also expose the diagnostic fields in `_meta.kibana_request_error`.
+Backend failures use stable diagnostic codes such as `KIBANA_TIMEOUT`, `KIBANA_CANCELLED`, `KIBANA_OVERLOADED`, `KIBANA_AUTHENTICATION`, `KIBANA_DNS`, `KIBANA_TLS`, `KIBANA_CONNECTION`, and `KIBANA_RESPONSE`. Failed backend tool results also expose the diagnostic fields in `_meta.kibana_request_error`.
 
 `KIBANA_BASE_URL` is the Kibana base prefix that the server joins with each configured backend or schema path.
 

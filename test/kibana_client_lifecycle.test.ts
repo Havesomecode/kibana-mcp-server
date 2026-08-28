@@ -40,6 +40,8 @@ interface StalledBackend {
   baseUrl: string;
   requestCount: number;
   abortedRequestCount: number;
+  readonly activeRequestCount: number;
+  readonly liveSocketCount: number;
   recover: () => void;
   close: () => Promise<void>;
 }
@@ -51,10 +53,17 @@ async function createStalledBackend(
 ): Promise<StalledBackend> {
   const sockets = new Set<Socket>();
   let recovered = false;
+  let activeRequests = 0;
   const backend: StalledBackend = {
     baseUrl: "",
     requestCount: 0,
     abortedRequestCount: 0,
+    get activeRequestCount() {
+      return activeRequests;
+    },
+    get liveSocketCount() {
+      return sockets.size;
+    },
     recover: () => {
       recovered = true;
     },
@@ -62,6 +71,10 @@ async function createStalledBackend(
   };
   const server: Server = createServer((request, response) => {
     backend.requestCount += 1;
+    activeRequests += 1;
+    request.on("close", () => {
+      activeRequests -= 1;
+    });
     if (recovered) {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(
@@ -164,6 +177,7 @@ describe("KibanaClient request lifecycle", () => {
       phase: "request",
     });
     await waitFor(() => backend.abortedRequestCount === 1);
+    await waitFor(() => backend.activeRequestCount === 0);
   });
 
   it("aborts stalled schema discovery when the caller cancels", async () => {
@@ -186,6 +200,7 @@ describe("KibanaClient request lifecycle", () => {
       sourceId: "app-logs",
     });
     await waitFor(() => backend.abortedRequestCount === 1);
+    await waitFor(() => backend.activeRequestCount === 0);
   });
 
   it("classifies a stalled backend request as a bounded timeout", async () => {
@@ -205,6 +220,7 @@ describe("KibanaClient request lifecycle", () => {
       sourceId: "app-logs",
       timeoutMs: 100,
     });
+    await waitFor(() => backend.activeRequestCount === 0);
   });
 
   it("times out while reading a stalled response body", async () => {
@@ -222,6 +238,31 @@ describe("KibanaClient request lifecycle", () => {
       sourceId: "app-logs",
       timeoutMs: 1000,
     });
+    await waitFor(() => backend.activeRequestCount === 0);
+  });
+
+  it("releases sockets across repeated timeouts before backend recovery", async () => {
+    const backend = await createStalledBackend();
+    const client = new KibanaClient({
+      baseUrl: backend.baseUrl,
+      username: "elastic",
+      password: "secret",
+      timeoutMs: 100,
+    });
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(client.execute(compiledQuery)).rejects.toMatchObject({
+        code: "KIBANA_TIMEOUT",
+      });
+      await waitFor(() => backend.activeRequestCount === 0);
+      expect(backend.liveSocketCount).toBeLessThanOrEqual(1);
+    }
+
+    backend.recover();
+    await expect(client.execute(compiledQuery)).resolves.toMatchObject({
+      source: { id: "app-logs" },
+    });
+    expect(backend.requestCount).toBe(4);
   });
 
   it("succeeds after a stalled backend recovers", async () => {
@@ -278,6 +319,22 @@ describe("KibanaClient request lifecycle", () => {
     });
   });
 
+  it("classifies malformed successful schema responses as response failures", async () => {
+    const backend = await createRespondingBackend(200, JSON.stringify({ unexpected: true }));
+    const client = new KibanaClient({
+      baseUrl: backend.baseUrl,
+      username: "elastic",
+      password: "secret",
+      timeoutMs: 500,
+    });
+
+    await expect(client.describeFields(source)).rejects.toMatchObject({
+      code: "KIBANA_RESPONSE",
+      phase: "response",
+      sourceId: "app-logs",
+    });
+  });
+
   it("bounds concurrency and times out while waiting for a request slot", async () => {
     const backend = await createStalledBackend();
     const client = new KibanaClient(
@@ -303,5 +360,34 @@ describe("KibanaClient request lifecycle", () => {
       code: "KIBANA_TIMEOUT",
       phase: "request",
     });
+  });
+
+  it("rejects excess queued requests with a structured overload error", async () => {
+    const backend = await createStalledBackend();
+    const client = new KibanaClient(
+      {
+        baseUrl: backend.baseUrl,
+        username: "elastic",
+        password: "secret",
+        timeoutMs: 500,
+      },
+      { maxConcurrency: 1, maxQueueDepth: 1, queueTimeoutMs: 250 },
+    );
+    const active = client.execute(compiledQuery).catch((error: unknown) => error);
+
+    await waitFor(() => backend.requestCount === 1);
+    const queued = client.execute(compiledQuery).catch((error: unknown) => error);
+    const overloaded = client.execute(compiledQuery);
+
+    await expect(overloaded).rejects.toMatchObject({
+      code: "KIBANA_OVERLOADED",
+      phase: "queue",
+      sourceId: "app-logs",
+    });
+    expect(backend.requestCount).toBe(1);
+    await expect(Promise.all([active, queued])).resolves.toEqual([
+      expect.objectContaining({ code: "KIBANA_TIMEOUT" }),
+      expect.objectContaining({ code: "KIBANA_TIMEOUT" }),
+    ]);
   });
 });
