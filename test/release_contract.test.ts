@@ -69,7 +69,11 @@ describe("release contract", () => {
 
     expect(semanticWorkflow).toContain("pull_request:");
     expect(semanticWorkflow).toContain("commitlint");
-    expect(semanticWorkflow).toContain("github.event.pull_request.title");
+    expect(semanticWorkflow).toContain("PR_TITLE: ${{ github.event.pull_request.title }}");
+    expect(semanticWorkflow).toContain("printf '%s\\n' \"$PR_TITLE\" | npx commitlint --verbose");
+    expect(semanticWorkflow).not.toContain(
+      "printf '%s\\n' '${{ github.event.pull_request.title }}'",
+    );
   });
 
   it("passes the repo-local release contract verifier", () => {

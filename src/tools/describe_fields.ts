@@ -34,9 +34,10 @@ export async function executeDescribeFields(
   input: z.infer<typeof describeFieldsInputSchema>,
   sourceCatalog: Pick<SourceCatalog, "getRequiredSources">,
   schemaCatalog: SchemaCatalog,
+  callerSignal?: AbortSignal,
 ): Promise<z.infer<typeof describeFieldsOutputSchema>> {
   const [source] = sourceCatalog.getRequiredSources([input.source_id]);
-  const fields = await schemaCatalog.getFields(source);
+  const fields = await schemaCatalog.getFields(source, callerSignal);
   const filteredFields = schemaCatalog.filterFields(fields, input.query, input.limit);
 
   return {

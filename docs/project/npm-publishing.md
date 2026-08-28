@@ -10,14 +10,14 @@ This repo publishes to npm from GitHub Actions using trusted publishing.
 
 ## Package Identity
 
-The intended published package is `@havesomecode/kibana-mcp-server`.
+The published package is `@havesomecode/kibana-mcp-server`.
 
-Before enabling trusted publishing, confirm both of these are true:
+The release workflow assumes both of these remain true:
 
-- the npm scope `@havesomecode` is owned by the maintainer account that will publish this package
-- the package `@havesomecode/kibana-mcp-server` is either unclaimed or already owned by that scope
+- the maintainer account controls the npm scope `@havesomecode` and the published package
+- npm trusted publishing points to this repository's `release.yml` workflow
 
-Do not configure trusted publishing against a package or scope you do not control.
+If the owner or workflow changes, update the trusted publisher before the next release.
 
 ## Repo-Side Publish Workflow
 

@@ -63,4 +63,19 @@ describe("package contract", () => {
     expect(plugin.interface?.developerName).toBe("Havesomecode");
     expect(plugin.interface?.websiteURL).toBe("https://havesomecode.github.io/kibana-mcp-server/");
   });
+
+  it("runs npm subprocesses through the active cross-platform npm CLI", () => {
+    const verifier = readFileSync(resolve(repoRoot, "scripts/verify-mcp-entrypoint.mjs"), "utf8");
+
+    expect(verifier).toContain("process.env.npm_execpath");
+    expect(verifier).toContain("execFileAsync(process.execPath");
+    expect(verifier).not.toMatch(/execFileAsync\(\s*["']npm["']/);
+  });
+
+  it("documents the npm package as published rather than planned", () => {
+    const publishing = readFileSync(resolve(repoRoot, "docs/project/npm-publishing.md"), "utf8");
+
+    expect(publishing).toContain("The published package is `@havesomecode/kibana-mcp-server`.");
+    expect(publishing).not.toContain("intended published package");
+  });
 });

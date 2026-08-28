@@ -6,7 +6,7 @@
     <title>Kibana Log Investigation MCP</title>
     <meta
       name="description"
-      content="Fast, read-only Kibana investigation for agents and teams, with both npx and repo-local Codex install paths."
+      content="Structured, read-only Kibana investigation with prompt-free npx bootstrap and an installable Agent Skill."
     />
     <link
       rel="icon"
@@ -40,7 +40,7 @@
         <section class="hero-grid">
           <div class="hero-copy">
             <p class="eyebrow">Read-only MCP for Kibana-backed log investigation</p>
-            <h1>Faster Kibana investigations for agents and teams</h1>
+            <h1>Structured Kibana investigations for agents and teams</h1>
             <p class="hero-summary">
               Give agents structured access to source discovery, field inspection, and focused
               queries without relying on brittle UI automation.
@@ -82,9 +82,9 @@
               </div>
               <div class="tab-panels">
                 <article id="panel-npx" class="tab-panel is-active" role="tabpanel" aria-labelledby="tab-npx">
-                  <p class="tab-label">Best for: direct machine install and quick guided setup</p>
+                  <p class="tab-label">Best for: verified machine install without prompts or config edits</p>
                   <div class="hero-command-row">
-                    <code id="hero-command-npx">npx -y @havesomecode/kibana-mcp-server setup</code>
+                    <code id="hero-command-npx">npx -y @havesomecode/kibana-mcp-server bootstrap --client codex</code>
                     <button
                       class="copy-icon-button"
                       type="button"
@@ -110,7 +110,7 @@
 cd kibana-mcp-server
 npm install
 npm run build
-npm run setup</code></pre>
+node dist/src/index.js bootstrap --client none</code></pre>
                     <button
                       class="copy-icon-button"
                       type="button"
@@ -134,7 +134,8 @@ npm run setup</code></pre>
 
             <ul class="hero-signals" aria-label="Key proof points">
               <li>Read-only by design</li>
-              <li>Guided setup in one command</li>
+              <li>Connection-only verified bootstrap</li>
+              <li>Explicit consent before index configuration</li>
               <li>Saved machine profile for later threads</li>
               <li>Works with the repo-local Codex plugin</li>
             </ul>
@@ -149,20 +150,20 @@ npm run setup</code></pre>
                 <p>Install surface</p>
               </header>
               <div class="terminal-body">
-                <p><span class="prompt">$</span> npx -y @havesomecode/kibana-mcp-server setup</p>
-                <p><span class="accent">?</span> Environment name <span class="muted">prod</span></p>
-                <p><span class="accent">?</span> Kibana base URL <span class="muted">https://kibana.example.com</span></p>
-                <p><span class="accent">?</span> Import source catalog <span class="muted">config/sources.example.json</span></p>
-                <p><span class="success">✓</span> Saved machine profile</p>
-                <p><span class="success">✓</span> Imported source catalog</p>
-                <p><span class="success">✓</span> Later threads can reuse the default profile</p>
+                <p><span class="prompt">$</span> kibana-mcp-server bootstrap</p>
+                <p><span class="success">✓</span> Kibana connection verified</p>
+                <p><span class="success">✓</span> Empty managed source catalog saved</p>
+                <p><span class="success">✓</span> No indexes inspected or configured</p>
+                <p><span class="success">✓</span> Machine profile saved atomically</p>
+                <p><span class="success">✓</span> Codex registration read back</p>
+                <p><span class="success">✓</span> No config file editing required</p>
               </div>
             </section>
 
             <section class="visual-panel product-panel">
               <header>
                 <p>Structured investigation output</p>
-                <span class="status-pill">live workflow</span>
+                <span class="status-pill">synthetic example</span>
               </header>
               <div class="product-grid">
                 <div class="mini-card">
@@ -195,11 +196,11 @@ npm run setup</code></pre>
       <main id="content">
         <section class="section workflow-section" id="workflow">
           <div class="section-heading">
-            <p class="eyebrow">See a real investigation flow</p>
+            <p class="eyebrow">Synthetic investigation example</p>
             <h2>From source discovery to structured query output</h2>
             <p>
-              The first proof block follows one investigation from source selection to structured
-              results.
+              This public example uses invented services and counts. It follows the supported flow
+              from source selection to structured results without exposing an operator's logs.
             </p>
           </div>
 
@@ -229,8 +230,8 @@ npm run setup</code></pre>
               <div>
                 <h3>Run focused queries that return structured results</h3>
                 <p>
-                  Ask for hits, counts, histograms, terms, stats, or grouped top hits without
-                  custom glue for every team.
+                  Ask for hits, counts, histograms, terms, stats, or grouped top hits. The response
+                  keeps the query bounds and filters visible beside the result.
                 </p>
               </div>
             </article>
@@ -243,7 +244,7 @@ npm run setup</code></pre>
             <h2>Kibana works for humans. Agents need structure.</h2>
             <p>
               Kibana is powerful, but repeatable agent workflows break down when every investigation
-              depends on UI state, tribal knowledge, or one-off wrappers. This MCP adds a
+              depends on UI state, local conventions, or one-off wrappers. This MCP adds a
               structured path on top of the log sources you already expose.
             </p>
           </div>
@@ -276,8 +277,8 @@ npm run setup</code></pre>
                 <h3>Start from logical sources, not raw index details</h3>
               </div>
               <p>
-                Give teams and agents a bounded catalog of sources with names, tags, and field
-                hints instead of making every investigation start from manual digging.
+                The operator controls a bounded catalog of sources, names, tags, and field hints.
+                Agents investigate within that catalog instead of starting from raw index details.
               </p>
             </article>
             <article class="feature-row">
@@ -296,8 +297,8 @@ npm run setup</code></pre>
                 <h3>Move from broad search to grouped, filtered, or statistical output</h3>
               </div>
               <p>
-                Return structured results agents can reason about without manual UI parsing or
-                custom glue for every team.
+                Query and filter responses include a <code>query_echo</code> with the selected sources,
+                time bounds, filters, and mode, so their scope remains inspectable.
               </p>
             </article>
             <article class="feature-row">
@@ -318,7 +319,9 @@ npm run setup</code></pre>
             <p class="eyebrow">Install</p>
             <h2>Choose the path that matches your workflow</h2>
             <p>
-              Both paths work. Pick the one that matches how you work today.
+              Both paths work. Pick the one that matches how you work today. Bootstrap creates an
+              empty catalog. Ask the user which exact Kibana index or index pattern to use. Only then
+              call <code>configure_index</code> with that value.
             </p>
           </div>
 
@@ -328,10 +331,10 @@ npm run setup</code></pre>
                 <p class="install-label">npx</p>
                 <p class="install-best-for">Best for direct machine setup</p>
               </div>
-              <pre><code id="command-npx">npx -y @havesomecode/kibana-mcp-server setup</code></pre>
+              <pre><code id="command-npx">npx -y @havesomecode/kibana-mcp-server bootstrap --client codex</code></pre>
               <button class="copy-button" type="button" data-copy-target="command-npx">Copy command</button>
               <p class="install-note">
-                Run guided setup once. Later threads can reuse the default profile.
+                Verifies only the Kibana connection, creates an empty catalog, and registers Codex without prompts.
               </p>
             </article>
 
@@ -344,11 +347,22 @@ npm run setup</code></pre>
 cd kibana-mcp-server
 npm install
 npm run build
-npm run setup</code></pre>
+node dist/src/index.js bootstrap --client none</code></pre>
               <button class="copy-button" type="button" data-copy-target="command-repo">Copy commands</button>
               <p class="install-note">
-                Install the local plugin, run setup once, and let Codex threads reuse the saved
-                default profile.
+                Install the local plugin, bootstrap a verified profile, and let Codex threads reuse it.
+              </p>
+            </article>
+
+            <article class="install-card">
+              <div class="install-meta">
+                <p class="install-label">Agent Skill</p>
+                <p class="install-best-for">Best for agent-led installation from skills.sh</p>
+              </div>
+              <pre><code id="command-skill">npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation --agent codex --global --yes</code></pre>
+              <button class="copy-button" type="button" data-copy-target="command-skill">Copy command</button>
+              <p class="install-note">
+                Teaches the agent to ask for an exact index before calling configure_index.
               </p>
             </article>
           </div>

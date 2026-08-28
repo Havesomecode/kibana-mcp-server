@@ -1,4 +1,4 @@
-import { StdioServerTransport } from "@modelcontextprotocol/server";
+import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 
 import { NoSavedProfileError, PROFILE_NAME_ENV, loadConfigFromEnvironment } from "./config.js";
 import { createApplication } from "./server.js";

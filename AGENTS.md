@@ -19,5 +19,6 @@ When working from a fresh clone:
 ## Repository Context
 
 This repo provides a read-only Kibana log investigation MCP server plus a repo-scoped Codex plugin for local installation from a cloned checkout.
+Documented learnings live in `docs/solutions/`, organized by category with YAML frontmatter such as `module`, `tags`, and `problem_type`, and are relevant when working in already documented areas.
 
 For product details and MCP behavior, read `README.md`.
