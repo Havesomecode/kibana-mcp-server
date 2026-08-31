@@ -57,7 +57,7 @@
     "@biomejs/biome": "^1.8.3",
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
-    "@types/node": "^25.5.2",
+    "@types/node": "^26.2.0",
     "semantic-release": "^25.0.1",
     "tsx": "^4.0.0",
     "typescript": "^7.0.2",
