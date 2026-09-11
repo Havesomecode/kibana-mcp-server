@@ -4,3 +4,4 @@ config/sources.json
 config/sources.runtime.json
 .npm-cache
 .DS_Store
+.idea

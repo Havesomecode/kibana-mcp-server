@@ -21,7 +21,7 @@ describe("package contract", () => {
     expect(pkg.name).toBe("@havesomecode/kibana-mcp-server");
     expect(pkg.homepage).toBe("https://havesomecode.github.io/kibana-mcp-server/");
     expect(pkg.main).toBe("dist/src/mcp_entry.js");
-    expect(pkg.bin?.["kibana-mcp-server"]).toBe("dist/src/index.js");
+    expect(pkg.bin?.["kibana-mcp-server"]).toBe("dist/src/bin/kibana-mcp-server.js");
     expect(pkg.publishConfig?.access).toBe("public");
     expect(pkg.publishConfig?.provenance).toBe(true);
     expect(pkg.repository?.url).toBe("git+https://github.com/Havesomecode/kibana-mcp-server.git");

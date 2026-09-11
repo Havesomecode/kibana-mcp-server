@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 
-import { runCli } from "../src/cli.js";
+import { runCli } from "../src/bin/kibana-mcp-server.js";
 
 describe("runCli", () => {
   it("starts the MCP server without prompting when no command is supplied", async () => {
@@ -74,6 +74,12 @@ describe("runCli", () => {
         "bootstrap",
         "--profile",
         "prod",
+        "--url",
+        "https://kibana.example.com",
+        "--username",
+        "elastic",
+        "--password-env",
+        "KIBANA_PASSWORD",
         "--client",
         "codex",
         "--package",
@@ -143,7 +149,19 @@ describe("runCli", () => {
   it("accepts deterministic setup flags as a bootstrap-compatible alias", async () => {
     let called = false;
     const exitCode = await runCli(
-      ["setup", "--profile", "default", "--client", "none"],
+      [
+        "setup",
+        "--profile",
+        "default",
+        "--url",
+        "https://kibana.example.com",
+        "--username",
+        "elastic",
+        "--password-env",
+        "KIBANA_PASSWORD",
+        "--client",
+        "none",
+      ],
       {
         stdout: () => {},
         stderr: () => {},
@@ -212,10 +230,10 @@ describe("runCli", () => {
     expect(password).toBe("stdin-secret");
   });
 
-  it("fails closed when bootstrap inputs are missing instead of prompting", async () => {
+  it("fails closed when non-interactive setup inputs are missing", async () => {
     const stderr: string[] = [];
     const exitCode = await runCli(
-      ["bootstrap"],
+      ["setup", "--client", "none"],
       {
         stdin: Readable.from(""),
         env: {},
@@ -243,5 +261,31 @@ describe("runCli", () => {
 
     expect(exitCode).toBe(0);
     expect(receivedProfile).toBe("staging");
+  });
+
+  it("uses Commander validation for unrecognized CLI options", async () => {
+    const stderr: string[] = [];
+
+    const exitCode = await runCli(["serve", "--unknown"], {
+      stdout: () => {},
+      stderr: (text) => stderr.push(text),
+      env: {},
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr.join("\n")).toContain("unknown option '--unknown'");
+  });
+
+  it("uses Commander validation for local setup option constraints", async () => {
+    const stderr: string[] = [];
+
+    const exitCode = await runCli(["setup", "--client", "invalid"], {
+      stdout: () => {},
+      stderr: (text) => stderr.push(text),
+      env: {},
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr.join("\n").toLowerCase()).toContain("allowed choices are codex, none");
   });
 });

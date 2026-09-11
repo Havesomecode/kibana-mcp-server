@@ -104,7 +104,7 @@ npm run build
 5. Open the plugin directory in Codex and install `Kibana Log Investigation` from the repo marketplace.
    - if the current model cannot complete that install itself, do the Codex UI click manually and let the agent continue with configuration afterward
 6. Restart Codex if the new MCP server does not appear immediately.
-7. Run `node dist/src/index.js bootstrap --client none` to verify the connection and save an empty profile. The repo plugin already supplies the client registration.
+7. Run `node dist/src/bin/kibana-mcp-server.js bootstrap --client none` to verify the connection and save an empty profile. The repo plugin already supplies the client registration.
 8. In a fresh thread, call `discover`, ask the user for the exact index or pattern, then call `configure_index` only after they answer.
 
 Repo-scoped plugin files:
@@ -134,7 +134,7 @@ The preferred path is deterministic connection-only bootstrap:
 
 Guided setup remains available for hand-authored source catalogs:
 
-- `npm run setup` or `node dist/src/index.js setup`
+- `npm run setup` or `node dist/src/bin/kibana-mcp-server.js setup`
 - saves non-secret profile metadata in the user’s machine-level app config directory
 - saves credentials in the platform credential store
   - macOS Keychain

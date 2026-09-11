@@ -143,7 +143,7 @@ npx -y @havesomecode/kibana-mcp-server setup
 ```bash
 npm install
 npm run build
-node dist/src/index.js bootstrap --client none
+node dist/src/bin/kibana-mcp-server.js bootstrap --client none
 ```
 
 The repo-scoped Codex plugin already supplies the MCP entry, so `--client none` avoids a duplicate global registration.
