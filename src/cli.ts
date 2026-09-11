@@ -1,13 +1,13 @@
-import { createInterface } from "node:readline/promises";
-import { type Readable, Writable } from "node:stream";
+import type { Readable } from "node:stream";
 import type { ReadStream } from "node:tty";
-import { parseArgs } from "node:util";
+import { cancel, confirm, isCancel, log, password, text } from "@clack/prompts";
 
 import { type BootstrapResult, runBootstrap } from "./bootstrap.js";
 import { PROFILE_NAME_ENV } from "./config.js";
 import { startMcpServer } from "./mcp_runtime.js";
 import type { SetupFlowResult, SetupPrompter } from "./setup_flow.js";
 import { runSetupFlow } from "./setup_flow.js";
+import { parseArgs } from "node:util";
 
 function renderHelp(): string {
   return [
@@ -114,6 +114,11 @@ export async function runCli(
           `Saved ${result.profiles.length} environment${result.profiles.length === 1 ? "" : "s"}. Default environment: ${result.defaultProfileName}.`,
         );
         return 0;
+      } catch (error) {
+        if (error instanceof PromptCancelledError) {
+          return 130;
+        }
+        throw error;
       } finally {
         await promptIo.close();
       }
@@ -285,15 +290,9 @@ export async function createPromptIo(
     return createQueuedPromptIo(stdout, await readQueuedAnswers(stdin));
   }
 
-  const maskingOutput = new MaskingWritable(stdoutStream);
-  const readline = createInterface({
-    input: stdin,
-    output: maskingOutput,
-  });
-
   return {
     info(message: string) {
-      stdout(message);
+      log.info(message, { output: stdoutStream });
     },
     async prompt(
       message: string,
@@ -302,32 +301,39 @@ export async function createPromptIo(
         secret?: boolean;
       } = {},
     ): Promise<string> {
-      const suffix = options.defaultValue ? ` [${options.defaultValue}]` : "";
-      if (options.secret) {
-        maskingOutput.muted = false;
-        stdoutStream.write(`${message}: `);
-        maskingOutput.muted = true;
-        const answer = await readline.question("");
-        maskingOutput.muted = false;
-        stdoutStream.write("\n");
-        return answer || options.defaultValue || "";
-      }
-
-      const answer = await readline.question(`${message}${suffix}: `);
-      return answer || options.defaultValue || "";
+      const answer = await (options.secret ? password : text)({
+        message,
+        defaultValue: options.defaultValue,
+        input: stdin,
+        output: stdoutStream,
+      });
+      return unwrapPromptAnswer(answer, stdoutStream);
     },
     async confirm(message: string, defaultValue = false): Promise<boolean> {
-      const answer = await readline.question(`${message} ${defaultValue ? "[Y/n]" : "[y/N]"}: `);
-      const normalized = answer.trim().toLowerCase();
-      if (!normalized) {
-        return defaultValue;
-      }
-      return normalized === "y" || normalized === "yes";
+      const answer = await confirm({
+        message,
+        initialValue: defaultValue,
+        input: stdin,
+        output: stdoutStream,
+      });
+      return unwrapPromptAnswer(answer, stdoutStream);
     },
-    async close() {
-      await readline.close();
-    },
+    async close() {},
   };
+}
+
+class PromptCancelledError extends Error {
+  constructor() {
+    super("Setup cancelled.");
+  }
+}
+
+function unwrapPromptAnswer<T>(answer: T | symbol, output: NodeJS.WriteStream): T {
+  if (isCancel(answer)) {
+    cancel("Setup cancelled.", { output });
+    throw new PromptCancelledError();
+  }
+  return answer as T;
 }
 
 function createQueuedPromptIo(stdout: (text: string) => void, answers: string[]): PromptIo {
@@ -380,23 +386,4 @@ async function readQueuedAnswers(stdin: Readable): Promise<string[]> {
   }
 
   return rawInput.replaceAll("\r\n", "\n").split("\n");
-}
-
-class MaskingWritable extends Writable {
-  muted = false;
-
-  constructor(private readonly target: NodeJS.WriteStream) {
-    super();
-  }
-
-  _write(
-    chunk: string | Uint8Array,
-    encoding: BufferEncoding,
-    callback: (error?: Error | null) => void,
-  ) {
-    if (!this.muted) {
-      this.target.write(chunk, encoding);
-    }
-    callback();
-  }
 }
