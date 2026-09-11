@@ -22,3 +22,7 @@ This repo provides a read-only Kibana log investigation MCP server plus a repo-s
 Documented learnings live in `docs/solutions/`, organized by category with YAML frontmatter such as `module`, `tags`, and `problem_type`, and are relevant when working in already documented areas.
 
 For product details and MCP behavior, read `README.md`.
+
+## CLI conventions
+
+Keep the human CLI decomposed by concern: the executable lives in `src/bin/`, Commander command registration lives in `src/commands/`, and terminal I/O plus Clack prompt adapters live outside command modules. Commands contain only command-specific validation and orchestration; do not add command logic back to `src/cli.ts`.

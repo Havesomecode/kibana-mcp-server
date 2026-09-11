@@ -23,7 +23,7 @@ npm run build
 6. Bootstrap only the connection, without registering a duplicate global MCP:
 
 ```bash
-node dist/src/index.js bootstrap --client none
+node dist/src/bin/kibana-mcp-server.js bootstrap --client none
 ```
 
 7. Confirm bootstrap reports an empty source catalog. It must not inspect or configure indexes.

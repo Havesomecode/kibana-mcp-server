@@ -6,7 +6,7 @@ const execFileAsync = promisify(execFile);
 const repoRoot = process.cwd();
 
 const required = [
-  "dist/src/index.js",
+  "dist/src/bin/kibana-mcp-server.js",
   "plugins/kibana-log-investigation/.mcp.json",
   "plugins/kibana-log-investigation/.codex-plugin/plugin.json",
   "skills/kibana-log-investigation/SKILL.md",

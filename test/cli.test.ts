@@ -1,7 +1,7 @@
 import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 
-import { runCli } from "../src/cli.js";
+import { runCli } from "../src/bin/kibana-mcp-server.js";
 
 describe("runCli", () => {
   it("starts the MCP server without prompting when no command is supplied", async () => {
@@ -243,5 +243,18 @@ describe("runCli", () => {
 
     expect(exitCode).toBe(0);
     expect(receivedProfile).toBe("staging");
+  });
+
+  it("uses Commander validation for unrecognized CLI options", async () => {
+    const stderr: string[] = [];
+
+    const exitCode = await runCli(["serve", "--unknown"], {
+      stdout: () => {},
+      stderr: (text) => stderr.push(text),
+      env: {},
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr.join("\n")).toContain("unknown option '--unknown'");
   });
 });

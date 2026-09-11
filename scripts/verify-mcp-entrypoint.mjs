@@ -21,7 +21,7 @@ const repoRoot = process.cwd();
 const mcpConfigPath = resolve(repoRoot, "plugins/kibana-log-investigation/.mcp.json");
 const packageJsonPath = resolve(repoRoot, "package.json");
 const expectedServerPath = "dist/src/mcp_entry.js";
-const expectedCliPath = "dist/src/index.js";
+const expectedCliPath = "dist/src/bin/kibana-mcp-server.js";
 
 const raw = await readFile(mcpConfigPath, "utf8");
 const config = JSON.parse(raw);
