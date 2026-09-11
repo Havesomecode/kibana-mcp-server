@@ -1,8 +1,8 @@
 import type { ReadStream } from "node:tty";
 import { cancel, confirm, isCancel, log, password, text } from "@clack/prompts";
 
-import type { CliIo } from "./cli_io.js";
 import type { SetupPrompter } from "../setup_flow.js";
+import type { CliIo } from "./cli_io.js";
 
 export interface PromptIo extends SetupPrompter {
   close(): Promise<void>;

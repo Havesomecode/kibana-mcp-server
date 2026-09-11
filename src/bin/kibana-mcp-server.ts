@@ -3,12 +3,11 @@
 import { pathToFileURL } from "node:url";
 import { Command, CommanderError } from "commander";
 
-import { type CliIo, createCliIo } from "../utils/cli_io.js";
-import registerBootstrapCommand from "../commands/bootstrap.js";
 import type { CliCommandContext } from "../commands/context.js";
 import registerServeCommand from "../commands/serve.js";
-import registerSetupCommand from "../commands/setup.js";
+import registerSetupCommands from "../commands/setup.js";
 import { startMcpServer } from "../mcp_runtime.js";
+import { type CliIo, createCliIo } from "../utils/cli_io.js";
 
 export type CliDependencies = CliCommandContext["dependencies"];
 
@@ -44,8 +43,7 @@ export async function runCli(
       }
     });
 
-  registerBootstrapCommand(program, context);
-  registerSetupCommand(program, context);
+  registerSetupCommands(program, context);
   registerServeCommand(program, context);
 
   try {
