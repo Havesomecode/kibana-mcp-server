@@ -1,7 +1,6 @@
 import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
-
-import { runCli } from "../src/bin/kibana-mcp-server.js";
+import { runCli } from "../src/bin/run_cli.js";
 
 describe("runCli", () => {
   it("starts the MCP server without prompting when no command is supplied", async () => {
