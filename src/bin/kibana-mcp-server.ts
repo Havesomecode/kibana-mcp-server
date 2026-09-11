@@ -20,6 +20,7 @@ export async function runCli(
   const io = createCliIo(overrides);
   let exitCode = 0;
   const context: CliCommandContext = {
+    argv,
     io,
     ui: createCliUi(io),
     dependencies,

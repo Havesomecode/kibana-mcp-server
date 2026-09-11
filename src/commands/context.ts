@@ -5,6 +5,7 @@ import type { CliIo } from "../utils/cli_io.js";
 import type { CliUi } from "../utils/cli_ui.js";
 
 export interface CliCommandContext {
+  argv: string[];
   io: CliIo;
   ui: CliUi;
   dependencies: {

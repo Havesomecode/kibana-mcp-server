@@ -74,6 +74,12 @@ describe("runCli", () => {
         "bootstrap",
         "--profile",
         "prod",
+        "--url",
+        "https://kibana.example.com",
+        "--username",
+        "elastic",
+        "--password-env",
+        "KIBANA_PASSWORD",
         "--client",
         "codex",
         "--package",
@@ -143,7 +149,19 @@ describe("runCli", () => {
   it("accepts deterministic setup flags as a bootstrap-compatible alias", async () => {
     let called = false;
     const exitCode = await runCli(
-      ["setup", "--profile", "default", "--client", "none"],
+      [
+        "setup",
+        "--profile",
+        "default",
+        "--url",
+        "https://kibana.example.com",
+        "--username",
+        "elastic",
+        "--password-env",
+        "KIBANA_PASSWORD",
+        "--client",
+        "none",
+      ],
       {
         stdout: () => {},
         stderr: () => {},

@@ -20,7 +20,7 @@ interface SetupOptions {
 }
 
 export default function registerSetup(program: Command, context: CliCommandContext): void {
-  addOptions(
+  const setupCommand = addOptions(
     program
       .command("setup")
       .alias("bootstrap")
@@ -29,8 +29,11 @@ export default function registerSetup(program: Command, context: CliCommandConte
         "after",
         "\nBootstrap is an alias for setup. Without options, setup is guided; with options, it verifies and saves only the Kibana connection and does not inspect or configure indexes.\n\nConnection options use KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD as fallbacks. Passwords are accepted only through --password-stdin, --password-env <NAME>, or KIBANA_PASSWORD.",
       ),
-  ).action(async (options: SetupOptions, command: Command) => {
-    if (hasOptions(command)) return runBootstrap(options, context);
+  );
+  setupCommand.action(async () => {
+    const options = readOptions(context.argv);
+    if (context.argv.some((argument) => argument.startsWith("-")))
+      return runBootstrap(options, context);
     const promptIo = await createPromptIo(context.io);
     try {
       const result = await (context.dependencies.runSetupFlowFn ?? runSetupFlow)(promptIo);
@@ -44,6 +47,26 @@ export default function registerSetup(program: Command, context: CliCommandConte
       await promptIo.close();
     }
   });
+}
+
+function readOptions(argv: string[]): SetupOptions {
+  const value = (flag: string) => {
+    const index = argv.indexOf(flag);
+    return index === -1 ? undefined : argv[index + 1];
+  };
+  return {
+    profile: value("--profile"),
+    url: value("--url"),
+    username: value("--username"),
+    passwordStdin: argv.includes("--password-stdin"),
+    passwordEnv: value("--password-env"),
+    timeout: value("--timeout") === undefined ? undefined : Number(value("--timeout")),
+    client: value("--client") as SetupOptions["client"],
+    package: value("--package"),
+    mcpName: value("--mcp-name"),
+    replace: argv.includes("--replace"),
+    default: !argv.includes("--no-default"),
+  };
 }
 
 function addOptions(command: Command): Command {
@@ -67,67 +90,56 @@ function addOptions(command: Command): Command {
     .option("--no-default", "Do not make this profile the default");
 }
 
-function hasOptions(command: Command): boolean {
-  return command.options.some(
-    (option) => command.getOptionValueSource(option.attributeName()) === "cli",
-  );
-}
-
 async function runBootstrap(options: SetupOptions, context: CliCommandContext): Promise<void> {
+  const needsPrompt =
+    !options.url ||
+    !options.username ||
+    (!options.passwordStdin && options.passwordEnv === undefined);
+  const promptIo = needsPrompt ? await createPromptIo(context.io) : undefined;
   try {
     const result: BootstrapResult = await (context.dependencies.runBootstrapFn ?? runBootstrapFlow)(
-      await resolveBootstrapOptions(options, context),
+      await resolveBootstrapOptions(options, context, promptIo),
     );
     context.ui.success(renderBootstrapResult(result));
   } catch (error) {
     context.ui.error(error instanceof Error ? error.message : String(error));
     context.setExitCode(1);
+  } finally {
+    await promptIo?.close();
   }
 }
 
 async function resolveBootstrapOptions(
   values: SetupOptions,
   context: CliCommandContext,
+  prompter?: import("../setup_flow.js").SetupPrompter,
 ): Promise<Parameters<typeof runBootstrapFlow>[0]> {
   const { env, stdin } = context.io;
-  const baseUrl = values.url?.trim() || env.KIBANA_BASE_URL?.trim();
-
-  if (!baseUrl) {
-    throw new Error("Kibana base URL is required via --url or KIBANA_BASE_URL.");
-  }
-
-  const username = values.username?.trim() || env.KIBANA_USERNAME?.trim();
-
-  if (!username) {
-    throw new Error("Kibana username is required via --username or KIBANA_USERNAME.");
-  }
+  const baseUrl = values.url?.trim() || (await prompter?.prompt("Kibana base URL"))?.trim();
+  if (!baseUrl) throw new Error("Kibana base URL is required via --url or the associated prompt.");
+  const username = values.username?.trim() || (await prompter?.prompt("Kibana username"))?.trim();
+  if (!username)
+    throw new Error("Kibana username is required via --username or the associated prompt.");
 
   const password = values.passwordStdin
     ? (await readAllInput(stdin)).replace(/\r?\n$/, "")
     : values.passwordEnv
       ? env[values.passwordEnv]
-      : env.KIBANA_PASSWORD;
-
-  if (!password) {
-    throw new Error(
-      "Kibana password is required via --password-stdin, --password-env, or KIBANA_PASSWORD.",
-    );
-  }
-
-  const client = values.client ?? "codex";
-  const timeoutMs = values.timeout;
+      : (await prompter?.prompt("Kibana password", { secret: true }))?.trim();
+  if (!password)
+    throw new Error("Kibana password is required via an option or the associated prompt.");
 
   return {
     profileName: values.profile?.trim() || env.KIBANA_PROFILE?.trim() || "default",
     baseUrl,
     username,
     password,
-    client,
+    client: values.client ?? "codex",
     packageSpecifier: values.package,
     mcpName: values.mcpName,
     makeDefault: values.default,
     replaceExisting: values.replace ?? false,
-    timeoutMs,
+    timeoutMs: values.timeout,
   };
 }
 
