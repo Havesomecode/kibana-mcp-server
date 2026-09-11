@@ -16,7 +16,7 @@ export default (program: Command, context: CliCommandContext): void => {
             : context.io.env,
         );
       } catch (error) {
-        context.io.stderr(error instanceof Error ? error.message : String(error));
+        context.ui.error(error instanceof Error ? error.message : String(error));
         context.setExitCode(1);
       }
     });

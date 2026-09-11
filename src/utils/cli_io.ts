@@ -7,6 +7,7 @@ export interface CliIo {
   stdoutStream: NodeJS.WriteStream;
   stdinIsTTY?: boolean;
   env: NodeJS.ProcessEnv;
+  isStdoutOverridden: boolean;
 }
 
 export function createCliIo(overrides: Partial<CliIo> = {}): CliIo {
@@ -17,5 +18,6 @@ export function createCliIo(overrides: Partial<CliIo> = {}): CliIo {
     stdoutStream: overrides.stdoutStream ?? process.stdout,
     stdinIsTTY: overrides.stdinIsTTY,
     env: overrides.env ?? process.env,
+    isStdoutOverridden: overrides.stdout !== undefined,
   };
 }

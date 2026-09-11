@@ -212,10 +212,10 @@ describe("runCli", () => {
     expect(password).toBe("stdin-secret");
   });
 
-  it("fails closed when bootstrap inputs are missing instead of prompting", async () => {
+  it("fails closed when non-interactive setup inputs are missing", async () => {
     const stderr: string[] = [];
     const exitCode = await runCli(
-      ["bootstrap"],
+      ["setup", "--client", "none"],
       {
         stdin: Readable.from(""),
         env: {},
@@ -256,5 +256,18 @@ describe("runCli", () => {
 
     expect(exitCode).toBe(1);
     expect(stderr.join("\n")).toContain("unknown option '--unknown'");
+  });
+
+  it("uses Commander validation for local setup option constraints", async () => {
+    const stderr: string[] = [];
+
+    const exitCode = await runCli(["setup", "--client", "invalid"], {
+      stdout: () => {},
+      stderr: (text) => stderr.push(text),
+      env: {},
+    });
+
+    expect(exitCode).toBe(1);
+    expect(stderr.join("\n").toLowerCase()).toContain("allowed choices are codex, none");
   });
 });

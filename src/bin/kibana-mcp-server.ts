@@ -8,6 +8,7 @@ import registerServeCommand from "../commands/serve.js";
 import registerSetupCommands from "../commands/setup.js";
 import { startMcpServer } from "../mcp_runtime.js";
 import { type CliIo, createCliIo } from "../utils/cli_io.js";
+import { createCliUi } from "../utils/cli_ui.js";
 
 export type CliDependencies = CliCommandContext["dependencies"];
 
@@ -20,6 +21,7 @@ export async function runCli(
   let exitCode = 0;
   const context: CliCommandContext = {
     io,
+    ui: createCliUi(io),
     dependencies,
     setExitCode: (code) => {
       exitCode = code;
@@ -38,7 +40,7 @@ export async function runCli(
       try {
         await (dependencies.startMcpServerFn ?? startMcpServer)(io.env);
       } catch (error) {
-        io.stderr(error instanceof Error ? error.message : String(error));
+        context.ui.error(error instanceof Error ? error.message : String(error));
         exitCode = 1;
       }
     });
