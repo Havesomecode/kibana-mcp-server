@@ -8,7 +8,11 @@ describe("runCli", () => {
 
     const exitCode = await runCli(
       [],
-      { stdout: () => {}, stderr: () => {}, env: {} },
+      {
+        stdout: () => {},
+        stderr: () => {},
+        env: {},
+      },
       {
         async startMcpServerFn() {
           started = true;
@@ -25,7 +29,7 @@ describe("runCli", () => {
     const stderr: string[] = [];
 
     const exitCode = await runCli(
-      ["setup"],
+      ["node", "kibana-mcp-server", "setup"],
       {
         stdout: (text) => stdout.push(text),
         stderr: (text) => stderr.push(text),
@@ -70,6 +74,8 @@ describe("runCli", () => {
 
     const exitCode = await runCli(
       [
+        "node",
+        "kibana-mcp-server",
         "bootstrap",
         "--profile",
         "prod",
@@ -134,7 +140,7 @@ describe("runCli", () => {
   it("documents bootstrap as connection-only and does not expose index selection flags", async () => {
     const stdout: string[] = [];
 
-    const exitCode = await runCli(["bootstrap", "--help"], {
+    const exitCode = await runCli(["node", "kibana-mcp-server", "bootstrap", "--help"], {
       stdout: (text) => stdout.push(text),
       stderr: () => {},
     });
@@ -149,6 +155,8 @@ describe("runCli", () => {
     let called = false;
     const exitCode = await runCli(
       [
+        "node",
+        "kibana-mcp-server",
         "setup",
         "--profile",
         "default",
@@ -194,6 +202,8 @@ describe("runCli", () => {
     let password = "";
     const exitCode = await runCli(
       [
+        "node",
+        "kibana-mcp-server",
         "bootstrap",
         "--url",
         "https://kibana.example.com",
@@ -232,7 +242,7 @@ describe("runCli", () => {
   it("fails closed when non-interactive setup inputs are missing", async () => {
     const stderr: string[] = [];
     const exitCode = await runCli(
-      ["setup", "--client", "none"],
+      ["node", "kibana-mcp-server", "setup", "--client", "none"],
       {
         stdin: Readable.from(""),
         env: {},
@@ -249,8 +259,12 @@ describe("runCli", () => {
   it("passes --profile to serve without requiring an environment variable", async () => {
     let receivedProfile: string | undefined;
     const exitCode = await runCli(
-      ["serve", "--profile", "staging"],
-      { stdout: () => {}, stderr: () => {}, env: {} },
+      ["node", "kibana-mcp-server", "serve", "--profile", "staging"],
+      {
+        stdout: () => {},
+        stderr: () => {},
+        env: {},
+      },
       {
         async startMcpServerFn(envInput) {
           receivedProfile = envInput?.KIBANA_PROFILE;
@@ -265,7 +279,7 @@ describe("runCli", () => {
   it("uses Commander validation for unrecognized CLI options", async () => {
     const stderr: string[] = [];
 
-    const exitCode = await runCli(["serve", "--unknown"], {
+    const exitCode = await runCli(["node", "kibana-mcp-server", "serve", "--unknown"], {
       stdout: () => {},
       stderr: (text) => stderr.push(text),
       env: {},
@@ -278,7 +292,7 @@ describe("runCli", () => {
   it("uses Commander validation for local setup option constraints", async () => {
     const stderr: string[] = [];
 
-    const exitCode = await runCli(["setup", "--client", "invalid"], {
+    const exitCode = await runCli(["node", "kibana-mcp-server", "setup", "--client", "invalid"], {
       stdout: () => {},
       stderr: (text) => stderr.push(text),
       env: {},

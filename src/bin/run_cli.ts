@@ -10,7 +10,7 @@ import { createCliUi } from "../utils/cli_ui.js";
 export type CliDependencies = CliCommandContext["dependencies"];
 
 export async function runCli(
-  argv: string[] = process.argv.slice(2),
+  argv: string[],
   overrides: Partial<CliIo> = {},
   dependencies: CliDependencies = {},
 ): Promise<number> {
@@ -47,11 +47,12 @@ export async function runCli(
   registerServeCommand(program, context);
 
   try {
-    await program.parseAsync(["node", "kibana-mcp-server", ...argv], { from: "node" });
+    await program.parseAsync(argv);
   } catch (error) {
     if (error instanceof CommanderError) return error.exitCode;
     io.stderr(error instanceof Error ? error.message : String(error));
     return 1;
   }
+
   return exitCode;
 }
