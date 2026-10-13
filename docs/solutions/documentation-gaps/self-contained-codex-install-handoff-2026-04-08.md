@@ -72,13 +72,13 @@ The `KIBANA_BASE_URL` clarification matters because the wrong value looks plausi
 
 ## Examples
 
-For a master installation only, start with the raw README below. For any other installation, use the resolved installation ref instead: branches use `refs/heads/<branch>`, tags use `refs/tags/<tag>`, and commit-pinned installs use the full commit SHA directly. Do not infer a Git tag from an npm version or silently fall back to master. Read `INSTALL.md` and skills from the same ref. The current [installation guide](../../../INSTALL.md#version-matched-readme-handoff) documents the resolver and retrieval checks.
+Resolve the selected branch, tag, or package metadata to the full installation commit SHA before handing off. Branch and tag names are resolution inputs, not durable README URLs. Do not infer a Git tag from an npm version or silently fall back to master. Read `INSTALL.md` and skills from the same resolved installation commit. The current [installation guide](../../../INSTALL.md#version-matched-readme-handoff) documents the resolver and retrieval checks.
 
 ```text
-For an installation explicitly resolved to refs/heads/master, read this README:
-https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md
+For the resolved installation commit, read this README:
+https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
 
-Verify that this README matches the resolved installation commit before handing off. Follow INSTALL.md from the same ref, bootstrap only the connection, and ask me for the exact index or pattern before configuring it. If the ref or README cannot be resolved, report that error instead of using another version's instructions.
+Verify that this README matches the resolved installation commit before handing off. Follow INSTALL.md from the same commit, bootstrap only the connection, and ask me for the exact index or pattern before configuring it. If the ref or README cannot be resolved, report that error instead of using another version's instructions.
 ```
 
 Manual plugin-install fallback:

@@ -48,7 +48,8 @@ export function resolveReadmeHandoff(repo, installationRef) {
 
   let ref = installationRef;
   let commit;
-  if (/^[a-f0-9]{40}$/.test(ref)) {
+  if (/^[a-f0-9]{40}$/i.test(ref)) {
+    ref = ref.toLowerCase();
     commit = resolveCommit(repo, ref);
     if (commit && commit !== ref) {
       throw new Error(
@@ -80,8 +81,7 @@ export function resolveReadmeHandoff(repo, installationRef) {
     );
   }
   readReadme(repo, commit);
-  const rawRef = ref.split("/").map(encodeURIComponent).join("/");
-  return { ref, commit, url: `${rawRoot}/${rawRef}/README.md` };
+  return { ref, commit, url: `${rawRoot}/${commit}/README.md` };
 }
 
 // Emit no version-matched handoff until the remote README matches the selected Git object.
