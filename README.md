@@ -36,6 +36,8 @@ npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
 
 Bootstrap verifies only the Kibana connection, creates an empty managed catalog, stores the credentials securely and registers the server. It does not list, scan, infer, or configure indexes: the agent asks which exact index or pattern to use, then calls `configure_index`.
 
+The server requires a connection at startup. Use bootstrap, a configuration file, or connection environment variables with an explicit `KIBANA_SOURCE_CATALOG_PATH`. It does not accept credentials through MCP tools or search the checkout for a catalog. `bootstrap` always saves only the connection; `setup` is a separate guided command for importing hand-authored catalogs.
+
 Never pass passwords as command-line arguments. Use `KIBANA_PASSWORD`, `--password-env NAME`, or `--password-stdin`.
 
 Install the agent skill that teaches the investigation workflow:

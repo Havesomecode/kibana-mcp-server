@@ -28,7 +28,7 @@ Starts the MCP server, over stdio by default.
 
 ## `bootstrap`
 
-Verifies the Kibana connection, creates an empty managed catalog, saves the credentials and optionally registers the server with a client, without prompts.
+Verifies the Kibana connection, creates an empty managed catalog, saves the credentials and optionally registers the server with a client. It never inspects or configures indexes. Supply connection values through flags or `KIBANA_BASE_URL`, `KIBANA_USERNAME` and `KIBANA_PASSWORD` for prompt-free operation; otherwise it prompts only for missing connection values.
 
 | Option | Description |
 | --- | --- |
@@ -46,4 +46,4 @@ Verifies the Kibana connection, creates an empty managed catalog, saves the cred
 
 ## `setup`
 
-Runs the guided, interactive version of the same flow, for hand-authored source catalogs.
+Runs guided setup for explicitly selected hand-authored source catalogs. This is a separate command, not an alias for `bootstrap`, and accepts no bootstrap flags.

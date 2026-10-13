@@ -57,7 +57,7 @@ If you are not running in Codex and the tools of this server (`discover`, `confi
 - in Claude Code, by installing the plugin: `/plugin marketplace add Havesomecode/kibana-mcp-server`, then `/plugin install kibana-log-investigation@kibana-mcp-server`;
 - in any other agent, by declaring the stdio command `npx -y @havesomecode/kibana-mcp-server serve` in its MCP configuration.
 
-With `--client none`, a server that was already running when bootstrap completed still has no connection. Ask the operator to reconnect the MCP server or start a new session before calling its tools.
+With `--client none`, reconnect the MCP server or start a new session after bootstrap. A server without a configured connection fails at startup; it does not wait for an MCP tool to supply credentials.
 
 ### What bootstrap does
 
@@ -120,6 +120,8 @@ To select an existing non-default profile:
 npx -y @havesomecode/kibana-mcp-server serve --profile prod
 ```
 
+For saved-profile startup, do not pass `KIBANA_BASE_URL`, `KIBANA_USERNAME`, or `KIBANA_PASSWORD` to the server process. Supplying all three selects direct environment startup, which requires an explicit `KIBANA_SOURCE_CATALOG_PATH` or a configuration-file catalog store. Saved profiles already carry their catalog path; no checkout catalog is loaded implicitly. Guided `setup` remains available when the operator explicitly wants to import a hand-authored catalog.
+
 ## Failure rules
 
 - Never silently import the bundled example catalog.
@@ -128,7 +130,7 @@ npx -y @havesomecode/kibana-mcp-server serve --profile prod
 - Never add `--replace` merely to make a failed install pass. It intentionally replaces an existing catalog with an empty managed catalog.
 - Never overwrite a conflicting MCP client registration.
 - Never write or edit an MCP client configuration file to register the server; only bootstrap in Codex, a plugin, or the operator does that.
-- Never use the legacy `configure` tool to supply credentials. If it is the only setup tool offered, the server has no saved connection: run bootstrap, then have the server reconnected.
+- If startup fails with `No saved Kibana connection is available. Run connection bootstrap first.`, run connection-only bootstrap, then reconnect the server. No MCP tool accepts connection credentials.
 - Never expose a password in logs, summaries, shell history, generated catalogs, or MCP client configuration.
 - If URL, username, or password is unavailable, report the exact missing prerequisite rather than inventing it.
 

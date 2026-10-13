@@ -394,9 +394,8 @@ export async function resolveCurrentPackageSpecifier(): Promise<string> {
 }
 
 export function createGeneratedCatalog(
-  sourceOrSources: SourceDefinition | SourceDefinition[],
+  sources: SourceDefinition[],
 ): ReturnType<typeof sourceCatalogSchema.parse> {
-  const sources = Array.isArray(sourceOrSources) ? sourceOrSources : [sourceOrSources];
   const parsedSources = sources.map((source) => sourceDefinitionSchema.parse(source));
   return sourceCatalogSchema.parse({
     generatedBy: {

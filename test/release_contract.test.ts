@@ -8,7 +8,6 @@ const repoRoot = process.cwd();
 describe("release contract", () => {
   it("keeps package release scripts and published files aligned", () => {
     const pkg = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as {
-      devDependencies?: Record<string, string>;
       files?: string[];
       name?: string;
       scripts?: Record<string, string>;
@@ -20,10 +19,7 @@ describe("release contract", () => {
       "node scripts/verify-release-contract.mjs",
     );
     expect(pkg.scripts?.verify).toContain("npm run verify:release-contract");
-    expect(pkg.scripts).not.toHaveProperty("changeset");
-    expect(pkg.scripts).not.toHaveProperty("changeset:version");
-    expect(pkg.scripts).not.toHaveProperty("changeset:release");
-    expect(pkg.devDependencies).not.toHaveProperty("@changesets/cli");
+
     expect(pkg.files).not.toContain("CHANGELOG.md");
   });
 
@@ -65,7 +61,6 @@ describe("release contract", () => {
     expect(releaseWorkflow).toContain("contents: write");
     expect(releaseWorkflow).toContain("npm run verify");
     expect(releaseWorkflow).toContain("npm run release");
-    expect(releaseWorkflow).not.toContain("changesets/action");
 
     expect(semanticWorkflow).toContain("pull_request:");
     expect(semanticWorkflow).toContain("commitlint");

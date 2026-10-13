@@ -26,3 +26,7 @@ For product details and MCP behavior, read `README.md`.
 ## CLI conventions
 
 Keep the human CLI decomposed by concern: the executable lives in `src/bin/`, Commander command registration lives in `src/commands/`, and terminal I/O plus Clack prompt adapters live outside command modules. Commands contain only command-specific validation and orchestration; do not add command logic back to `src/cli.ts`.
+
+## Lessons
+
+- When a project format was used only by the owner, remove its obsolete code, callers, tests and documentation instead of adding compatibility or migration paths.

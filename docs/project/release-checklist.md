@@ -12,6 +12,8 @@ updated: 2026-04-09
 - `npm run verify` passes locally.
 - The compatibility matrix is up to date (`docs/project/compatibility-matrix.md`).
 - Any new env or config requirements are documented in `README.md` and `INSTALL.md`.
+- Startup requires a connection and an explicit catalog path or store; saved profiles use their stored path. Docs must not advertise a credential-taking MCP setup tool or implicit checkout catalog.
+- Connection-only bootstrap remains the default install flow; guided setup remains supported for explicitly selected hand-authored catalogs.
 - The hosted homepage still matches the supported install paths and support posture.
 - The npm scope and package name (`@havesomecode/kibana-mcp-server`) are owned by the maintainers.
 - Maintainers understand that released versions are tracked in npm, tags, and GitHub Releases, not by the `package.json` version committed in git.

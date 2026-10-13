@@ -66,7 +66,7 @@ The release artifact must include:
 The release artifact must exclude:
 
 - tests and fixtures
-- local operator config (`config/sources.json`, `config/sources.runtime.json`)
+- local operator catalogs and saved machine profiles
 - development-only scripts and tooling that do not affect runtime execution
 
 ## Versioning

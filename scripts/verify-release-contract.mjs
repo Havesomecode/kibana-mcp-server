@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const repoRoot = process.cwd();
@@ -25,14 +25,6 @@ if (pkg.scripts?.["verify:release-contract"] !== "node scripts/verify-release-co
 
 if (!pkg.scripts?.verify?.includes("npm run verify:release-contract")) {
   throw new Error("npm run verify must include verify:release-contract.");
-}
-
-if ("changeset" in (pkg.scripts ?? {})) {
-  throw new Error("package.json must not keep Changesets scripts after the release migration.");
-}
-
-if ("@changesets/cli" in (pkg.devDependencies ?? {})) {
-  throw new Error("package.json must not depend on @changesets/cli after the release migration.");
 }
 
 if (pkg.files?.includes("CHANGELOG.md")) {
@@ -78,28 +70,12 @@ if (!releaseWorkflow.includes("npm run release")) {
   throw new Error("release workflow must run npm run release.");
 }
 
-if (releaseWorkflow.includes("changesets/action")) {
-  throw new Error("release workflow must not invoke Changesets.");
-}
-
 if (!semanticWorkflow.includes("pull_request:")) {
   throw new Error("semantic input workflow must validate pull requests.");
 }
 
 if (!semanticWorkflow.includes("commitlint")) {
   throw new Error("semantic input workflow must validate PR titles with commitlint.");
-}
-
-const removedPaths = [
-  ".changeset/config.json",
-  ".changeset/README.md",
-  ".changeset/eight-radios-admire.md",
-  ".changeset/forty-deers-unite.md",
-];
-for (const path of removedPaths) {
-  if (existsSync(resolve(repoRoot, path))) {
-    throw new Error(`${path} must be removed after the semantic-release migration.`);
-  }
 }
 
 console.log("Release contract verified.");

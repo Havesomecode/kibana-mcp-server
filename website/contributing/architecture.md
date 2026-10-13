@@ -45,4 +45,5 @@ Every catalog write goes through one contract: read the content, compute the nex
 | Connection plus a store, or `{profile}` in the catalog path | One connection, one catalog per profile |
 | Connection plus a plain catalog path | One connection, one catalog |
 | Saved profiles | One connection and one catalog per saved profile |
-| Nothing | stdio only, waiting for the legacy `configure` tool |
+| Connection without a catalog path or store | Startup fails; an explicit catalog is required |
+| Nothing | Startup fails: `No saved Kibana connection is available. Run connection bootstrap first.` |

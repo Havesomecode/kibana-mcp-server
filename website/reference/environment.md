@@ -13,7 +13,7 @@ The server reads its connection from environment variables when they are set. A 
 - `KIBANA_PASSWORD`
 - `KIBANA_PROFILE` optional, selects a saved non-default machine profile
 - `KIBANA_TIMEOUT_MS` optional, default `10000`
-- `KIBANA_SOURCE_CATALOG_PATH` optional, default `config/sources.runtime.json`
+- `KIBANA_SOURCE_CATALOG_PATH` required for direct environment-based startup unless a configuration-file store supplies the catalog; saved profiles carry their own path. No implicit default.
 
 `KIBANA_TIMEOUT_MS` bounds each Kibana HTTP request end to end: it includes waiting for a request slot, connecting, and reading the response body. The server allows at most eight concurrent Kibana requests and 32 queued requests per configured client; excess work fails immediately with `KIBANA_OVERLOADED`. Cancelled MCP tool calls abort their queued or in-flight backend work, except shared schema discovery: cancelling one caller stops only its wait while other callers remain; cancelling the last caller aborts the shared backend request.
 
@@ -33,8 +33,9 @@ Do not use:
 
 The source definition already carries endpoint paths such as `/internal/search/es`, so including a full API path in `KIBANA_BASE_URL` usually produces a bad combined URL and a `404`.
 
-For the env-bootstrap path, start from `config/sources.example.json` and copy it to `config/sources.json`.
-If no explicit `KIBANA_SOURCE_CATALOG_PATH` is set, env bootstrap will try `config/sources.runtime.json` first and then fall back to `config/sources.json`.
+Direct environment-based startup requires all three connection values together and an explicit `KIBANA_SOURCE_CATALOG_PATH`, or a [configuration-file store](../deployment/catalog-stores). The server reads only the named catalog; it never searches the checkout for one. Hand-authored catalogs may use `config/sources.example.json` as a deliberate template, not as an automatic setup input.
+
+For saved-profile startup, leave the connection variables unset and select the profile with `KIBANA_PROFILE` if needed. Its catalog path and credentials are loaded from saved state. Without a saved connection, startup fails with `No saved Kibana connection is available. Run connection bootstrap first.`
 
 ## Configuration file
 

@@ -50,7 +50,7 @@ function config(sourceCatalogPath: string): ResolvedAppConfig {
     },
     sources: [],
     sourceCatalogPath,
-    sourceCatalogOrigin: "profile",
+
     profileName: "default",
   };
 }
@@ -305,11 +305,10 @@ describe("configure_index", () => {
     ).rejects.toThrow("changed concurrently");
   });
 
-  it("refuses to start a new catalog when the configured sources were loaded from elsewhere", async () => {
+  it("refuses to recreate a disappeared catalog while sources are still configured", async () => {
     const { root } = await createEmptyCatalog();
-    // Environment bootstrap can load the static fallback catalog while persisting to a runtime
-    // path that does not exist yet.
-    const runtimePath = join(root, "sources.runtime.json");
+    const catalogPath = join(root, "sources.json");
+    await rm(catalogPath);
     let kibanaCalls = 0;
 
     await expect(
@@ -317,7 +316,7 @@ describe("configure_index", () => {
         { index: "consumer-*" },
         {
           config: {
-            ...config(runtimePath),
+            ...config(catalogPath),
             sources: [
               {
                 id: "hand-authored",
@@ -344,7 +343,7 @@ describe("configure_index", () => {
     ).rejects.toThrow("does not exist although sources are configured");
 
     expect(kibanaCalls).toBe(0);
-    await expect(readFile(runtimePath, "utf8")).rejects.toThrow("ENOENT");
+    await expect(readFile(catalogPath, "utf8")).rejects.toThrow("ENOENT");
   });
 
   it("requires a catalog to persist into", async () => {

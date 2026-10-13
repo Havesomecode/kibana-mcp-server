@@ -1,3 +1,8 @@
+import {
+  CLIENT_CAPABILITIES_META_KEY,
+  CLIENT_INFO_META_KEY,
+  PROTOCOL_VERSION_META_KEY,
+} from "@modelcontextprotocol/server";
 import type { SourceDefinition } from "../../src/types.js";
 
 export function source(id: string): SourceDefinition {
@@ -13,40 +18,55 @@ export function source(id: string): SourceDefinition {
   };
 }
 
+export const PROTOCOL_VERSION = "2026-07-28";
+export const requestMeta = {
+  [PROTOCOL_VERSION_META_KEY]: PROTOCOL_VERSION,
+  [CLIENT_INFO_META_KEY]: { name: "http-test", version: "1.0.0" },
+  [CLIENT_CAPABILITIES_META_KEY]: {},
+};
+
+export function sendRpc(
+  url: string,
+  message: Record<string, unknown>,
+  headers: Record<string, string> = {},
+  signal?: AbortSignal,
+) {
+  const params = (message.params ?? {}) as Record<string, unknown>;
+  return fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      "MCP-Protocol-Version": PROTOCOL_VERSION,
+      "Mcp-Method": String(message.method),
+      ...(typeof params.name === "string" ? { "Mcp-Name": params.name } : {}),
+      ...headers,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      ...message,
+      params: {
+        ...params,
+        _meta: requestMeta,
+      },
+    }),
+    signal,
+  });
+}
+
 export async function callTool(
   url: string,
   name: string,
   headers: Record<string, string> = {},
   toolArguments: Record<string, unknown> = {},
 ): Promise<{ status: number; result?: Record<string, unknown> }> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json, text/event-stream",
-      ...headers,
-    },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "tools/call",
-      params: { name, arguments: toolArguments },
-    }),
-  });
-  const text = await response.text();
-  if (response.status !== 200) {
-    return { status: response.status };
-  }
-  const payload = text.startsWith("{")
-    ? text
-    : (text
-        .split("\n")
-        .find((line) => line.startsWith("data:"))
-        ?.slice("data:".length) ?? "{}");
-  return {
-    status: response.status,
-    result: (JSON.parse(payload) as { result?: Record<string, unknown> }).result,
-  };
+  const response = await sendRpc(
+    url,
+    { id: 1, method: "tools/call", params: { name, arguments: toolArguments } },
+    headers,
+  );
+  const payload = await response.json();
+  return { status: response.status, result: payload.result };
 }
 
 export function sourceIds(result: Record<string, unknown> | undefined): string[] {

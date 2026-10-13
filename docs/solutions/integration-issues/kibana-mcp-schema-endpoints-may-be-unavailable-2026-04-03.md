@@ -45,9 +45,10 @@ So source discovery and log querying remain usable even when schema metadata is 
 
 For deployments with this shape:
 
-- leave `schema` unset on sources unless a working metadata endpoint is explicitly confirmed
-- rely on `discover`, `filter`, and `query` for log investigation
-- treat `describe_fields`, exact-safe field promotion, and nested-field validation as unavailable until a schema backend starts returning data
+- configure the appropriate supported schema backend; Kibana data-view and index-pattern backends try their known metadata endpoints
+- if all metadata endpoints return `404`, the server falls back to sampling fields through the configured search backend
+- treat sampled capabilities as heuristic, not authoritative; they can recover `.keyword` promotion and object paths, but cannot prove nested mappings
+- if schema loading and sampling both fail, use configured field hints and non-schema-dependent `discover`, `filter`, and `query` operations
 
 ## Verification Checklist
 
@@ -57,5 +58,4 @@ Before re-enabling schema-dependent behavior in a deployment, confirm one of the
 - Kibana legacy index patterns field metadata endpoint
 - direct Elasticsearch field capabilities endpoint
 
-If none respond, schema-aware features should remain disabled for that source.
-If none respond, schema-aware features should remain disabled for that source.
+If none respond, verify the search-backend sampling fallback and inspect its provenance and advisories. Do not equate sampled fields with authoritative mapping metadata.

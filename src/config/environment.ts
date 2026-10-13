@@ -5,19 +5,9 @@ import { z } from "zod";
 import { type SecretStore, SecretStoreError, createSecretStore } from "../profiles/secret_store.js";
 import { ProfileStore } from "../profiles/store.js";
 import type { AppConfig, ResolvedAppConfig } from "../types.js";
-import { writeTextAtomically } from "../utils/fs.js";
 
-export const DEFAULT_RUNTIME_SOURCE_CATALOG_PATH = "config/sources.runtime.json";
-export const DEFAULT_STATIC_SOURCE_CATALOG_PATH = "config/sources.json";
 export const PROFILE_NAME_ENV = "KIBANA_PROFILE";
 export const PROFILE_PLACEHOLDER = "{profile}";
-
-export class NoSavedProfileError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "NoSavedProfileError";
-  }
-}
 
 const bootstrapEnvSchema = z.object({
   KIBANA_BASE_URL: z.url(),
@@ -124,15 +114,6 @@ function buildKibanaConfig(env: z.output<typeof bootstrapEnvSchema>): AppConfig[
   };
 }
 
-export function resolveSourceCatalogPath(envInput: NodeJS.ProcessEnv = process.env): string {
-  const explicitPath = envInput.KIBANA_SOURCE_CATALOG_PATH?.trim();
-  if (explicitPath) {
-    return explicitPath;
-  }
-
-  return DEFAULT_RUNTIME_SOURCE_CATALOG_PATH;
-}
-
 export function parseAppConfig(envInput: unknown, sourceCatalogInput: unknown): AppConfig {
   const env = bootstrapEnvSchema.parse(envInput);
   const sourceCatalog = sourceCatalogSchema.parse(sourceCatalogInput);
@@ -158,23 +139,14 @@ export async function loadConfigFromEnvironment(
   const kibana = readBootstrapConnection(envInput);
 
   if (kibana) {
-    const preferredPath = resolveSourceCatalogPath(envInput);
-    const sourceCatalog = await loadSourceCatalog(
-      preferredPath === DEFAULT_RUNTIME_SOURCE_CATALOG_PATH
-        ? [preferredPath, DEFAULT_STATIC_SOURCE_CATALOG_PATH]
-        : [preferredPath],
-      readFileImpl,
-    );
+    const sourceCatalogPath = overrides.KIBANA_SOURCE_CATALOG_PATH?.trim();
+    if (!sourceCatalogPath) {
+      throw new Error("KIBANA_SOURCE_CATALOG_PATH is required for an environment connection.");
+    }
     return {
       kibana,
-      sources: sourceCatalogSchema.parse(sourceCatalog.value).sources,
-      sourceCatalogPath: preferredPath,
-      sourceCatalogOrigin:
-        sourceCatalog.loadedFrom === DEFAULT_STATIC_SOURCE_CATALOG_PATH
-          ? "static_default"
-          : preferredPath === DEFAULT_RUNTIME_SOURCE_CATALOG_PATH
-            ? "runtime_default"
-            : "environment",
+      sources: await loadSourceCatalog(sourceCatalogPath, readFileImpl),
+      sourceCatalogPath,
     };
   }
 
@@ -188,13 +160,10 @@ export async function loadConfigFromEnvironment(
     : await profileStore.getDefaultProfile();
 
   if (!profile) {
-    if (!requestedProfileName) {
-      throw new NoSavedProfileError("No saved Kibana profile is available.");
-    }
     throw new Error(
       requestedProfileName
         ? `Saved Kibana profile '${requestedProfileName}' was not found.`
-        : "No saved Kibana profile is available.",
+        : "No saved Kibana connection is available. Run connection bootstrap first.",
     );
   }
 
@@ -208,7 +177,6 @@ export async function loadConfigFromEnvironment(
   });
   const sourceCatalogPath =
     overrides.KIBANA_SOURCE_CATALOG_PATH?.trim() || profile.sourceCatalogPath;
-  const sourceCatalog = await loadSourceCatalog([sourceCatalogPath], readFileImpl);
 
   return {
     kibana: {
@@ -217,10 +185,9 @@ export async function loadConfigFromEnvironment(
       password: savedSecret.password,
       timeoutMs: parseTimeoutOverride(overrides.KIBANA_TIMEOUT_MS) ?? profile.timeoutMs,
     },
-    sources: sourceCatalogSchema.parse(sourceCatalog.value).sources,
+    sources: await loadSourceCatalog(sourceCatalogPath, readFileImpl),
     profileName: profile.name,
     sourceCatalogPath,
-    sourceCatalogOrigin: overrides.KIBANA_SOURCE_CATALOG_PATH?.trim() ? "environment" : "profile",
   };
 }
 
@@ -239,22 +206,6 @@ export function readBootstrapConnection(
   return hasBootstrapConfig(overrides)
     ? buildKibanaConfig(bootstrapEnvSchema.parse(overrides))
     : undefined;
-}
-
-export async function persistSourceCatalog(
-  sources: AppConfig["sources"],
-  options: {
-    envInput?: NodeJS.ProcessEnv;
-    sourceCatalogPath?: string;
-    catalog?: unknown;
-  } = {},
-): Promise<string> {
-  const sourceCatalogPath = options.sourceCatalogPath ?? resolveSourceCatalogPath(options.envInput);
-  await writeTextAtomically(
-    sourceCatalogPath,
-    `${JSON.stringify(options.catalog ?? { sources }, null, 2)}\n`,
-  );
-  return sourceCatalogPath;
 }
 
 function hasBootstrapConfig(envInput: z.infer<typeof startupOverrideSchema>): boolean {
@@ -287,32 +238,8 @@ function parseTimeoutOverride(value: string | undefined): number | undefined {
 }
 
 async function loadSourceCatalog(
-  candidatePaths: string[],
+  path: string,
   readFileImpl: typeof readFile,
-): Promise<{
-  loadedFrom: string;
-  value: unknown;
-}> {
-  let sourceCatalogRaw: string | undefined;
-  let loadedFrom = candidatePaths[0];
-  let lastError: unknown;
-
-  for (const candidatePath of candidatePaths) {
-    try {
-      sourceCatalogRaw = await readFileImpl(candidatePath, "utf8");
-      loadedFrom = candidatePath;
-      break;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  if (!sourceCatalogRaw) {
-    throw lastError instanceof Error ? lastError : new Error("Source catalog could not be loaded");
-  }
-
-  return {
-    loadedFrom,
-    value: JSON.parse(sourceCatalogRaw) as unknown,
-  };
+): Promise<AppConfig["sources"]> {
+  return sourceCatalogSchema.parse(JSON.parse(await readFileImpl(path, "utf8"))).sources;
 }

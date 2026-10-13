@@ -8,10 +8,9 @@ Read-only MCP server for agent-driven log investigation against Kibana-backed se
 
 The server is intentionally small:
 
-- `setup` saves one or more machine-level Kibana profiles for later threads
-- `bootstrap` verifies only the Kibana connection, creates an empty managed catalog, saves credentials, and registers Codex without prompts or config-file edits
+- guided `setup` imports an explicitly selected hand-authored catalog and saves machine-level Kibana profiles for later threads
+- `bootstrap` verifies only the Kibana connection, creates an empty managed catalog, saves credentials, and registers Codex without config-file edits; it is prompt-free when all connection values are supplied
 - `configure_index` validates and persists exactly one index or pattern after the user explicitly names it
-- `configure` still exists for advanced MCP clients that want to drive credentials and source catalogs at runtime
 - `describe_fields` exposes effective field capabilities for one configured source
 - `discover` lists configured logical sources and field hints
 - `filter` runs an exact-field filter when the field name is already known

@@ -25,13 +25,21 @@ A tool call that fails while talking to Kibana returns an error result whose `_m
 
 Each Kibana connection allows eight concurrent requests and thirty-two queued ones. Beyond that, calls fail immediately with `KIBANA_OVERLOADED`. Profiles that share a connection share that budget.
 
+## Startup errors
+
+| Message or condition | Action |
+| --- | --- |
+| `No saved Kibana connection is available. Run connection bootstrap first.` | Run connection-only `bootstrap --client codex` (or `--client none` for an already registered server), then reconnect the client. |
+| `KIBANA_SOURCE_CATALOG_PATH is required for an environment connection.` | Name the catalog explicitly, declare a store, or unset the connection variables to use a saved profile. |
+| `Incomplete Kibana bootstrap environment. Provide KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD together.` | Supply all three together for direct startup, or unset them to use saved credentials. |
+
 ## Catalog errors
 
 | Message | Cause |
 | --- | --- |
 | `Source catalog '…' changed concurrently. Retry the operation.` | Another caller changed the catalog while `configure_index` was validating. Retry. |
 | `configure_index can update only a managed generated catalog.` | The catalog was written or edited by hand. The server will not overwrite it. |
-| `Source catalog '…' does not exist although sources are configured.` | The sources were loaded from another location, such as the static fallback catalog. |
+| `Source catalog '…' does not exist although sources are configured.` | The loaded catalog was removed while the server was running. Restore the configured file before retrying. |
 | `Source id '…' already refers to a different index.` | Pass `replace: true` after the user approved the replacement. |
 
 ## HTTP transport

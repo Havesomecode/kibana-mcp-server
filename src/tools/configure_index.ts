@@ -55,8 +55,7 @@ export async function executeConfigureIndex(
   // only happens if the catalog is still the one that was read, so Kibana is never called under a lock.
   const catalog = options.config.catalog ?? fileCatalogOf(options.config, options.stateRoot);
   const existingContent = await catalog.read();
-  // Sources without a catalog at the persisted location were loaded from somewhere else, such as
-  // the static fallback catalog: starting from an empty catalog would silently drop them.
+  // A disappeared catalog must not silently discard sources already loaded into memory.
   if (existingContent === undefined && options.config.sources.length > 0) {
     throw new Error(
       `Source catalog '${catalog.location}' does not exist although sources are configured. Refusing to replace them with a new managed catalog.`,

@@ -168,25 +168,6 @@ Why this is needed:
 - investigation work often requires `trace_id + timestamp window + job_id/region/service`
 - correlated workflow inspection is a common operator need
 
-### 9. Config Bootstrap From Environment
-
-Add a convenience helper for restoring the MCP session quickly.
-
-Proposed capability:
-
-- `configure_from_env`
-
-Suggested env support:
-
-- `KIBANA_BASE_URL`
-- `KIBANA_USERNAME`
-- `KIBANA_PASSWORD`
-
-Why this is needed:
-
-- MCP configuration was lost after the server update
-- re-registering sources manually adds avoidable friction
-
 ## Summary
 
 The current MCP already covers:
@@ -204,4 +185,3 @@ The remaining gaps are:
 - numeric aggregation
 - grouped top-hit retrieval
 - timeline reconstruction
-- config bootstrap

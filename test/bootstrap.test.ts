@@ -80,7 +80,7 @@ describe("deterministic bootstrap", () => {
   });
 
   it("marks generated catalogs with a content hash for overwrite provenance", () => {
-    const catalog = createGeneratedCatalog(buildGeneratedSource(["consumer-*"]));
+    const catalog = createGeneratedCatalog([buildGeneratedSource(["consumer-*"])]);
     expect(catalog.generatedBy).toMatchObject({
       tool: "@havesomecode/kibana-mcp-server",
       formatVersion: 1,
@@ -334,7 +334,7 @@ describe("deterministic bootstrap", () => {
       },
       { makeDefault: true },
     );
-    const tamperedCatalog = createGeneratedCatalog(buildGeneratedSource(["consumer-*"])) as {
+    const tamperedCatalog = createGeneratedCatalog([buildGeneratedSource(["consumer-*"])]) as {
       generatedBy: { tool: string; formatVersion: number; sourceHash: string };
       sources: Array<Record<string, unknown>>;
     };
@@ -394,7 +394,7 @@ describe("deterministic bootstrap", () => {
     );
     await writeFile(
       catalogPath,
-      JSON.stringify(createGeneratedCatalog(buildGeneratedSource(["consumer-*"]))),
+      JSON.stringify(createGeneratedCatalog([buildGeneratedSource(["consumer-*"])])),
       "utf8",
     );
     let saved = false;
@@ -451,7 +451,7 @@ describe("deterministic bootstrap", () => {
     );
     await writeFile(
       catalogPath,
-      JSON.stringify(createGeneratedCatalog(buildGeneratedSource(["consumer-*"]))),
+      JSON.stringify(createGeneratedCatalog([buildGeneratedSource(["consumer-*"])])),
       "utf8",
     );
     let stored: SavedSecret | undefined = { username: "old", password: "old-secret" };
@@ -506,7 +506,7 @@ describe("deterministic bootstrap", () => {
     await mkdir(paths.sourceCatalogsDir, { recursive: true });
     await writeFile(
       catalogPath,
-      JSON.stringify(createGeneratedCatalog(buildGeneratedSource(["consumer-*"]))),
+      JSON.stringify(createGeneratedCatalog([buildGeneratedSource(["consumer-*"])])),
       "utf8",
     );
     let stored: SavedSecret | undefined = { username: "orphan", password: "recoverable" };

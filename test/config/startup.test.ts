@@ -140,10 +140,10 @@ describe("resolveStartupConfiguration", () => {
     await expect(loadProfileConfig?.("STAGING")).rejects.toThrow("was not found");
   });
 
-  it("falls back to the legacy unconfigured mode when no profile was ever saved", async () => {
-    const unconfigured = await resolveStartupConfiguration({}, savedProfiles(null));
-    expect(unconfigured.defaultConfig).toBeUndefined();
-    expect(unconfigured.loadProfileConfig).toBeUndefined();
+  it("refuses to start without a saved connection or with an unknown profile", async () => {
+    await expect(resolveStartupConfiguration({}, savedProfiles(null))).rejects.toThrow(
+      "No saved Kibana connection is available. Run connection bootstrap first.",
+    );
     await expect(
       resolveStartupConfiguration({ KIBANA_PROFILE: "unknown" }, savedProfiles()),
     ).rejects.toThrow("Saved Kibana profile 'unknown' was not found");

@@ -63,7 +63,7 @@ The goal of this plan is to close those gaps without widening product scope. Thi
 
 ### Institutional Learnings
 
-- `docs/solutions/integration-issues/kibana-mcp-config-reset-after-restart-2026-04-03.md` establishes a project norm: persist non-secret operator state, keep credentials in environment variables. Release and onboarding docs should reinforce that split.
+- `INSTALL.md` establishes the setup boundary: persist non-secret profile and catalog state separately from credentials saved in platform credential stores. Release and onboarding docs should reinforce that split.
 - `docs/solutions/integration-issues/kibana-mcp-schema-endpoints-may-be-unavailable-2026-04-03.md` shows that environment compatibility is nuanced. Professional docs must not overpromise schema-aware behavior across all Kibana deployments.
 
 ### External References
@@ -291,7 +291,7 @@ flowchart TB
 
 **Test scenarios:**
 - Happy path: the release candidate artifact contains the built runtime, plugin metadata, README, and license material required for redistribution.
-- Edge case: untracked operator files such as `config/sources.runtime.json` or test-only fixtures are excluded from the release artifact.
+- Edge case: local operator catalogs or test-only fixtures are excluded from the release artifact.
 - Error path: a missing built entrypoint or mismatched package include list fails pack verification before any tag-based release is published.
 - Integration: the release workflow uses the same build/test/contract verification path as normal CI before generating versioned outputs.
 
@@ -364,7 +364,6 @@ flowchart TB
 - Related code: `plugins/kibana-log-investigation/.codex-plugin/plugin.json`
 - Related docs: `INSTALL.md`
 - Related docs: `README.md`
-- Related solution: `docs/solutions/integration-issues/kibana-mcp-config-reset-after-restart-2026-04-03.md`
 - Related solution: `docs/solutions/integration-issues/kibana-mcp-schema-endpoints-may-be-unavailable-2026-04-03.md`
 - External docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository
 - External docs: https://docs.github.com/en/code-security/getting-started/quickstart-for-securing-your-repository
