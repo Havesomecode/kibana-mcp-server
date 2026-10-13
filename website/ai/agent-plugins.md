@@ -71,7 +71,19 @@ npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation -
 
 ### Codex plugin marketplace
 
-The repository also declares a Codex marketplace in `.agents/plugins/marketplace.json`. It is meant for contributors working from a cloned checkout: its plugin runs the server built in that checkout rather than the published package. See [Getting started](../guide/getting-started#use-in-codex).
+The repository also declares a Codex marketplace in `.agents/plugins/marketplace.json`. It is meant for contributors working from a cloned checkout. Run `npm install` and `npm run build` before installing it: the build produces a self-contained runtime under `plugins/kibana-log-investigation/dist/`, and the installed plugin launches that local bundle without depending on the checkout or its `node_modules`.
+
+Check Codex's MCP process startup status before restarting a discussion. If startup fails, inspect sanitized stderr, rebuild, and reinstall the plugin. `npm run verify:entrypoint` exercises a copied installed plugin with a synthetic connection; it does not verify native Codex startup or a real Kibana backend. See [Getting started](../guide/getting-started#use-in-codex).
+
+### Version-matched handoff
+
+Before handing a branch, tag, or package installation to another agent, resolve it to the full commit SHA. That SHA is the **resolved installation commit** used in the immutable README URL:
+
+```text
+https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
+```
+
+Read `INSTALL.md` and the skills from that same commit. Branch and tag names are resolution inputs, not final handoff URLs. Do not infer a Git tag from an npm version; use the exact package's `gitHead`. In a maintained checkout, `node scripts/readme-handoff.mjs <resolved-installation-ref>` verifies the commit-pinned README before emitting the handoff.
 
 ## skills.sh (any agent)
 
