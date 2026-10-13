@@ -255,7 +255,9 @@ describe("KibanaClient request lifecycle", () => {
         code: "KIBANA_TIMEOUT",
       });
       await waitFor(() => backend.activeRequestCount === 0);
-      expect(backend.liveSocketCount).toBeLessThanOrEqual(1);
+      // The server sees a socket close slightly after its request ends, so wait for it rather
+      // than sampling once: a leak would still fail, by timing out.
+      await waitFor(() => backend.liveSocketCount <= 1);
     }
 
     backend.recover();
