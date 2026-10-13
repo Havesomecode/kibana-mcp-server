@@ -23,12 +23,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history, for the "last updated" date of each page.
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - name: Install
+        run: npm ci
       - name: Configure Pages
         uses: actions/configure-pages@v5
+      - name: Build documentation site
+        run: npm run docs:build
+        env:
+          # Refreshes the contributor wall; without it the checked-in list is used.
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: website/.vitepress/dist
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

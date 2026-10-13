@@ -23,6 +23,8 @@ jobs:
         run: npm ci
       - name: Verify
         run: npm run verify
+      - name: Build documentation site
+        run: npm run docs:build
 
   verify-platforms:
     strategy:
