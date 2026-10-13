@@ -17,7 +17,7 @@ npm install
 npm run build
 ```
 
-3. Install `Kibana Log Investigation` from the repo-local Codex marketplace.
+3. Confirm the build produced `plugins/kibana-log-investigation/dist/mcp_entry.mjs`. Install `Kibana Log Investigation` from the repo-local Codex marketplace only after building. The built plugin includes runtime dependencies and launches from its installed directory, not the checkout.
 4. Restart Codex if the plugin directory does not refresh automatically.
 5. Resolve the Kibana connection through `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD`, or safe CLI alternatives.
 6. Bootstrap only the connection, without registering a duplicate global MCP:
@@ -33,6 +33,7 @@ node dist/src/bin/kibana-mcp-server.js bootstrap --client none
 ## Rules
 
 - Do not edit client configuration files.
+- Separate saved configuration, process startup, tools in the current discussion, and real backend access. If startup fails, inspect sanitized stderr and repair/reinstall the plugin before requesting another discussion. Run `npm run verify:entrypoint` for the isolated packaged-plugin handshake; it is not a native Codex or real-backend check.
 - Do not use the bundled example catalog unless the operator explicitly requests example data.
 - Do not put passwords in command arguments or summaries.
 - Do not guess, enumerate, scan, or auto-select Kibana indexes.
