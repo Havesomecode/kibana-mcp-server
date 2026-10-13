@@ -11,21 +11,25 @@ function readSiteFile(path: string): string {
 }
 
 describe("site contract", () => {
-  it("uses the configured source ID throughout the investigation walkthrough", () => {
-    const examples = [
-      ...readSiteFile("website/guide/investigating.md").matchAll(/```json\n([\s\S]*?)```/g),
-    ].map(([, json]) => JSON.parse(json));
-    const configured = examples[0];
-    const source = buildGeneratedSource(
-      [configured.index],
-      configured.source_name,
-      configured.source_id,
-    );
-    for (const example of examples.slice(1)) {
-      if (example.source_id) expect(example.source_id).toBe(source.id);
-      if (example.source_ids) expect(example.source_ids).toEqual([source.id]);
-    }
-  });
+  it.each(["\n", "\r\n"])(
+    "uses the configured walkthrough source ID with %j line endings",
+    (newline) => {
+      const markdown = readSiteFile("website/guide/investigating.md").replace(/\r?\n/g, newline);
+      const examples = [...markdown.matchAll(/```json\r?\n([\s\S]*?)```/g)].map(([, json]) =>
+        JSON.parse(json),
+      );
+      const configured = examples[0];
+      const source = buildGeneratedSource(
+        [configured.index],
+        configured.source_name,
+        configured.source_id,
+      );
+      for (const example of examples.slice(1)) {
+        if (example.source_id) expect(example.source_id).toBe(source.id);
+        if (example.source_ids) expect(example.source_ids).toEqual([source.id]);
+      }
+    },
+  );
 
   it("ships the documentation site sources", () => {
     for (const file of [
