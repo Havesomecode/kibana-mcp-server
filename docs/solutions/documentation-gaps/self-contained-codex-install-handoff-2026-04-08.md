@@ -72,13 +72,13 @@ The `KIBANA_BASE_URL` clarification matters because the wrong value looks plausi
 
 ## Examples
 
-Raw handoff that should now be sufficient by itself:
+For a master installation only, start with the raw README below. For any other installation, use the resolved installation ref instead: branches use `refs/heads/<branch>`, tags use `refs/tags/<tag>`, and commit-pinned installs use the full commit SHA directly. Do not infer a Git tag from an npm version or silently fall back to master. Read `INSTALL.md` and skills from the same ref. The current [installation guide](../../../INSTALL.md#version-matched-readme-handoff) documents the resolver and retrieval checks.
 
 ```text
-Use this INSTALL.md as the canonical setup guide:
-https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/master/INSTALL.md
+For an installation explicitly resolved to refs/heads/master, read this README:
+https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md
 
-Clone and set up the repo end to end, install the local plugin, ask me for the environment name, configure Kibana access, and verify the MCP works.
+Verify that this README matches the resolved installation commit before handing off. Follow INSTALL.md from the same ref, bootstrap only the connection, and ask me for the exact index or pattern before configuring it. If the ref or README cannot be resolved, report that error instead of using another version's instructions.
 ```
 
 Manual plugin-install fallback:
