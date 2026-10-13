@@ -2,76 +2,43 @@
 
 Read-only MCP server for agent-driven log investigation against Kibana-backed search endpoints protected with basic auth.
 
-The server is intentionally small:
+It gives an agent what a Kibana UI cannot: a short list of logical sources it can trust, the fields it may filter on, and typed results.
 
-- `setup` saves one or more machine-level Kibana profiles for later threads
-- `bootstrap` verifies only the Kibana connection, creates an empty managed catalog, saves credentials, and registers Codex without prompts or config-file edits
-- `configure_index` validates and persists exactly one index or pattern after the user explicitly names it
-- `configure` still exists for advanced MCP clients that want to drive credentials and source catalogs at runtime
-- `describe_fields` exposes effective field capabilities for one configured source
-- `discover` lists configured logical sources and field hints
-- `filter` runs an exact-field filter when the field name is already known
+**Documentation: https://havesomecode.github.io/kibana-mcp-server/**
+
+## What it provides
+
+- `discover` lists the logical sources configured for the caller
+- `describe_fields` exposes the effective fields of a source, including which ones support exact matching
 - `query` searches one or more sources over an absolute time window in `hits`, `count`, `histogram`, `terms`, `stats`, or `grouped_top_hits` mode
+- `filter` runs an exact-field filter when the field name is already known
+- `configure_index` validates and persists exactly one index or pattern after the user explicitly names it
 
-It is designed as a general-purpose log investigation MCP for environments where operators can expose a small set of useful logical sources.
+The server never writes to Elasticsearch or Kibana, and never guesses an index.
 
 ## Requirements
 
 - Node.js 22+
 - A Kibana-compatible read endpoint reachable with basic auth
-- One or more Elasticsearch index patterns. `bootstrap` generates the source catalog; hand-authored catalogs remain supported for advanced setups.
+- One or more Elasticsearch index patterns
 
-## Project Status
+## Quick start
 
-This repo is live for external adoption and AI-agent use.
-
-- Homepage: `https://havesomecode.github.io/kibana-mcp-server/`
-- Published package: `npx -y @havesomecode/kibana-mcp-server`
-- Agent skill: `npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation`
-- Repo-local Codex plugin install remains a first-class path for cloned checkouts
-
-- Guaranteed: prompt-free package bootstrap and Codex registration (see `INSTALL.md`)
-- Supported: guided machine setup through `npm run setup` for hand-authored catalogs
-- Available: published package install via `npx -y @havesomecode/kibana-mcp-server`
-- Active: semantic-release automation for tags, npm publish, and GitHub Releases
-- Support posture and compatibility details live in `docs/project/support-policy.md`
-- Contributing and security reporting live in `CONTRIBUTING.md` and `SECURITY.md`
-
-## Support and Releases
-
-- Distribution strategy: `docs/project/distribution-strategy.md`
-- Compatibility matrix: `docs/project/compatibility-matrix.md`
-- Release checklist: `docs/project/release-checklist.md`
-- npm publishing setup: `docs/project/npm-publishing.md`
-- GitHub Releases are the canonical release notes and version record
-- The `version` field in `package.json` inside git is not the release source of truth
-
-## Installation
-
-### Prompt-free connection bootstrap
-
-Pre-provision the connection values in the environment:
+Pre-provision the connection values in the environment, then bootstrap:
 
 ```bash
 export KIBANA_BASE_URL='https://kibana.example.com'
 export KIBANA_USERNAME='elastic'
 export KIBANA_PASSWORD='use-a-secret-provider'
 
-npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --client codex
+npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
 ```
 
-This command performs no prompts and does not edit Codex configuration files directly. It verifies only the Kibana connection, writes an empty managed source catalog on first install, stores credentials securely, and registers the exact running package transport. It does not list, scan, infer, or configure indexes.
-
-After bootstrap, call `discover`. When no source is configured, the agent must ask the user which exact Kibana index or index pattern to use. Only after the user answers may the agent call `configure_index` with that value. That tool validates only the approved index and persists it without accepting credentials.
-
-Bootstrap reruns preserve sources that were configured through this explicit flow. It refuses to replace a hand-authored or modified catalog unless `--replace` is supplied explicitly; `--replace` creates an empty managed catalog.
+Bootstrap verifies only the Kibana connection, creates an empty managed catalog, stores the credentials securely and registers the server. It does not list, scan, infer, or configure indexes: the agent asks which exact index or pattern to use, then calls `configure_index`.
 
 Never pass passwords as command-line arguments. Use `KIBANA_PASSWORD`, `--password-env NAME`, or `--password-stdin`.
 
-### Install the agent skill
-
-The repository contains a standard Agent Skill discoverable by the `skills` CLI and skills.sh:
+Install the agent skill that teaches the investigation workflow:
 
 ```bash
 npx skills add Havesomecode/kibana-mcp-server \
@@ -81,566 +48,61 @@ npx skills add Havesomecode/kibana-mcp-server \
   --yes
 ```
 
-The skill teaches compatible agents to run the same verified bootstrap instead of editing MCP config files. Its source is `skills/kibana-log-investigation/SKILL.md`.
+`INSTALL.md` is the deterministic install and handoff guide for agents.
 
-## Use In Codex
+## Run it as a shared service
 
-The prompt-free package bootstrap above is the primary Codex path. The repo-scoped plugin remains available for contributors working from a cloned checkout.
-
-### Quick path
-
-1. Clone the repository.
-2. Make sure Node.js 22+ is available.
-   - if it is missing, ask Codex to use the plugin skill `ensure-node-runtime`
-   - the repo pins Node major `22` in `.node-version`
-3. From the repo root, run:
-
-```bash
-npm install
-npm run build
-```
-
-4. Open the cloned repo in Codex.
-5. Open the plugin directory in Codex and install `Kibana Log Investigation` from the repo marketplace.
-   - if the current model cannot complete that install itself, do the Codex UI click manually and let the agent continue with configuration afterward
-6. Restart Codex if the new MCP server does not appear immediately.
-7. Run `node dist/src/bin/kibana-mcp-server.js bootstrap --client none` to verify the connection and save an empty profile. The repo plugin already supplies the client registration.
-8. In a fresh thread, call `discover`, ask the user for the exact index or pattern, then call `configure_index` only after they answer.
-
-Repo-scoped plugin files:
-
-- `.agents/plugins/marketplace.json`
-- `plugins/kibana-log-investigation/.codex-plugin/plugin.json`
-- `plugins/kibana-log-investigation/.mcp.json`
-
-### Minimal handoff prompt
-
-If you are handing only the repo link to another Codex agent, this usually works:
-
-```text
-Install the `kibana-log-investigation` skill from Havesomecode/kibana-mcp-server, then run its connection-only bootstrap with the provisioned KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD values. Do not edit Codex config files, import the example catalog, or inspect indexes. After install, ask me which exact index or pattern to configure before calling configure_index.
-```
-
-## Configuration
-
-The preferred path is deterministic connection-only bootstrap:
-
-- `npx -y @havesomecode/kibana-mcp-server bootstrap --client codex`
-- verifies `/api/status` without touching an index endpoint
-- creates an empty managed source catalog on first install
-- rejects conflicting MCP registrations instead of overwriting them
-- saves non-secret profile metadata and credentials for later threads
-- exposes `configure_index` for one user-approved index or pattern at a time
-
-Guided setup remains available for hand-authored source catalogs:
-
-- `npm run setup` or `node dist/src/bin/kibana-mcp-server.js setup`
-- saves non-secret profile metadata in the user’s machine-level app config directory
-- saves credentials in the platform credential store
-  - macOS Keychain
-  - Windows Credential Manager
-  - Linux Secret Service when available
-- imports the selected source catalog into machine-local state so later threads do not depend on the repo checkout
-- requires an explicit catalog path; type `example` to opt into the bundled example deliberately
-
-The server also supports two advanced compatibility paths:
-
-- bootstrap at process start through environment variables plus a JSON source catalog
-- runtime from your MCP client through the `configure` tool
-
-When `configure` is called, the source catalog is still persisted to disk so restarts do not wipe the logical source setup.
-
-### Machine profiles
-
-After guided setup, the default saved profile loads automatically on startup.
-
-If you saved more than one environment, select a non-default profile with:
-
-- `KIBANA_PROFILE=<PROFILE_NAME>`
-
-Example:
-
-```bash
-KIBANA_PROFILE=staging npm run dev
-```
-
-### Bootstrap configuration
-
-The server can still read connection details from environment variables and source definitions from a JSON file.
-
-Environment variables:
-
-- `KIBANA_BASE_URL`
-- `KIBANA_USERNAME`
-- `KIBANA_PASSWORD`
-- `KIBANA_PROFILE` optional, selects a saved non-default machine profile
-- `KIBANA_TIMEOUT_MS` optional, default `10000`
-- `KIBANA_SOURCE_CATALOG_PATH` optional, default `config/sources.runtime.json`
-
-`KIBANA_TIMEOUT_MS` bounds each Kibana HTTP request end to end: it includes waiting for a request slot, connecting, and reading the response body. The server allows at most eight concurrent Kibana requests and 32 queued requests per configured client; excess work fails immediately with `KIBANA_OVERLOADED`. Cancelled MCP tool calls abort their queued or in-flight backend work.
-
-Backend failures use stable diagnostic codes such as `KIBANA_TIMEOUT`, `KIBANA_CANCELLED`, `KIBANA_OVERLOADED`, `KIBANA_AUTHENTICATION`, `KIBANA_DNS`, `KIBANA_TLS`, `KIBANA_CONNECTION`, and `KIBANA_RESPONSE`. Failed backend tool results also expose the diagnostic fields in `_meta.kibana_request_error`.
-
-`KIBANA_BASE_URL` is the Kibana base prefix that the server joins with each configured backend or schema path.
-
-Use:
-
-- `https://kibana.example.com`
-- `https://gateway.example.com/logs` when Kibana is reverse-proxied under `/logs`
-
-Do not use:
-
-- `https://kibana.example.com/internal/search/es`
-- `https://gateway.example.com/logs/internal/search/es`
-
-The source definition already carries endpoint paths such as `/internal/search/es`, so including a full API path in `KIBANA_BASE_URL` usually produces a bad combined URL and a `404`.
-
-For the env-bootstrap path, start from `config/sources.example.json` and copy it to `config/sources.json`.
-If no explicit `KIBANA_SOURCE_CATALOG_PATH` is set, env bootstrap will try `config/sources.runtime.json` first and then fall back to `config/sources.json`.
-
-### Multiple environments
-
-The recommended path is to save multiple machine profiles during setup.
-
-Then:
-
-- the default profile loads automatically
-- extra MCP entries can select another saved environment with `KIBANA_PROFILE`
-- you do not need to redefine `KIBANA_BASE_URL`, credentials, or source-catalog paths per thread
-
-Example:
-
-```bash
-KIBANA_PROFILE=staging npm run dev
-KIBANA_PROFILE=prod npm run dev
-```
-
-If you still prefer env-bootstrap entries, keep these distinct per environment:
-
-- `KIBANA_BASE_URL`
-- `KIBANA_USERNAME`
-- `KIBANA_PASSWORD`
-- `KIBANA_SOURCE_CATALOG_PATH`
-
-Using separate source-catalog paths matters because the `configure` tool persists sources to disk, and one shared runtime file would cause the environments to overwrite each other.
-
-### HTTP transport and per-caller profiles
-
-By default the server speaks stdio and serves one global configuration. To run it as a shared service, for example behind an MCP gateway, start it over Streamable HTTP:
-
-```bash
-KIBANA_BASE_URL=https://kibana.example.com \
-KIBANA_USERNAME=service-account \
-KIBANA_PASSWORD=... \
-KIBANA_SOURCE_CATALOG_PATH='/var/lib/kibana-mcp/catalogs/{profile}.json' \
-KIBANA_HTTP_AUTH_TOKEN=... \
-kibana-mcp-server serve --http --port 3000 --profile-header x-kibana-profile
-```
-
-One process then serves every caller. Each tool call is bound to the profile named by the configured header, so callers never share a source catalog:
-
-- with the `{profile}` placeholder in `KIBANA_SOURCE_CATALOG_PATH`, every profile gets its own catalog file and shares the environment connection.
-- with a `store` in the configuration file (see below), every profile gets its own entry in that store.
-- without bootstrap environment variables, the header selects a saved machine profile by name or id.
-- without `--profile-header`, the server refuses to start unless a default profile is named (`--profile`, `KIBANA_PROFILE` or `profile` in the configuration file); every caller is then served that one profile. Over stdio, per-profile catalogs fall back to the `default` profile.
-- profile names are compared exactly: `Alice` and `alice` are two profiles.
-
-A profile without a catalog starts empty and fills it through `configure_index`. Profile names are turned into filesystem-safe keys before they reach a path or a store: a plain lowercase slug is kept as is, anything else gets a digest suffix.
-
-HTTP options, as flags or environment variables:
-
-- `--host` / `KIBANA_HTTP_HOST`, default `127.0.0.1`
-- `--port` / `KIBANA_HTTP_PORT`, default `3000`
-- `--path` / `KIBANA_HTTP_PATH`, default `/mcp`
-- `--profile-header` / `KIBANA_HTTP_PROFILE_HEADER`, no default
-- `KIBANA_HTTP_AUTH_TOKEN`, shared secret expected as `Authorization: Bearer <token>`
-
-`GET /healthz` answers `200` without authentication.
-
-The profile header is trusted as sent: the server does not authenticate end users itself. Only a gateway that has already authenticated the caller should be able to reach it. The server refuses to listen on a non-loopback host without `KIBANA_HTTP_AUTH_TOKEN`, and the legacy `configure` tool is not exposed over HTTP.
-
-### Configuration file and catalog stores
-
-Instead of environment variables, the server can read a configuration file, in stdio and in HTTP mode alike:
-
-```bash
-kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
-```
+By default the server speaks stdio and serves one configuration. Over HTTP, one process serves every caller of your gateway, each with their own source catalog:
 
 ```ts
 // kibana.mcp.config.ts
 import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";
-import store from "@havesomecode/kibana-mcp-server/stores/redis";
+import store from "@havesomecode/kibana-mcp-server/stores/postgres";
 
 export default defineKibanaMcpConfig({
   url: process.env.KIBANA_URL,
   user: process.env.KIBANA_USER,
   password: process.env.KIBANA_PASSWORD,
   store,
-  storeOptions: { url: process.env.REDIS_URL, keyPrefix: "kibana-mcp:production:" },
+  storeOptions: { url: process.env.DATABASE_URL },
   http: { port: 3000, profileHeader: "x-kibana-profile", authToken: process.env.MCP_TOKEN },
 });
 ```
 
-- `url`, `user`, `password`, `timeoutMs`, `profile` and `http.*` are defaults: the matching `KIBANA_*` environment variable or `serve` flag wins when set.
-- `store` decides where source catalogs live, one per profile. `storeOptions` is handed to the store factory. Without `store`, catalogs are files.
-- The file is executed as code, so it is loaded only when named with `--config` or `KIBANA_MCP_CONFIG`, never discovered from the working directory. A `.ts` file needs Node.js 22.18 or later; `.mjs` works everywhere.
-
-Bundled stores, each imported from its own entry point so that only the driver you use is loaded:
-
-| Import | Driver to install | `storeOptions` |
-| --- | --- | --- |
-| `@havesomecode/kibana-mcp-server/stores/redis` | `redis` | `url`, `keyPrefix`, `client` |
-| `@havesomecode/kibana-mcp-server/stores/ioredis` | `ioredis` | `url`, `keyPrefix`, `client` (standalone, Sentinel or Cluster) |
-| `@havesomecode/kibana-mcp-server/stores/postgres` | `pg` | `url`, `table`, `createTable`, `client` |
-| `@havesomecode/kibana-mcp-server/stores/mongodb` | `mongodb` | `url`, `database`, `collectionName`, `collection` |
-| `@havesomecode/kibana-mcp-server/stores/sqlite` | none, uses `node:sqlite` | `path`, `table`, `database` |
-
-- Drivers are optional peer dependencies: install the one you need next to the server.
-- `url` defaults to `KIBANA_STORE_URL`, then to the usual variable of the backend (`REDIS_URL`, `DATABASE_URL`, `MONGODB_URI` or `MONGO_URL`). For SQLite, `path` defaults to `KIBANA_STORE_URL`.
-- Defaults: key prefix `kibana-mcp:catalog:`, table and collection `kibana_mcp_catalogs`. The SQL stores create their table unless `createTable` is `false`.
-- Pass `client`, `collection` or `database` to reuse a connection you configured yourself. The store then never closes it.
-- Every store replaces a catalog only if it still holds the content that was read, so concurrent writers cannot overwrite each other.
-- With Redis, use an instance with persistence and a `noeviction` policy: catalogs are data, not a cache.
-
-A store-backed catalog is read on every tool call, so several server processes sharing one store always serve the same sources.
-
-To keep catalogs anywhere else, implement the store contract:
-
-```ts
-import { CatalogConflictError, type CatalogStore } from "@havesomecode/kibana-mcp-server/config";
-
-export default function myStore(options: { table: string }): CatalogStore {
-  return {
-    // serialized catalog of the profile, or undefined when it has none yet
-    read: async (profileKey) => db.get(options.table, profileKey),
-    // write only if the stored content is still `expected`, else throw CatalogConflictError
-    replace: async (profileKey, expected, next) => {
-      if (!(await db.compareAndSet(options.table, profileKey, expected, next))) {
-        throw new CatalogConflictError(profileKey);
-      }
-    },
-    describe: (profileKey) => `db://${options.table}/${profileKey}`,
-    close: () => db.close(),
-  };
-}
-```
-
-Each source definition should provide:
-
-- stable `id`
-- human-readable `name`
-- `timeField`
-- `tags` and optional `description`
-- `fieldHints` so agents can form exact-match filters
-- `defaultTextFields` for free-text search
-- `evidenceFields` to elevate likely report-worthy fields
-- `backend` describing how the source is queried
-- optional `schema` describing how field introspection is performed for `describe_fields` and other schema-dependent features
-
-Supported backend kinds:
-
-- `kibana_internal_search_es`
-  - POSTs to a Kibana endpoint like `/internal/search/es`
-  - wraps the query body inside `{ "params": { "index": ..., "body": ... } }`
-  - adds `kbn-xsrf`
-- `elasticsearch_search`
-  - POSTs the compiled Elasticsearch body directly to the configured path
-
-Supported schema backend kinds:
-
-- `kibana_data_views_fields`
-  - tries Kibana wildcard field-metadata endpoints, preferring `/internal/data_views/_fields_for_wildcard`
-  - adds `pattern=...` from `schema.index` or `backend.index`
-  - if all known field-metadata endpoints return `404`, falls back to sampling fields through the configured search backend
-- `kibana_index_patterns_fields`
-  - tries the legacy wildcard field-metadata endpoint `/api/index_patterns/_fields_for_wildcard` and related fallbacks
-  - adds `pattern=...` from `schema.index` or `backend.index`
-  - if all known field-metadata endpoints return `404`, falls back to sampling fields through the configured search backend
-- `elasticsearch_field_caps`
-  - GETs an Elasticsearch field capabilities endpoint such as `/<index-pattern>/_field_caps?fields=*`
-  - uses `schema.path` when provided or derives the default from `schema.index`
-
-Deployment note:
-
-- some Kibana deployments expose search transport but not field-metadata endpoints
-- when direct schema endpoints such as `/api/data_views/fields_for_wildcard`, `/api/index_patterns/_fields_for_wildcard`, or `/<index>/_field_caps` return `404`, the server falls back to sampling fields through the configured search backend
-- this fallback is heuristic rather than authoritative, but it is often sufficient to recover `.keyword` promotion and object-path discovery in search-only environments
-
-Example source shape for an application log stream:
-
-```json
-{
-  "id": "app_logs",
-  "name": "Application Logs",
-  "timeField": "@timestamp",
-  "backend": {
-    "kind": "kibana_internal_search_es",
-    "path": "/internal/search/es",
-    "index": "app-logs-*"
-  },
-  "schema": {
-    "kind": "kibana_data_views_fields",
-    "index": "app-logs-*"
-  }
-}
-```
-
-Keep `schema.path` omitted for this setup. The server will try the known Kibana metadata endpoints first and then fall back to search-transport sampling if those endpoints still return `404`.
-
-## Running
-
 ```bash
-KIBANA_BASE_URL=https://kibana.example.com \
-KIBANA_USERNAME=elastic \
-KIBANA_PASSWORD=secret \
-KIBANA_SOURCE_CATALOG_PATH=config/sources.json \
-npm run dev
+kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
 ```
 
-Or, after guided setup:
+Catalogs can live in files, Redis, PostgreSQL, MongoDB, SQLite, or a store you write. The HTTP transport trusts the profile header as sent: only a gateway that has authenticated the caller should reach it.
 
-```bash
-npm run dev
-```
+## Documentation
 
-## Tool Shapes
+| Topic | Link |
+| --- | --- |
+| Getting started | https://havesomecode.github.io/kibana-mcp-server/guide/getting-started |
+| Investigating with an agent | https://havesomecode.github.io/kibana-mcp-server/guide/investigating |
+| HTTP transport and security model | https://havesomecode.github.io/kibana-mcp-server/deployment/http |
+| Catalog stores | https://havesomecode.github.io/kibana-mcp-server/deployment/catalog-stores |
+| Integration examples (gateway, Ts.ED, Docker) | https://havesomecode.github.io/kibana-mcp-server/integrations/ |
+| Tool, CLI and configuration reference | https://havesomecode.github.io/kibana-mcp-server/reference/cli |
 
-### `configure_index`
+The documentation sources live in `website/`.
 
-Use this tool only after the user explicitly names the exact index or index pattern to configure. It accepts no credentials and never lists or scans for candidate indexes.
+## Project status
 
-Input:
-
-```json
-{
-  "index": "app-logs-*",
-  "source_name": "Application logs"
-}
-```
-
-The tool inspects fields and runs one bounded validation search only for that index. It then persists the generated source in the managed catalog. Optional `source_id`, `time_field`, and `replace` fields support explicit collision or schema handling.
-
-### `configure`
-
-Input:
-
-```json
-{
-  "kibana": {
-    "baseUrl": "https://kibana.example.com",
-    "username": "elastic",
-    "password": "secret",
-    "timeoutMs": 10000
-  },
-  "sources": [
-    {
-      "id": "app_logs",
-      "name": "Application Logs",
-      "tags": ["app", "logs", "production"],
-      "timeField": "@timestamp",
-      "backend": {
-        "kind": "kibana_internal_search_es",
-        "path": "/internal/search/es",
-        "index": ["app-logs-*"]
-      },
-      "schema": {
-        "kind": "kibana_data_views_fields",
-        "index": ["app-logs-*"]
-      },
-      "fieldHints": [
-        {
-          "name": "traceId",
-          "aliases": ["trace_id"]
-        }
-      ],
-      "defaultTextFields": ["message"],
-      "evidenceFields": ["traceId"]
-    }
-  ]
-}
-```
-
-If you do not bootstrap via env vars and do not have a saved default profile, call `configure` before `discover` or `query`.
-Calling `configure` also persists the provided sources to the runtime source-catalog file so later restarts can reload them automatically.
-If you want `describe_fields`, exact-field auto-resolution in `query`, or nested-filter validation, configure `schema` for each relevant source.
-In deployments where schema endpoints are routed indirectly or return `404`, prefer `schema.kind = "kibana_data_views_fields"` with `schema.index` set and omit `schema.path`.
-
-### `discover`
-
-Input:
-
-```json
-{
-  "query": "application",
-  "limit": 10
-}
-```
-
-Output includes:
-
-- source id
-- source name
-- time field
-- tags
-- configured field hints
-
-### `describe_fields`
-
-Use `describe_fields` when the agent needs to know whether a field is safe for exact term matching, grouping, or sorting.
-If the source does not configure a schema backend, `describe_fields` fails clearly instead of guessing.
-When direct schema endpoints are unavailable, the server will infer fields from sample hits via the configured search backend.
-
-Input:
-
-```json
-{
-  "source_id": "workflow_metrics",
-  "query": "event",
-  "limit": 50
-}
-```
-
-Output includes:
-
-- field name
-- field type
-- `searchable`
-- `aggregatable`
-- available subfields
-- `preferred_exact_field` when a safer exact-match variant exists, such as `.keyword`
-
-### `query`
-
-Input:
-
-```json
-{
-  "source_ids": ["app_logs", "workflow_metrics"],
-  "start_time": "2026-04-02T12:00:00Z",
-  "end_time": "2026-04-02T12:15:00Z",
-  "text": "SERVICE_RELOAD",
-  "filters": [
-    { "field": "region", "value": "us-east-1" },
-    { "field": "traceId", "value": "trace-12345" }
-  ],
-  "nested_filters": [
-    {
-      "path": "steps",
-      "field": "name",
-      "value": "CACHE_REFRESH"
-    }
-  ],
-  "extract_nested": true,
-  "mode": "hits",
-  "sort_by": "total_duration_ms",
-  "sort": "desc",
-  "limit": 50
-}
-```
-
-Supported modes:
-
-- `hits`
-- `count`
-- `histogram`
-  - requires `histogram_interval`
-- `terms`
-  - requires `group_by`
-- `stats`
-  - requires `stats_field`
-  - can also take `group_by`
-- `grouped_top_hits`
-  - requires `group_by`
-  - requires `sort_by`
-  - accepts `top_hits_size`
-
-Every response includes a `query_echo` section so the investigating agent can explain which sources, bounds, filters, and mode were actually used.
-For `hits` mode, you can also pass `sort_by` to sort on a chosen field. In `query`, exact filters and grouped bucket fields use field-hint alias resolution plus schema-aware exact-field preference when metadata is available. When the server rewrites a logical field such as `event` to a safer exact field such as `event.keyword`, the response includes an advisory. If schema metadata is unavailable, the query proceeds with the requested field and returns a `schema_unavailable` advisory instead of silently pretending exact-safe resolution happened.
-
-For very large single-source hit sets, `query` also supports cursor pagination:
-
-```json
-{
-  "source_ids": ["workflow_metrics"],
-  "start_time": "2026-04-02T12:00:00Z",
-  "end_time": "2026-04-02T12:15:00Z",
-  "mode": "hits",
-  "limit": 100,
-  "cursor": "REPLACE_ME_NEXT_CURSOR"
-}
-```
-
-Cursor pagination is currently supported only for single-source `hits` queries.
-
-Nested filtering also depends on schema metadata. If a source does not expose a working `schema` backend, nested requests fail early with a clear configuration error instead of reaching Kibana and failing with a backend 404.
-
-Example `stats` query:
-
-```json
-{
-  "source_ids": ["workflow_metrics"],
-  "start_time": "2026-04-02T12:00:00Z",
-  "end_time": "2026-04-02T12:15:00Z",
-  "mode": "stats",
-  "stats_field": "total_duration_ms",
-  "group_by": "trace_id",
-  "limit": 25
-}
-```
-
-Example `grouped_top_hits` query:
-
-```json
-{
-  "source_ids": ["workflow_metrics"],
-  "start_time": "2026-04-02T12:00:00Z",
-  "end_time": "2026-04-02T12:15:00Z",
-  "mode": "grouped_top_hits",
-  "group_by": "trace_id",
-  "sort_by": "total_duration_ms",
-  "top_hits_size": 1,
-  "limit": 25
-}
-```
-
-### `filter`
-
-Use `filter` when you already know the backend field you want to target and want to avoid alias resolution.
-
-Input:
-
-```json
-{
-  "source_ids": ["workflow_metrics"],
-  "start_time": "2026-04-02T12:00:00Z",
-  "end_time": "2026-04-02T12:15:00Z",
-  "field": "eventName.keyword",
-  "value": "WORKFLOW_RELOAD_STATS",
-  "nested_filters": [
-    {
-      "path": "steps",
-      "field": "steps.name.keyword",
-      "value": "CACHE_REFRESH"
-    }
-  ],
-  "extract_nested": true,
-  "mode": "hits",
-  "sort_by": "total_duration_ms",
-  "limit": 50
-}
-```
-
-`filter` returns the same structured output envelope as `query`, but it does not apply field-hint alias rewrites.
-If schema metadata is available and you pass a logical text field such as `event`, the server may still promote it to a preferred exact field such as `event.keyword` for exact term matching. If you pass an exact backend field like `event.keyword`, it is used as-is.
-`sort_by` is supported for `hits` and `grouped_top_hits`.
+- Published package: `npx -y @havesomecode/kibana-mcp-server`
+- Agent skill: `npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation`
+- Repo-local Codex plugin install remains a first-class path for cloned checkouts
+- GitHub Releases are the canonical release notes and version record; the `version` field in `package.json` inside git is not the release source of truth
+- Support posture, compatibility matrix, distribution strategy and release checklist live in `docs/project/`
+- Contributing and security reporting live in `CONTRIBUTING.md` and `SECURITY.md`
 
 ## Development
 
 ```bash
-npm run lint
-npm run format:check
-npm run check:types
-npm test
+npm install
 npm run verify
+npm run docs:dev
 ```
+
+This project is independent and not affiliated with or endorsed by Elastic. Kibana and Elasticsearch are trademarks of Elasticsearch B.V.

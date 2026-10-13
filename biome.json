@@ -21,7 +21,9 @@
       "node_modules",
       ".agents",
       "config/sources.runtime.json",
-      "config/sources.json"
+      "config/sources.json",
+      "website/.vitepress/dist",
+      "website/.vitepress/cache"
     ]
   }
 }

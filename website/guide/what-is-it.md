@@ -1,4 +1,4 @@
-# What is Kibana Log Investigation MCP?
+# What is Kibana MCP Server?
 
 Read-only MCP server for agent-driven log investigation against Kibana-backed search endpoints protected with basic auth.
 
