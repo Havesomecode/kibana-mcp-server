@@ -1,3 +1,7 @@
+---
+description: "Commands and options of the kibana-mcp-server command line: serve, bootstrap and setup."
+---
+
 # Command line
 
 ```bash

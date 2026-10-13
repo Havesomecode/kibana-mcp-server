@@ -1,3 +1,7 @@
+---
+description: "Set up a checkout, run the checks and build the documentation site."
+---
+
 # Development
 
 ```bash

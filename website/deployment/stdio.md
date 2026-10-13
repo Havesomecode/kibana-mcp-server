@@ -1,3 +1,7 @@
+---
+description: "The default stdio transport: what it serves and when to move to HTTP."
+---
+
 # stdio transport
 
 stdio is the default transport: the MCP client starts the server as a child process and talks to it over standard input and output. It serves **one global configuration** to its single caller.

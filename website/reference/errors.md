@@ -1,3 +1,7 @@
+---
+description: "Kibana request error codes, catalog errors and HTTP transport statuses."
+---
+
 # Errors
 
 ## Kibana request errors

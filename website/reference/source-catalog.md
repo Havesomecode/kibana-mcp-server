@@ -1,3 +1,7 @@
+---
+description: "The format of a source definition, the supported backends and schema backends."
+---
+
 # Source catalog
 
 A source catalog is a JSON document listing the logical sources a profile can query. `configure_index` generates and maintains it; hand-authored catalogs remain supported for advanced setups.

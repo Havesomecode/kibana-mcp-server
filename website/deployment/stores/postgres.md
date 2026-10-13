@@ -1,3 +1,7 @@
+---
+description: "Keep source catalogs in PostgreSQL: options, table definition and required privileges."
+---
+
 # PostgreSQL store
 
 Keeps one row per profile.

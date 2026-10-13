@@ -9,16 +9,45 @@ Use this skill when an operator wants to install, configure, or use the read-onl
 
 ## Connection-only installation
 
-Do not edit Codex or MCP configuration files by hand. Bootstrap establishes only the Kibana connection and an empty managed source catalog. It must not list, scan, infer, or configure indexes.
+Do not edit Codex, Claude Code, or other MCP configuration files by hand. Bootstrap establishes only the Kibana connection and an empty managed source catalog. It must not list, scan, infer, or configure indexes.
 
 1. Verify Node.js 22 or newer is available.
 2. Resolve connection values from `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD`, unless the operator supplied safe alternatives.
-3. Run the prompt-free bootstrap:
+3. Choose the client mode for the agent you are running in (see below).
+4. Run the prompt-free bootstrap with that mode.
+
+### Choosing the client mode
+
+Bootstrap can register the MCP server itself only in Codex. Everywhere else the server is registered by a plugin or by the operator, and bootstrap must only save the connection.
+
+| You are running in | The MCP server is registered by | Client mode |
+|---|---|---|
+| Codex | bootstrap | `--client codex` |
+| Claude Code | the `kibana-log-investigation` plugin | `--client none` |
+| Any other agent | the operator's MCP configuration | `--client none` |
+
+Codex:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap \
   --client codex
 ```
+
+Claude Code and other agents:
+
+```bash
+npx -y @havesomecode/kibana-mcp-server bootstrap \
+  --client none
+```
+
+If you are not running in Codex and the tools of this server (`discover`, `configure_index`) are not available in the session, the server is not registered. Do not write MCP configuration yourself. Ask the operator to register it:
+
+- in Claude Code, by installing the plugin: `/plugin marketplace add Havesomecode/kibana-mcp-server`, then `/plugin install kibana-log-investigation@kibana-mcp-server`;
+- in any other agent, by declaring the stdio command `npx -y @havesomecode/kibana-mcp-server serve` in its MCP configuration.
+
+With `--client none`, a server that was already running when bootstrap completed still has no connection. Ask the operator to reconnect the MCP server or start a new session before calling its tools.
+
+### What bootstrap does
 
 Bootstrap must:
 
@@ -26,15 +55,15 @@ Bootstrap must:
 - write an empty managed catalog on first install
 - preserve previously and explicitly configured generated sources on idempotent reruns
 - save credentials in the operating-system credential store
-- register the exact, version-pinned stdio command under a transport-hashed Codex name
-- read the Codex registration back and reject conflicting entries
+- with `--client codex`, register the exact, version-pinned stdio command under a transport-hashed Codex name, read the registration back, and reject conflicting entries
+- with `--client none`, leave every MCP client configuration untouched
 - restore prior profile state if registration fails
 
 A successful command verifies installation, not an index. Do not claim an index is usable until the explicit configuration flow below succeeds.
 
 ## Supplying secrets safely
 
-Never put a password directly in a command argument. Prefer a pre-provisioned `KIBANA_PASSWORD` environment variable. When a secret is available on stdin, use:
+Never put a password directly in a command argument. Prefer a pre-provisioned `KIBANA_PASSWORD` environment variable. The examples below use `--client codex`; substitute the client mode chosen above. When a secret is available on stdin, use:
 
 ```bash
 printf '%s\n' "$SECRET_VALUE" | npx -y @havesomecode/kibana-mcp-server bootstrap \
@@ -86,6 +115,8 @@ npx -y @havesomecode/kibana-mcp-server serve --profile prod
 - Never call `configure_index` until the user explicitly names the index or pattern.
 - Never add `--replace` merely to make a failed install pass. It intentionally replaces an existing catalog with an empty managed catalog.
 - Never overwrite a conflicting MCP client registration.
+- Never write or edit an MCP client configuration file to register the server; only bootstrap in Codex, a plugin, or the operator does that.
+- Never use the legacy `configure` tool to supply credentials. If it is the only setup tool offered, the server has no saved connection: run bootstrap, then have the server reconnected.
 - Never expose a password in logs, summaries, shell history, generated catalogs, or MCP client configuration.
 - If URL, username, or password is unavailable, report the exact missing prerequisite rather than inventing it.
 

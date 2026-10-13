@@ -1,3 +1,7 @@
+---
+description: "Reference of the query tool: search sources over a time window in six modes."
+---
+
 # `query`
 
 Searches one or more sources over an absolute time window, in hits, count, histogram, terms, stats or grouped mode.

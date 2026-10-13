@@ -1,3 +1,7 @@
+---
+description: "Keep source catalogs in a local SQLite file with the built-in node:sqlite module."
+---
+
 # SQLite store
 
 Keeps one row per profile in a local database file. It needs no extra package: it uses the `node:sqlite` module built into Node.js.

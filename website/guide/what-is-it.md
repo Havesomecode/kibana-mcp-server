@@ -1,3 +1,7 @@
+---
+description: "What Kibana MCP Server is, why it exists and what it deliberately does not do."
+---
+
 # What is Kibana MCP Server?
 
 Read-only MCP server for agent-driven log investigation against Kibana-backed search endpoints protected with basic auth.

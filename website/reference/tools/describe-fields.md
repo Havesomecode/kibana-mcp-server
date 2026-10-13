@@ -1,3 +1,7 @@
+---
+description: "Reference of the describe_fields tool: inspect the effective fields of a source."
+---
+
 # `describe_fields`
 
 Describes the effective fields of one source, including which ones support exact matching.

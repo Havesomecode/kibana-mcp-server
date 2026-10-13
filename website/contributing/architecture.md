@@ -1,3 +1,7 @@
+---
+description: "Source layout, the path of a tool call, the profile registry and catalog stores."
+---
+
 # Architecture
 
 ## Source layout

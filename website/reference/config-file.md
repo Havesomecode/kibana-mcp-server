@@ -1,3 +1,7 @@
+---
+description: "Every option of the configuration file, its precedence and its constraints."
+---
+
 # Configuration file reference
 
 The file is loaded only when named with `serve --config <path>` or `KIBANA_MCP_CONFIG`. It is executed as code, so it is never discovered from the working directory.

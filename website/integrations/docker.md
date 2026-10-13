@@ -1,3 +1,7 @@
+---
+description: "A Docker image and compose file that run the server over HTTP with catalogs in PostgreSQL."
+---
+
 # Docker image
 
 This example builds an image that runs the server over HTTP, with catalogs in PostgreSQL. Swap the store for any other one by changing two lines.

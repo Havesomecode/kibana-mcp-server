@@ -1,3 +1,7 @@
+---
+description: "Configure the server with a kibana.mcp.config.ts file: connection, catalog store and HTTP options."
+---
+
 # Configuration file
 
 Instead of environment variables, the server can read a configuration file, in stdio and in HTTP mode alike:

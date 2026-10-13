@@ -49,6 +49,10 @@ features:
     linkText: Catalog stores
 ---
 
+<script setup>
+import { withBase } from "vitepress";
+</script>
+
 <div class="home-section home-start home-reveal">
 
 <div class="home-start-copy">
@@ -158,6 +162,32 @@ kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
 </div>
 
 Looking for a tool input or an option? Go to the [reference](/reference/cli). Schema-aware features depend on the deployment: when Kibana does not expose field metadata, fields are sampled through search instead. {.home-note}
+
+</div>
+
+<div class="home-section home-reveal">
+
+<p class="home-eyebrow">Built for agents</p>
+
+## Documentation and tooling your agent can use
+
+<div class="home-grid home-grid--three">
+  <div class="home-tile" style="--stagger: 0">
+    <h3>Docs as Markdown</h3>
+    <p>The whole site is published for language models: an <code>llms.txt</code> index, one full file, and a Markdown twin of every page.</p>
+    <p class="home-tile__link"><a :href="withBase('/ai/llms')">LLM-friendly documentation</a></p>
+  </div>
+  <div class="home-tile" style="--stagger: 1">
+    <h3>Plugin marketplaces</h3>
+    <p>Install the skill and the MCP server together from the Claude Code marketplace, or register it in Codex with one command.</p>
+    <p class="home-tile__link"><a :href="withBase('/ai/agent-plugins')">Agent plugins</a></p>
+  </div>
+  <div class="home-tile" style="--stagger: 2">
+    <h3>A skill for any agent</h3>
+    <p>The investigation workflow and its safety rules, installable with skills.sh for Cursor, Gemini CLI and others.</p>
+    <p class="home-tile__link"><a :href="withBase('/ai/agent-plugins#skills-sh-any-agent')">Install the skill</a></p>
+  </div>
+</div>
 
 </div>
 

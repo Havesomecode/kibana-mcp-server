@@ -1,20 +1,29 @@
 import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitepress";
+import llmstxt, { copyOrDownloadAsMarkdownButtons } from "vitepress-plugin-llms";
 
 const repository = "https://github.com/Havesomecode/kibana-mcp-server";
+const siteBase = "/kibana-mcp-server/";
 
 export default defineConfig({
   lang: "en-US",
   title: "Kibana MCP Server",
   description:
     "Read-only MCP server that gives agents structured access to Kibana logs: logical sources, field inspection and typed query results.",
-  base: "/kibana-mcp-server/",
+  base: siteBase,
   cleanUrls: true,
   srcExclude: ["THIRD_PARTY_NOTICES.md"],
   lastUpdated: true,
   appearance: "dark",
+  markdown: {
+    config(md) {
+      md.use(copyOrDownloadAsMarkdownButtons);
+    },
+  },
   vite: {
+    // Publishes llms.txt, llms-full.txt and a Markdown twin of every page.
+    plugins: [llmstxt({ ignoreFiles: ["THIRD_PARTY_NOTICES.md"] })],
     resolve: {
       // Swap the default feature card for ours; VitePress documents this alias for internal components.
       alias: [
@@ -108,6 +117,16 @@ export default defineConfig({
           ],
         },
       ],
+      "/ai/": [
+        {
+          text: "AI",
+          items: [
+            { text: "Built for agents", link: "/ai/" },
+            { text: "LLM-friendly documentation", link: "/ai/llms" },
+            { text: "Agent plugins and skills", link: "/ai/agent-plugins" },
+          ],
+        },
+      ],
       "/reference/": [
         {
           text: "Configuration",
@@ -141,7 +160,17 @@ export default defineConfig({
         },
       ],
     },
-    socialLinks: [{ icon: "github", link: repository }],
+    socialLinks: [
+      {
+        // Social links are not prefixed with the site base, hence the explicit one.
+        icon: {
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><polygon points="19,9 20.25,6.25 23,5 20.25,3.75 19,1 17.75,3.75 15,5 17.75,6.25"></polygon><polygon points="19,15 17.75,17.75 15,19 17.75,20.25 19,23 20.25,20.25 23,19 20.25,17.75"></polygon><path d="M11.5,9.5L9,4L6.5,9.5L1,12l5.5,2.5L9,20l2.5-5.5L17,12L11.5,9.5z M9.99,12.99L9,15.17l-0.99-2.18L5.83,12l2.18-0.99 L9,8.83l0.99,2.18L12.17,12L9.99,12.99z"></path></svg>',
+        },
+        link: `${siteBase}ai/`,
+        ariaLabel: "AI: documentation and plugins for agents",
+      },
+      { icon: "github", link: repository },
+    ],
     search: { provider: "local" },
     editLink: {
       pattern: `${repository}/edit/master/website/:path`,

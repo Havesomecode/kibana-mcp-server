@@ -1,3 +1,7 @@
+---
+description: "Expose Kibana MCP Server through a Ts.ED gateway protected by OIDC, with one catalog per user."
+---
+
 # Ts.ED gateway
 
 [Ts.ED](https://tsed.dev/docs/mcp.html) can expose a third-party MCP server on one of its own endpoints, protected by OAuth. This example mounts a Kibana MCP server for each environment and gives every user their own source catalog.

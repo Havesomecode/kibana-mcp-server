@@ -1,3 +1,7 @@
+---
+description: "Complete setups for running Kibana MCP Server as a shared service."
+---
+
 # Integration examples
 
 These pages show complete, copyable setups for running the server as a shared service.

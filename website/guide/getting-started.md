@@ -1,3 +1,7 @@
+---
+description: "Requirements, prompt-free bootstrap, agent skill installation and use in Codex."
+---
+
 # Getting started
 
 ## Requirements
