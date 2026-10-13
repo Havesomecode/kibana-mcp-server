@@ -32,22 +32,25 @@ afterEach(() => {
 });
 
 describe("version-matched README handoff", () => {
-  it("resolves master to the exact raw branch URL and actual commit", async () => {
+  it("resolves master to an immutable raw commit URL", async () => {
     const repo = fixture();
     const { resolveReadmeHandoff } = await helper();
+    const commit = git(repo, "rev-parse", "HEAD");
     expect(resolveReadmeHandoff(repo, "master")).toEqual({
       ref: "refs/heads/master",
-      commit: git(repo, "rev-parse", "HEAD"),
-      url: "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md",
+      commit,
+      url: `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/${commit}/README.md`,
     });
   });
 
-  it("resolves a nested branch without losing its path", async () => {
+  it("retains a nested branch as metadata while pinning its commit URL", async () => {
     const repo = fixture();
     git(repo, "branch", "release/next");
     const { resolveReadmeHandoff } = await helper();
-    expect(resolveReadmeHandoff(repo, "refs/heads/release/next").url).toBe(
-      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/release/next/README.md",
+    const handoff = resolveReadmeHandoff(repo, "refs/heads/release/next");
+    expect(handoff.ref).toBe("refs/heads/release/next");
+    expect(handoff.url).toBe(
+      `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/${handoff.commit}/README.md`,
     );
   });
 
@@ -66,9 +69,21 @@ describe("version-matched README handoff", () => {
       });
       expect(result.commit).toBe(taggedCommit);
       expect(result.url).toBe(
-        `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/${ref === taggedCommit ? taggedCommit : "refs/tags/release-actual"}/README.md`,
+        `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/${taggedCommit}/README.md`,
       );
     }
+  });
+
+  it("accepts an uppercase full commit SHA and normalizes it", async () => {
+    const repo = fixture();
+    const commit = git(repo, "rev-parse", "HEAD");
+    const { resolveReadmeHandoff } = await helper();
+
+    expect(resolveReadmeHandoff(repo, commit.toUpperCase())).toEqual({
+      ref: commit,
+      commit,
+      url: `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/${commit}/README.md`,
+    });
   });
 
   it("rejects ambiguous names until branch or tag is specified", async () => {
@@ -114,12 +129,14 @@ describe("version-matched README handoff", () => {
     expect(() => resolveReadmeHandoff(repo, "no-readme")).toThrow(/README.md.*missing/i);
   });
 
-  it("encodes URL-significant characters in valid Git refs", async () => {
+  it("keeps URL-significant characters out of the immutable README URL", async () => {
     const repo = fixture();
     git(repo, "branch", "topic/#next");
     const { resolveReadmeHandoff } = await helper();
-    expect(resolveReadmeHandoff(repo, "topic/#next").url).toContain(
-      "refs/heads/topic/%23next/README.md",
+    const handoff = resolveReadmeHandoff(repo, "topic/#next");
+    expect(handoff.ref).toBe("refs/heads/topic/#next");
+    expect(handoff.url).toBe(
+      `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/${handoff.commit}/README.md`,
     );
   });
 
@@ -128,7 +145,7 @@ describe("version-matched README handoff", () => {
     const { verifyReadmeHandoff } = await helper();
     const handoff = await verifyReadmeHandoff(repo, "master", async (url: string) => {
       expect(url).toBe(
-        "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md",
+        `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/${git(repo, "rev-parse", "HEAD")}/README.md`,
       );
       return new Response("# README at master\n");
     });

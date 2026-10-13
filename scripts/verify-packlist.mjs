@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { promisify } from "node:util";
 
@@ -12,6 +13,7 @@ const required = [
   "plugins/kibana-log-investigation/mcp-launcher.mjs",
   "plugins/kibana-log-investigation/dist/mcp_entry.mjs",
   "plugins/kibana-log-investigation/dist/mcp_entry.mjs.LEGAL.txt",
+  "plugins/kibana-log-investigation/dist/LICENSE",
   "plugins/kibana-log-investigation/dist/THIRD_PARTY_NOTICES.md",
   "plugins/kibana-log-investigation/skills/install-and-configure/SKILL.md",
   "skills/kibana-log-investigation/SKILL.md",
@@ -30,7 +32,8 @@ const { stdout } = await execFileAsync("npm", ["pack", "--json", "--dry-run"], {
 });
 
 const result = JSON.parse(stdout);
-const files = new Set(result?.[0]?.files?.map((entry) => entry.path) ?? []);
+const entries = result?.[0]?.files ?? [];
+const files = new Set(entries.map((entry) => entry.path));
 
 for (const file of required) {
   if (!files.has(file)) {
@@ -41,6 +44,30 @@ for (const file of required) {
 for (const file of files) {
   if (forbiddenPrefixes.some((prefix) => file.startsWith(prefix))) {
     throw new Error(`Packlist includes forbidden file: ${file}`);
+  }
+}
+
+const pluginBundle = entries.find(
+  (entry) => entry.path === "plugins/kibana-log-investigation/dist/mcp_entry.mjs",
+);
+if (process.platform !== "win32" && pluginBundle?.mode !== 0o644) {
+  throw new Error(`Plugin bundle must be packaged with mode 0644. Received: ${pluginBundle?.mode}`);
+}
+
+const notices = await readFile(
+  resolve(repoRoot, "plugins/kibana-log-investigation/dist/THIRD_PARTY_NOTICES.md"),
+  "utf8",
+);
+for (const dependency of [
+  "ajv@8.18.0",
+  "ajv-formats@3.0.1",
+  "content-type@1.0.5",
+  "fast-deep-equal@3.1.3",
+  "fast-uri@3.1.0",
+  "json-schema-traverse@1.0.0",
+]) {
+  if (!notices.includes(`## ${dependency} (`)) {
+    throw new Error(`Third-party notices missing bundled dependency: ${dependency}`);
   }
 }
 

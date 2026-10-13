@@ -69,10 +69,10 @@ describe("site contract", () => {
     );
 
     expect(handoff).toContain(
-      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md",
+      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md",
     );
     expect(handoff).not.toContain("kibana-mcp-server/master/INSTALL.md");
-    expect(handoff).toContain("resolved installation ref");
+    expect(handoff).toContain("resolved installation commit");
     expect(handoff).not.toContain("raw.githubusercontent.com/Zacaria/");
     expect(handoff).not.toContain("/Users/");
   });
@@ -84,7 +84,7 @@ describe("site contract", () => {
       'href="https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md"',
     );
     expect(html).toContain("README (master preview)");
-    expect(html).toContain("resolved installation ref");
+    expect(html).toContain("installation commit");
     expect(html).not.toContain("kibana-mcp-server/blob/master/README.md");
   });
 
@@ -95,12 +95,10 @@ describe("site contract", () => {
     "plugins/kibana-log-investigation/skills/install-and-configure/SKILL.md",
   ])("requires a version-matched README handoff in %s", (path) => {
     const instructions = readSiteFile(path);
-    expect(instructions).toContain("resolved installation ref");
+    expect(instructions).toContain("resolved installation commit");
     expect(instructions).toContain(
-      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md",
+      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md",
     );
-    expect(instructions).toContain("refs/heads/<branch>");
-    expect(instructions).toContain("refs/tags/<tag>");
     expect(instructions).toContain("commit SHA");
     expect(instructions).toContain("Do not infer a Git tag from an npm version");
   });
