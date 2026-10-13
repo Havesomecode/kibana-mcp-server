@@ -258,8 +258,8 @@ async function copyValidatedSourceCatalog(
 
 async function resolveBundledSourceCatalogPath(): Promise<string> {
   const candidates = [
-    new URL("../config/sources.example.json", import.meta.url),
     new URL("../../config/sources.example.json", import.meta.url),
+    new URL("../../../config/sources.example.json", import.meta.url),
   ].map((candidate) => fileURLToPath(candidate));
 
   for (const candidate of candidates) {

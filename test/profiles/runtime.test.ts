@@ -7,6 +7,7 @@ import {
 } from "../../src/profiles/context.js";
 import { normalizeProfileName, toProfileKey } from "../../src/profiles/names.js";
 import { ProfileRuntimeRegistry } from "../../src/profiles/runtime.js";
+import { createApplication } from "../../src/server.js";
 import { createGeneratedCatalog } from "../../src/setup/bootstrap.js";
 import type { ResolvedAppConfig } from "../../src/types.js";
 import { source } from "../transports/helpers.js";
@@ -130,6 +131,158 @@ describe("ProfileRuntimeRegistry", () => {
 
     content = "{ not json";
     await expect(registry.resolve("alice")).rejects.toThrow();
+  });
+
+  it("serves the first cold discover while a newer read is still pending", async () => {
+    const reads: ((content: string) => void)[] = [];
+    const registry = new ProfileRuntimeRegistry({
+      kibanaClientFactory,
+      defaultConfig: config({
+        catalog: {
+          location: "memory://alice",
+          read: () => new Promise((resolve) => reads.push(resolve)),
+          replace: async () => {},
+        },
+      }),
+    });
+    const app = createApplication(undefined, { profileRegistry: registry });
+    const first = app.handlers.discover({});
+    const second = app.handlers.discover({});
+    const content = JSON.stringify(createGeneratedCatalog([source("orders")]));
+    reads[0](content);
+    const firstResult = await first;
+    reads[1](content);
+    const secondResult = await second;
+
+    expect(firstResult.total).toBe(1);
+    expect(firstResult.sources.map((entry) => entry.id)).toEqual(["orders"]);
+    expect(secondResult).toEqual(firstResult);
+  });
+
+  it.each([
+    ["read rejection", "before"],
+    ["read rejection", "after"],
+    ["invalid catalog", "before"],
+    ["invalid catalog", "after"],
+  ])("keeps an earlier valid refresh when newer %s completes %s it", async (failure, order) => {
+    const reads: { resolve: (content: string) => void; reject: (error: Error) => void }[] = [];
+    const registry = new ProfileRuntimeRegistry({
+      kibanaClientFactory,
+      defaultConfig: config({
+        catalog: {
+          location: "memory://alice",
+          read: () => new Promise((resolve, reject) => reads.push({ resolve, reject })),
+          replace: async () => {},
+        },
+      }),
+    });
+    const earlier = registry.resolve();
+    const newer = registry.resolve();
+    const rejected = expect(newer).rejects.toThrow();
+    const failNewer = () => {
+      if (failure === "read rejection") reads[1].reject(new Error("store unavailable"));
+      else reads[1].resolve("{ not json");
+      return rejected;
+    };
+    if (order === "before") await failNewer();
+    const content = JSON.stringify(createGeneratedCatalog([source("orders")]));
+    reads[0].resolve(content);
+    const runtime = await earlier;
+    const schemaCatalog = runtime.schemaCatalog;
+    const sourceIds = runtime.config.sources.map((entry) => entry.id);
+    if (order === "after") await failNewer();
+
+    expect(sourceIds).toEqual(["orders"]);
+    expect(runtime.catalogContent).toBe(content);
+    expect(runtime.sourceCatalog.count()).toBe(1);
+    expect(runtime.schemaCatalog).toBe(schemaCatalog);
+  });
+
+  it("applies a newer refresh after an earlier refresh completed first", async () => {
+    const reads: ((content: string) => void)[] = [];
+    const registry = new ProfileRuntimeRegistry({
+      kibanaClientFactory,
+      defaultConfig: config({
+        catalog: {
+          location: "memory://alice",
+          read: () => new Promise((resolve) => reads.push(resolve)),
+          replace: async () => {},
+        },
+      }),
+    });
+    const earlier = registry.resolve();
+    const newer = registry.resolve();
+    reads[0](JSON.stringify(createGeneratedCatalog([source("earlier")])));
+    const runtime = await earlier;
+    const earlierIds = runtime.config.sources.map((entry) => entry.id);
+    reads[1](JSON.stringify(createGeneratedCatalog([source("newer")])));
+    expect(await newer).toBe(runtime);
+
+    expect(earlierIds).toEqual(["earlier"]);
+    expect(runtime.config.sources.map((entry) => entry.id)).toEqual(["newer"]);
+  });
+
+  it.each([false, true])(
+    "does not let an older refresh overwrite a newer catalog (unchanged: %s)",
+    async (unchanged) => {
+      const reads: ((content: string) => void)[] = [];
+      const registry = new ProfileRuntimeRegistry({
+        kibanaClientFactory,
+        defaultConfig: config({
+          catalog: {
+            location: "memory://alice",
+            read: () => new Promise((resolve) => reads.push(resolve)),
+            replace: async () => {},
+          },
+        }),
+      });
+
+      const content = JSON.stringify(createGeneratedCatalog([source("newer")]));
+      if (unchanged) {
+        const initial = registry.resolve();
+        reads.shift()?.(content);
+        await initial;
+      }
+      const older = registry.resolve();
+      const newer = registry.resolve();
+      reads[1](content);
+      const runtime = await newer;
+      const schemaCatalog = runtime.schemaCatalog;
+      reads[0](JSON.stringify(createGeneratedCatalog([source("older")])));
+      await older;
+
+      expect(runtime.config.sources.map((entry) => entry.id)).toEqual(["newer"]);
+      expect(runtime.schemaCatalog).toBe(schemaCatalog);
+    },
+  );
+
+  it("does not let an in-flight refresh undo configure_index replacement", async () => {
+    let finishRead: ((content: string) => void) | undefined;
+    const registry = new ProfileRuntimeRegistry({
+      kibanaClientFactory,
+      defaultConfig: config({
+        catalog: {
+          location: "memory://alice",
+          read: () =>
+            new Promise((resolve) => {
+              finishRead = resolve;
+            }),
+          replace: async () => {},
+        },
+      }),
+    });
+    const pending = registry.resolve();
+    const runtime = registry.getDefault();
+    if (!runtime) throw new Error("Default runtime was not created");
+    const content = JSON.stringify(createGeneratedCatalog([source("configured")]));
+    registry.replaceSources(runtime, [source("configured")], content);
+    const schemaCatalog = runtime.schemaCatalog;
+    finishRead?.(JSON.stringify(createGeneratedCatalog([source("older")])));
+    await pending;
+
+    expect(runtime.catalogContent).toBe(content);
+    expect(runtime.config.sources.map((entry) => entry.id)).toEqual(["configured"]);
+    expect(runtime.schemaCatalog).toBe(schemaCatalog);
   });
 
   it("loads each profile once and evicts the least recently used one", async () => {

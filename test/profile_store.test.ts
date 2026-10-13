@@ -42,6 +42,23 @@ describe("ProfileStore", () => {
     expect(rawStore).not.toContain("password");
   });
 
+  it("supports exact saved-profile identity without removing CLI case folding", async () => {
+    const root = await mkdtemp(join(tmpdir(), "kibana-profile-store-"));
+    tempDirectories.push(root);
+    const store = new ProfileStore(resolveProfilePaths({ KIBANA_STATE_DIR: root }));
+    const profile = await store.upsertProfile({
+      name: "Alice",
+      baseUrl: "https://kibana.example.com",
+      timeoutMs: 1000,
+      sourceCatalogPath: join(root, "alice.json"),
+    });
+    expect(await store.findProfile("alice")).toEqual(profile);
+    expect(await store.findProfile("Alice", { exactName: true })).toEqual(profile);
+    expect(profile.id).toBe("alice");
+    expect(await store.findProfile("alice", { exactName: true })).toBeNull();
+    expect(await store.findProfile("ALICE", { exactName: true })).toBeNull();
+  });
+
   it("switches the default profile without mutating the others", async () => {
     const root = await mkdtemp(join(tmpdir(), "kibana-profile-store-"));
     tempDirectories.push(root);

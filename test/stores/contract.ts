@@ -24,6 +24,16 @@ export async function expectCatalogStoreContract(store: CatalogStore): Promise<v
   );
   expect(await store.read("alice")).toBe("v2");
   expect(await store.read("carol")).toBeUndefined();
+  const controller = new AbortController();
+  controller.abort();
+  await expect(store.replace("alice", "v2", "cancelled", controller.signal)).rejects.toMatchObject({
+    name: "AbortError",
+  });
+  await expect(
+    store.replace("carol", undefined, "cancelled", controller.signal),
+  ).rejects.toMatchObject({ name: "AbortError" });
+  expect(await store.read("alice")).toBe("v2");
+  expect(await store.read("carol")).toBeUndefined();
   expect(store.describe?.("alice")).toContain("alice");
 }
 

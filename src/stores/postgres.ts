@@ -98,7 +98,8 @@ export default async function postgresCatalogStore(
       const content = rows[0]?.content;
       return typeof content === "string" ? content : undefined;
     },
-    async replace(profileKey, expected, next) {
+    async replace(profileKey, expected, next, signal) {
+      signal?.throwIfAborted();
       const { rowCount } =
         expected === undefined
           ? await database.query(

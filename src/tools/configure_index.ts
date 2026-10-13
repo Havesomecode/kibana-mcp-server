@@ -50,6 +50,7 @@ export async function executeConfigureIndex(
   catalogContent?: string;
 }> {
   const input = configureIndexInputSchema.parse(inputValue);
+  options.callerSignal?.throwIfAborted();
   // A catalog kept at a plain path goes through the same store contract as any other: the write
   // only happens if the catalog is still the one that was read, so Kibana is never called under a lock.
   const catalog = options.config.catalog ?? fileCatalogOf(options.config, options.stateRoot);
@@ -63,7 +64,8 @@ export async function executeConfigureIndex(
   }
   const next = await buildNextCatalog(input, existingContent, options);
   const catalogContent = `${JSON.stringify(next.catalog, null, 2)}\n`;
-  await catalog.replace(existingContent, catalogContent);
+  options.callerSignal?.throwIfAborted();
+  await catalog.replace(existingContent, catalogContent, options.callerSignal);
 
   return {
     sources: next.sources,

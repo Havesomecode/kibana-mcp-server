@@ -72,18 +72,22 @@ export class ProfileStore {
     return state.profiles.find((profile) => profile.id === state.defaultProfileId) ?? null;
   }
 
-  async findProfile(query: string): Promise<SavedProfile | null> {
-    const normalizedQuery = query.trim().toLowerCase();
+  async findProfile(
+    query: string,
+    options: { exactName?: boolean } = {},
+  ): Promise<SavedProfile | null> {
+    const normalizedQuery = options.exactName ? query.trim() : query.trim().toLowerCase();
     if (!normalizedQuery) {
       return null;
     }
 
     const state = await this.load();
     return (
-      state.profiles.find(
-        (profile) =>
-          profile.id.toLowerCase() === normalizedQuery ||
-          profile.name.toLowerCase() === normalizedQuery,
+      state.profiles.find((profile) =>
+        options.exactName
+          ? profile.name === normalizedQuery
+          : profile.id.toLowerCase() === normalizedQuery ||
+            profile.name.toLowerCase() === normalizedQuery,
       ) ?? null
     );
   }

@@ -121,7 +121,7 @@ async function resolveConfiguration(
   const loadProfileConfig: ProfileConfigLoader = (profileName) =>
     loadConfigFromEnvironment(
       { KIBANA_TIMEOUT_MS: envInput.KIBANA_TIMEOUT_MS, [PROFILE_NAME_ENV]: profileName },
-      dependencies,
+      { ...dependencies, exactProfileName: true },
     );
 
   try {

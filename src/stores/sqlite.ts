@@ -85,7 +85,8 @@ export default async function sqliteCatalogStore(
       const row = select.get(profileKey) as { content?: unknown } | undefined;
       return typeof row?.content === "string" ? row.content : undefined;
     },
-    async replace(profileKey, expected, next) {
+    async replace(profileKey, expected, next, signal) {
+      signal?.throwIfAborted();
       const now = new Date().toISOString();
       const { changes } =
         expected === undefined

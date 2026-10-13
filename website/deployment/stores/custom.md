@@ -14,7 +14,8 @@ export default function myStore(options: { table: string }): CatalogStore {
     // serialized catalog of the profile, or undefined when it has none yet
     read: async (profileKey) => db.get(options.table, profileKey),
     // write only if the stored content is still `expected`, else throw CatalogConflictError
-    replace: async (profileKey, expected, next) => {
+    replace: async (profileKey, expected, next, signal) => {
+      signal?.throwIfAborted();
       if (!(await db.compareAndSet(options.table, profileKey, expected, next))) {
         throw new CatalogConflictError(profileKey);
       }
@@ -30,11 +31,13 @@ export default function myStore(options: { table: string }): CatalogStore {
 | Method | Required | Role |
 | --- | --- | --- |
 | `read(profileKey)` | yes | Returns the serialized catalog of the profile, or `undefined` when it has none yet. |
-| `replace(profileKey, expected, next)` | yes | Writes `next` only if the stored content is still `expected` (`undefined` when there was none). Throws `CatalogConflictError` otherwise. |
+| `replace(profileKey, expected, next, signal?)` | yes | Writes `next` only if the stored content is still `expected` (`undefined` when there was none). Throws `CatalogConflictError` otherwise. Checks the optional `AbortSignal` before issuing a write. |
 | `describe(profileKey)` | no | Human-readable location reported by tools. Must not expose credentials. |
 | `close()` | no | Releases connections when the server stops. |
 
 `profileKey` is derived by the server from the profile name. It only contains lowercase letters, digits and dashes, so it is safe as a file name, a key or a primary key.
+
+Check the optional cancellation signal after any wait and before issuing a write. Cancellation never rolls back an already-dispatched write.
 
 ## Why `replace` compares first
 
@@ -42,7 +45,7 @@ export default function myStore(options: { table: string }): CatalogStore {
 
 ## Using it
 
-Export a factory and give it to the configuration file. `storeOptions` is passed to the factory as is.
+Create the store with its required options and give it to the configuration file.
 
 ```ts
 import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";
@@ -52,7 +55,6 @@ export default defineKibanaMcpConfig({
   url: process.env.KIBANA_URL,
   user: process.env.KIBANA_USER,
   password: process.env.KIBANA_PASSWORD,
-  store: myStore,
-  storeOptions: { table: "kibana_catalogs" },
+  store: myStore({ table: "kibana_catalogs" }),
 });
 ```

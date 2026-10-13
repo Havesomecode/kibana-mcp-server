@@ -29,6 +29,27 @@ describe("bindCatalogStore", () => {
     ]);
   });
 
+  it("propagates cancellation to the bound store without breaking three-argument stores", async () => {
+    const calls: Array<AbortSignal | undefined> = [];
+    const handle = bindCatalogStore(
+      {
+        read: async () => undefined,
+        replace: async (_key, _expected, _next, signal) => {
+          calls.push(signal);
+        },
+      },
+      "alice",
+    );
+    const controller = new AbortController();
+    await handle.replace(undefined, "next", controller.signal);
+    expect(calls).toEqual([controller.signal]);
+    controller.abort();
+    await expect(handle.replace(undefined, "cancelled", controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
+    expect(calls).toHaveLength(1);
+  });
+
   it("names the catalog in conflict errors", () => {
     const error = new CatalogConflictError("memory://alice");
 

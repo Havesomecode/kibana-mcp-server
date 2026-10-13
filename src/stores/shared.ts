@@ -14,6 +14,21 @@ export function resolveStoreUrl(
   fallbackEnvNames: string[],
   protocols: string[],
 ): URL {
+  const url = resolveStoreConnectionString(storeName, explicitUrl, fallbackEnvNames, protocols);
+  try {
+    return new URL(url);
+  } catch {
+    throw new Error(`The ${storeName} catalog store URL is not a valid URL.`);
+  }
+}
+
+/** Like resolveStoreUrl, but leaves backend-specific URI parsing to its driver. */
+export function resolveStoreConnectionString(
+  storeName: string,
+  explicitUrl: string | undefined,
+  fallbackEnvNames: string[],
+  protocols: string[],
+): string {
   const envNames = [STORE_URL_ENV, ...fallbackEnvNames];
   const url =
     explicitUrl?.trim() ||
@@ -24,18 +39,16 @@ export function resolveStoreUrl(
     );
   }
 
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
+  const protocol = /^[a-z][a-z0-9+.-]*:/i.exec(url)?.[0].toLowerCase();
+  if (!protocol) {
     throw new Error(`The ${storeName} catalog store URL is not a valid URL.`);
   }
-  if (!protocols.includes(parsed.protocol)) {
+  if (!protocols.includes(protocol)) {
     throw new Error(
       `The ${storeName} catalog store URL must use ${protocols.map((protocol) => `${protocol}//`).join(" or ")}.`,
     );
   }
-  return parsed;
+  return url;
 }
 
 /** Location of a store without its credentials, for tool output. */
@@ -94,7 +107,8 @@ export function createKeyValueCatalogStore(backend: {
     async read(profileKey) {
       return (await backend.get(keyOf(profileKey))) ?? undefined;
     },
-    async replace(profileKey, expected, next) {
+    async replace(profileKey, expected, next, signal) {
+      signal?.throwIfAborted();
       const replaced = await backend.compareAndSet(keyOf(profileKey), [
         expected === undefined ? "0" : "1",
         expected ?? "",

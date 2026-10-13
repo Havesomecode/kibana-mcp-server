@@ -3,7 +3,8 @@ import { existsSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -144,6 +145,48 @@ try {
   if (!existsSync(installedSkill)) {
     throw new Error("Installed package is missing the kibana-log-investigation Agent Skill.");
   }
+
+  // Exercise asset lookup from the installed compiled layout, not the source checkout.
+  const installedSourceRoot = dirname(dirname(installedCli));
+  const { runSetupFlow } = await import(
+    pathToFileURL(join(installedSourceRoot, "setup/setup_flow.js"))
+  );
+  const { resolveProfilePaths } = await import(
+    pathToFileURL(join(installedSourceRoot, "profiles/paths.js"))
+  );
+  const answers = [
+    "example",
+    "https://kibana.example.com",
+    "verification-user",
+    "verification-secret",
+    "example",
+  ];
+  const setup = await runSetupFlow(
+    {
+      info() {},
+      async prompt() {
+        if (!answers.length) throw new Error("Installed setup requested an unexpected prompt.");
+        return answers.shift();
+      },
+      async confirm() {
+        return false;
+      },
+    },
+    {
+      cwd: consumerRoot,
+      paths: resolveProfilePaths({ KIBANA_STATE_DIR: join(installRoot, "example-state") }),
+      secretStore: {
+        async load() {
+          throw new Error("No saved verification credential.");
+        },
+        async save() {},
+        async delete() {},
+      },
+    },
+  );
+  const exampleCatalog = JSON.parse(await readFile(setup.sourceCatalogPaths[0], "utf8"));
+  if (!exampleCatalog.sources?.length)
+    throw new Error("Installed setup did not import the bundled example.");
 
   if (process.platform !== "win32") {
     const fakeBin = join(installRoot, "fake-bin");

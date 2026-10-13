@@ -35,6 +35,7 @@ export class ProfileRuntimeRegistry {
   private readonly runtimes = new Map<string, ProfileRuntime>();
   private readonly inFlight = new Map<string, Promise<ProfileRuntime>>();
   private readonly clients = new Map<string, KibanaClient>();
+  private readonly refreshes = new WeakMap<ProfileRuntime, { started: number; applied: number }>();
   private defaultRuntime?: ProfileRuntime;
 
   constructor(options: ProfileRuntimeRegistryOptions = {}) {
@@ -125,7 +126,14 @@ export class ProfileRuntimeRegistry {
     if (!catalog) {
       return runtime;
     }
+    const refresh = this.refreshes.get(runtime) ?? { started: 0, applied: 0 };
+    this.refreshes.set(runtime, refresh);
+    const generation = ++refresh.started;
     const content = await catalog.read();
+    // Only an applied newer read or configure_index replacement supersedes this snapshot.
+    if (this.refreshes.get(runtime) !== refresh || generation < refresh.applied) {
+      return runtime;
+    }
     if (content !== runtime.catalogContent) {
       this.replaceSources(
         runtime,
@@ -134,7 +142,10 @@ export class ProfileRuntimeRegistry {
           : sourceCatalogSchema.parse(JSON.parse(content) as unknown).sources,
         content,
       );
+      // A refresh retains its generation; explicit replacements fence all pending reads.
+      this.refreshes.set(runtime, refresh);
     }
+    refresh.applied = generation;
     return runtime;
   }
 
@@ -143,6 +154,7 @@ export class ProfileRuntimeRegistry {
     sources: SourceDefinition[],
     catalogContent: string | undefined = runtime.catalogContent,
   ): void {
+    this.refreshes.delete(runtime);
     runtime.config = { ...runtime.config, sources };
     runtime.catalogContent = catalogContent;
     runtime.sourceCatalog = new SourceCatalog(sources);

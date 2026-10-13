@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
@@ -13,8 +13,10 @@ import { source, sourceIds } from "./helpers.js";
 type JsonRpcMessage = { id?: number; result?: Record<string, unknown>; error?: unknown };
 
 const transports = vi.hoisted(() => ({
+  startError: undefined as Error | undefined,
   instances: [] as Array<{
     onmessage?: (message: unknown) => void;
+    onclose?: () => void;
     sent: unknown[];
   }>,
 }));
@@ -30,13 +32,17 @@ vi.mock("@modelcontextprotocol/server/stdio", () => ({
       transports.instances.push(this);
     }
 
-    async start() {}
+    async start() {
+      if (transports.startError) throw transports.startError;
+    }
 
     async send(message: unknown) {
       this.sent.push(message);
     }
 
-    async close() {}
+    async close() {
+      this.onclose?.();
+    }
   },
 }));
 
@@ -82,12 +88,36 @@ describe("startMcpServer", () => {
   let directory: string;
 
   beforeEach(async () => {
+    transports.startError = undefined;
     transports.instances.length = 0;
     directory = await mkdtemp(join(tmpdir(), "kibana-mcp-stdio-"));
   });
 
   afterEach(async () => {
+    for (const transport of transports.instances) transport.onclose?.();
+    await new Promise((resolveDone) => setImmediate(resolveDone));
     await rm(directory, { recursive: true, force: true });
+  });
+
+  it("closes its store once when connecting the transport fails", async () => {
+    const configPath = join(directory, "failed.mjs");
+    const closedPath = join(directory, "closed.txt");
+    await writeFile(
+      configPath,
+      `import { appendFile } from "node:fs/promises";
+       export default {
+         url: "https://kibana.example.com", user: "elastic", password: "secret",
+         store: {
+           read: async () => undefined, replace: async () => {},
+           close: () => appendFile(${JSON.stringify(closedPath)}, "closed\\n"),
+         },
+       };`,
+    );
+    transports.startError = new Error("transport failed");
+    await expect(startMcpServer({ KIBANA_MCP_CONFIG: configPath })).rejects.toThrow(
+      "transport failed",
+    );
+    expect(await readFile(closedPath, "utf8")).toBe("closed\n");
   });
 
   it("serves the single catalog of an environment connection", async () => {
@@ -153,20 +183,34 @@ describe("serve over stdio, as a real process", () => {
     await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
-  it("answers MCP requests on stdout using a configuration file and its store", async () => {
+  it("answers MCP requests and closes its store on stdin EOF", async () => {
     const repositoryRoot = resolve(import.meta.dirname, "../..");
     const configPath = join(directory, "kibana.mcp.config.mjs");
     const sqliteStore = pathToFileURL(join(repositoryRoot, "src/stores/sqlite.ts")).href;
     const databasePath = join(directory, "catalogs.sqlite");
+    const closedPath = join(directory, "closed.txt");
     await writeFile(
       configPath,
       `
       import store from ${JSON.stringify(sqliteStore)};
+      import { appendFile } from "node:fs/promises";
       export default {
         url: "https://kibana.example.com",
         user: "elastic",
         password: "secret",
-        store,
+        store: async (options) => {
+          const catalog = await store(options);
+          // Model a database connection that keeps the process alive until closed.
+          const keepAlive = setInterval(() => {}, 1000);
+          return {
+            ...catalog,
+            close: async () => {
+              clearInterval(keepAlive);
+              await catalog.close();
+              await appendFile(${JSON.stringify(closedPath)}, "closed\\n");
+            },
+          };
+        },
         storeOptions: { path: ${JSON.stringify(databasePath)} },
       };
       `,
@@ -195,6 +239,7 @@ describe("serve over stdio, as a real process", () => {
     );
     const stderr: string[] = [];
     child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk.toString()));
+    const exited = new Promise((resolveExit) => child.once("exit", resolveExit));
 
     try {
       const responses = new Map<number, JsonRpcMessage>();
@@ -215,11 +260,12 @@ describe("serve over stdio, as a real process", () => {
       await done;
 
       expect(sourceIdsOf(responses.get(2))).toEqual(["orders"]);
+      child.stdin.end();
+      await vi.waitFor(() => expect(child.exitCode, stderr.join("")).toBe(0), { timeout: 3000 });
+      expect(await readFile(closedPath, "utf8")).toBe("closed\n");
     } finally {
       // Wait for the process to be gone: on Windows its database file cannot be removed before.
-      child.removeAllListeners("exit");
-      const exited = new Promise((resolveExit) => child.once("exit", resolveExit));
-      child.kill();
+      if (child.exitCode === null) child.kill();
       await exited;
     }
   }, 20_000);
