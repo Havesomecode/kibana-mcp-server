@@ -25,7 +25,7 @@ The profile header is taken as sent. Anyone who can reach the port and knows the
 - **A missing profile is refused.** With a profile header configured, a request without it gets `401`.
 - **Profile names never reach a path or key as is.** They are turned into a key of lowercase letters, digits and dashes; anything else gets a digest suffix. `../../etc/passwd` becomes `etc-passwd-<digest>`.
 - **Profiles are compared exactly.** `Alice` and `alice` are two profiles with two catalogs.
-- **The legacy `configure` tool is not exposed over HTTP.** It accepts credentials as tool input and would replace the connection for everyone.
+- **MCP tools never accept connection credentials.** Supply the connection at startup, from saved platform credentials or explicit environment/configuration values; `configure_index` changes only the caller’s managed source catalog.
 
 ## Kibana credentials
 

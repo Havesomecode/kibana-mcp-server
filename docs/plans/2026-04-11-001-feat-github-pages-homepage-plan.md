@@ -10,7 +10,7 @@ origin: docs/brainstorms/2026-04-11-github-pages-homepage-requirements.md
 
 ## Overview
 
-Launch a one-page GitHub Pages homepage for this repository that acts as the public adoption surface for the Kibana MCP: Warp-led in first impression, structured and credible below the fold, and explicit about the two supported install paths (`npx` and repo-local Codex/plugin setup). This plan supersedes `docs/plans/2026-04-08-002-feat-github-pages-site-plan.md`, which was written against an older distribution and release story.
+Launch a one-page GitHub Pages homepage for this repository that acts as the public adoption surface for the Kibana MCP: Warp-led in first impression, structured and credible below the fold, and explicit about the two supported install paths (`npx` and repo-local Codex/plugin setup).
 
 ## Problem Frame
 
@@ -54,7 +54,7 @@ The new requirements doc establishes the product and design decisions already: o
 ### Institutional Learnings
 
 - `docs/solutions/documentation-gaps/self-contained-codex-install-handoff-2026-04-08.md` shows that adoption improves when install instructions are self-contained, explicit, and honest about fallbacks and environment-specific setup.
-- `docs/solutions/integration-issues/kibana-mcp-config-reset-after-restart-2026-04-03.md` reinforces that durable setup is part of the product story; the homepage should mention saved setup/profile ergonomics without implying secret persistence.
+- `INSTALL.md` defines durable connection bootstrap: the homepage should distinguish saved profile/catalog metadata from credentials stored in the operating system.
 - `docs/solutions/integration-issues/kibana-mcp-schema-endpoints-may-be-unavailable-2026-04-03.md` reinforces that schema-aware features are environment-dependent and must not be marketed as universal behavior.
 
 ### External References
@@ -287,7 +287,6 @@ The site should be a static, DOM-driven composition: the hero and proof surfaces
 ## Sources & References
 
 - **Origin document:** `docs/brainstorms/2026-04-11-github-pages-homepage-requirements.md`
-- Superseded plan: `docs/plans/2026-04-08-002-feat-github-pages-site-plan.md`
 - Related docs: `README.md`, `INSTALL.md`, `docs/project/distribution-strategy.md`, `docs/project/support-policy.md`, `docs/project/release-checklist.md`
-- Related learnings: `docs/solutions/documentation-gaps/self-contained-codex-install-handoff-2026-04-08.md`, `docs/solutions/integration-issues/kibana-mcp-config-reset-after-restart-2026-04-03.md`, `docs/solutions/integration-issues/kibana-mcp-schema-endpoints-may-be-unavailable-2026-04-03.md`
+- Related learnings: `docs/solutions/documentation-gaps/self-contained-codex-install-handoff-2026-04-08.md`, `docs/solutions/integration-issues/kibana-mcp-schema-endpoints-may-be-unavailable-2026-04-03.md`
 - External docs: [Configuring a publishing source for your GitHub Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site), [Using custom workflows with GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)

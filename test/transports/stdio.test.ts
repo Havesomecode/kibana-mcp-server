@@ -99,6 +99,13 @@ describe("startMcpServer", () => {
     await rm(directory, { recursive: true, force: true });
   });
 
+  it("fails before opening a transport when no connection is configured", async () => {
+    await expect(startMcpServer({ KIBANA_STATE_DIR: directory })).rejects.toThrow(
+      "No saved Kibana connection is available. Run connection bootstrap first.",
+    );
+    expect(transports.instances).toEqual([]);
+  });
+
   it("closes its store once when connecting the transport fails", async () => {
     const configPath = join(directory, "failed.mjs");
     const closedPath = join(directory, "closed.txt");

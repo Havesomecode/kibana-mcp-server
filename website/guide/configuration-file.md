@@ -26,7 +26,7 @@ export default defineKibanaMcpConfig({
 ```
 
 - `url`, `user`, `password`, `timeoutMs`, `profile` and `http.*` are defaults: the matching `KIBANA_*` environment variable or `serve` flag wins when set.
-- `store` decides where source catalogs live, one per profile. `storeOptions` is handed to the store factory. Without `store`, catalogs are files.
+- `store` decides where source catalogs live, one per profile. `storeOptions` is handed to the store factory. Without `store`, direct connection startup requires an explicit `KIBANA_SOURCE_CATALOG_PATH`; saved profiles carry their own file path. No catalog is discovered from the checkout.
 - The file is executed as code, so it is loaded only when named with `--config` or `KIBANA_MCP_CONFIG`, never discovered from the working directory. A `.ts` file needs Node.js 22.18 or later; `.mjs` works everywhere.
 
 ## Next steps

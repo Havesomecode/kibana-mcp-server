@@ -145,7 +145,6 @@ export default defineConfig({
             { text: "describe_fields", link: "/reference/tools/describe-fields" },
             { text: "query", link: "/reference/tools/query" },
             { text: "filter", link: "/reference/tools/filter" },
-            { text: "configure (legacy)", link: "/reference/tools/configure" },
           ],
         },
         { text: "Errors", link: "/reference/errors" },

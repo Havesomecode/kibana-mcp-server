@@ -104,6 +104,8 @@ The safe sequence is:
 
 `configure_index` accepts no Kibana credentials. A validation failure leaves the existing catalog unchanged.
 
+The MCP server starts only with a configured connection. Bootstrap saves one for subsequent starts. Operators who supply the connection directly through environment variables must also set `KIBANA_SOURCE_CATALOG_PATH`, or declare a catalog store in a configuration file. No catalog is loaded implicitly from the checkout, and no MCP tool accepts connection credentials.
+
 ## Secret Input
 
 Never put a password in a command-line argument. Supported sources, in precedence order:
@@ -155,7 +157,7 @@ If a profile points to a hand-authored or operator-modified catalog, bootstrap f
 
 ## Example Catalog Policy
 
-`config/sources.example.json` is documentation data. It never participates in bootstrap precedence. Guided `setup` remains available for operators who explicitly want a hand-authored catalog:
+`config/sources.example.json` is documentation data. It never participates in bootstrap precedence. `bootstrap` is always connection-only, including without flags. Guided `setup` is a separate command with no bootstrap flags, for operators who explicitly want a hand-authored catalog:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server setup

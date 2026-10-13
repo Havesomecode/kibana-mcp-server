@@ -45,7 +45,7 @@ describe("profile names", () => {
 });
 
 describe("ProfileRuntimeRegistry", () => {
-  it("serves the default profile, also under its own name, and replaces it on reconfiguration", async () => {
+  it("serves the default profile, also under its own name", async () => {
     const registry = new ProfileRuntimeRegistry({
       defaultConfig: config({ profileName: "Production" }),
       kibanaClientFactory,
@@ -58,18 +58,12 @@ describe("ProfileRuntimeRegistry", () => {
     await expect(registry.resolve("staging")).rejects.toThrow(
       "Profile selection is not available on this server",
     );
-
-    const reconfigured = registry.setDefault(config({ sources: [source("orders")] }));
-    expect(await registry.resolve()).toBe(reconfigured);
-    expect(registry.getDefault()?.sourceCatalog.count()).toBe(1);
   });
 
-  it("asks for configuration when it has neither a default nor named profiles", async () => {
-    const registry = new ProfileRuntimeRegistry({ kibanaClientFactory });
-
-    expect(registry.hasDefault).toBe(false);
-    await expect(registry.resolve()).rejects.toThrow("Call the 'configure' tool first");
-    await expect(registry.resolve(" ")).rejects.toThrow("must not be empty");
+  it("requires a default configuration or a named profile loader", () => {
+    expect(() => new ProfileRuntimeRegistry({ kibanaClientFactory })).toThrow(
+      "No saved Kibana connection is available. Run connection bootstrap first.",
+    );
   });
 
   it("shares one Kibana client between profiles of the same connection only", async () => {
@@ -258,22 +252,25 @@ describe("ProfileRuntimeRegistry", () => {
 
   it("does not let an in-flight refresh undo configure_index replacement", async () => {
     let finishRead: ((content: string) => void) | undefined;
+    let deferRead = false;
     const registry = new ProfileRuntimeRegistry({
       kibanaClientFactory,
       defaultConfig: config({
         catalog: {
           location: "memory://alice",
           read: () =>
-            new Promise((resolve) => {
-              finishRead = resolve;
-            }),
+            deferRead
+              ? new Promise((resolve) => {
+                  finishRead = resolve;
+                })
+              : Promise.resolve(undefined),
           replace: async () => {},
         },
       }),
     });
+    const runtime = await registry.resolve();
+    deferRead = true;
     const pending = registry.resolve();
-    const runtime = registry.getDefault();
-    if (!runtime) throw new Error("Default runtime was not created");
     const content = JSON.stringify(createGeneratedCatalog([source("configured")]));
     registry.replaceSources(runtime, [source("configured")], content);
     const schemaCatalog = runtime.schemaCatalog;
@@ -317,7 +314,7 @@ describe("ProfileRuntimeRegistry", () => {
     const lower = await registry.resolve("alice");
     const upper = await registry.resolve("Alice");
 
-    expect(lower).toBe(registry.getDefault());
+    expect(lower).toBe(await registry.resolve());
     expect(upper).not.toBe(lower);
     expect(upper.config.profileName).toBe("Alice");
     expect(await registry.resolve("Alice")).toBe(upper);

@@ -24,16 +24,13 @@ Guided setup remains available for hand-authored source catalogs:
 - imports the selected source catalog into machine-local state so later threads do not depend on the repo checkout
 - requires an explicit catalog path; type `example` to opt into the bundled example deliberately
 
-The server also supports two advanced compatibility paths:
+For direct process startup, supply the connection through environment variables together with an explicit `KIBANA_SOURCE_CATALOG_PATH`, or declare a catalog store in a [configuration file](./configuration-file). There is no implicit checkout catalog and no MCP tool accepts connection credentials.
 
-- bootstrap at process start through environment variables plus a JSON source catalog
-- runtime from your MCP client through the `configure` tool
-
-When `configure` is called, the source catalog is still persisted to disk so restarts do not wipe the logical source setup.
+Without a saved or explicit connection, startup fails: `No saved Kibana connection is available. Run connection bootstrap first.`
 
 ## Machine profiles
 
-After guided setup, the default saved profile loads automatically on startup.
+After connection bootstrap or guided setup, the default saved profile loads automatically on startup. Do not leave `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` set in the server environment when you intend to use saved credentials: supplying all three selects direct environment startup and requires an explicit catalog path or store.
 
 If you saved more than one environment, select a non-default profile with:
 
@@ -47,7 +44,7 @@ KIBANA_PROFILE=staging npm run dev
 
 ## Multiple environments
 
-The recommended path is to save multiple machine profiles during setup.
+Save a separate profile per environment with `bootstrap --profile <name> --client codex`, or import hand-authored catalogs through guided setup. Use `--no-default` during bootstrap when the new profile must not replace the current default.
 
 Then:
 
@@ -62,11 +59,11 @@ KIBANA_PROFILE=staging npm run dev
 KIBANA_PROFILE=prod npm run dev
 ```
 
-If you still prefer env-bootstrap entries, keep these distinct per environment:
+For direct environment-based entries, keep these distinct per environment:
 
 - `KIBANA_BASE_URL`
 - `KIBANA_USERNAME`
 - `KIBANA_PASSWORD`
 - `KIBANA_SOURCE_CATALOG_PATH`
 
-Using separate source-catalog paths matters because the `configure` tool persists sources to disk, and one shared runtime file would cause the environments to overwrite each other.
+Use separate catalog paths because `configure_index` persists managed sources. Sharing a file would mix sources from different environments. Hand-authored catalogs remain operator-managed and are not overwritten by that tool.

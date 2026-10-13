@@ -36,9 +36,12 @@ export class ProfileRuntimeRegistry {
   private readonly inFlight = new Map<string, Promise<ProfileRuntime>>();
   private readonly clients = new Map<string, KibanaClient>();
   private readonly refreshes = new WeakMap<ProfileRuntime, { started: number; applied: number }>();
-  private defaultRuntime?: ProfileRuntime;
+  private readonly defaultRuntime?: ProfileRuntime;
 
   constructor(options: ProfileRuntimeRegistryOptions = {}) {
+    if (!options.defaultConfig && !options.loadProfileConfig) {
+      throw new Error("No saved Kibana connection is available. Run connection bootstrap first.");
+    }
     this.kibanaClientFactory =
       options.kibanaClientFactory ?? ((config: AppConfig["kibana"]) => new KibanaClient(config));
     this.loadProfileConfig = options.loadProfileConfig;
@@ -56,29 +59,13 @@ export class ProfileRuntimeRegistry {
     return this.loadProfileConfig !== undefined;
   }
 
-  /** False only for a server started without any configuration, waiting for the legacy 'configure' tool. */
-  get isConfigured(): boolean {
-    return this.hasDefault || this.supportsNamedProfiles;
-  }
-
-  getDefault(): ProfileRuntime | undefined {
-    return this.defaultRuntime;
-  }
-
-  setDefault(config: ResolvedAppConfig): ProfileRuntime {
-    this.defaultRuntime = this.createRuntime(config);
-    return this.defaultRuntime;
-  }
-
   async resolve(profileName?: string): Promise<ProfileRuntime> {
     if (profileName === undefined) {
       if (this.defaultRuntime) {
         return this.refresh(this.defaultRuntime);
       }
       throw new Error(
-        this.loadProfileConfig
-          ? "No profile was supplied for this call and no default profile is configured."
-          : "Server is not configured. Call the 'configure' tool first.",
+        "No profile was supplied for this call and no default profile is configured.",
       );
     }
 

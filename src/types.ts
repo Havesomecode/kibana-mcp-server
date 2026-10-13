@@ -73,7 +73,6 @@ export interface ResolvedAppConfig extends AppConfig {
   /** Set when the catalog of the profile lives in a catalog store rather than at a plain path. */
   catalog?: CatalogHandle;
   sourceCatalogPath?: string;
-  sourceCatalogOrigin?: "environment" | "profile" | "runtime_default" | "static_default";
 }
 
 export interface SavedProfile {

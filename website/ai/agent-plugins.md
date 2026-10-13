@@ -153,6 +153,8 @@ export KIBANA_PASSWORD='use-a-secret-provider'
 npx -y @havesomecode/kibana-mcp-server bootstrap --client none
 ```
 
-Bootstrap verifies the connection, stores the credentials in the secret store of the operating system and creates an empty source catalog. Reconnect the MCP server or start a new session afterwards: the agent then asks which exact index or index pattern to use, and calls `configure_index` with your answer.
+Bootstrap verifies the connection, stores the credentials in the secret store of the operating system and creates an empty source catalog. Start the MCP server without direct connection variables so it uses the saved profile, then reconnect the client or start a new session: the agent asks which exact index or index pattern to use, and calls `configure_index` with your answer.
+
+Without a saved connection the server fails at startup with `No saved Kibana connection is available. Run connection bootstrap first.` Direct environment-based startup requires an explicit `KIBANA_SOURCE_CATALOG_PATH` or configuration-file store, never an implicit checkout catalog.
 
 You can also let the agent do it. The skill knows which mode fits the agent it runs in: `--client codex` in Codex, where bootstrap registers the server itself, and `--client none` in Claude Code and elsewhere, where a plugin or your own configuration does.

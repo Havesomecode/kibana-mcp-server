@@ -7,7 +7,6 @@ import {
   PROFILE_NAME_ENV,
   loadConfigFromEnvironment,
   parseAppConfig,
-  resolveSourceCatalogPath,
 } from "../src/config/environment.js";
 import { resolveProfilePaths } from "../src/profiles/paths.js";
 import { ProfileStore } from "../src/profiles/store.js";
@@ -156,15 +155,6 @@ describe("parseAppConfig", () => {
     ).toThrow();
   });
 
-  it("defaults the source catalog path to the runtime file", () => {
-    expect(resolveSourceCatalogPath({})).toBe("config/sources.runtime.json");
-    expect(
-      resolveSourceCatalogPath({
-        KIBANA_SOURCE_CATALOG_PATH: "config/custom.json",
-      } as NodeJS.ProcessEnv),
-    ).toBe("config/custom.json");
-  });
-
   it("loads a saved default profile when no bootstrap environment is present", async () => {
     const root = await mkdtemp(join(tmpdir(), "kibana-config-"));
     tempDirectories.push(root);
@@ -305,6 +295,48 @@ describe("parseAppConfig", () => {
 });
 
 describe("loadConfigFromEnvironment", () => {
+  it("requires an explicit catalog path for an environment connection without reading implicit files", async () => {
+    const reads: unknown[] = [];
+    await expect(
+      loadConfigFromEnvironment(
+        {
+          KIBANA_BASE_URL: "https://kibana.example.com",
+          KIBANA_USERNAME: "elastic",
+          KIBANA_PASSWORD: "secret",
+        },
+        {
+          readFile: (async (path: unknown) => {
+            reads.push(path);
+            return JSON.stringify(createGeneratedCatalog([]));
+          }) as never,
+        },
+      ),
+    ).rejects.toThrow("KIBANA_SOURCE_CATALOG_PATH is required");
+    expect(reads).toEqual([]);
+  });
+
+  it("reads only the named catalog and propagates its filesystem error", async () => {
+    const error = Object.assign(new Error("catalog access denied"), { code: "EACCES" });
+    const reads: unknown[] = [];
+    await expect(
+      loadConfigFromEnvironment(
+        {
+          KIBANA_BASE_URL: "https://kibana.example.com",
+          KIBANA_USERNAME: "elastic",
+          KIBANA_PASSWORD: "secret",
+          KIBANA_SOURCE_CATALOG_PATH: "config/sources.runtime.json",
+        },
+        {
+          readFile: (async (path: unknown) => {
+            reads.push(path);
+            throw error;
+          }) as never,
+        },
+      ),
+    ).rejects.toBe(error);
+    expect(reads).toEqual(["config/sources.runtime.json"]);
+  });
+
   it("loads config when KIBANA_TIMEOUT_MS is present", async () => {
     const catalogDirectory = await mkdtemp(join(tmpdir(), "kibana-mcp-server-"));
     tempDirectories.push(catalogDirectory);

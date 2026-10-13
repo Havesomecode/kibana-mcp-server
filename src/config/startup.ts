@@ -9,7 +9,6 @@ import {
   loadConfigFile,
 } from "./config_file.js";
 import {
-  NoSavedProfileError,
   PROFILE_NAME_ENV,
   PROFILE_PLACEHOLDER,
   loadConfigFromEnvironment,
@@ -124,15 +123,8 @@ async function resolveConfiguration(
       { ...dependencies, exactProfileName: true },
     );
 
-  try {
-    return {
-      defaultConfig: await loadConfigFromEnvironment(envInput, dependencies),
-      loadProfileConfig,
-    };
-  } catch (error) {
-    if (error instanceof NoSavedProfileError) {
-      return {};
-    }
-    throw error;
-  }
+  return {
+    defaultConfig: await loadConfigFromEnvironment(envInput, dependencies),
+    loadProfileConfig,
+  };
 }

@@ -39,9 +39,11 @@ Treat `INSTALL.md` as the canonical operator handoff for this repo. An agent tha
 - the manual plugin-install fallback path if the model cannot complete the Codex UI step itself
 - the MCP configuration and verification flow
 
-For multi-environment setup, always ask the user for a short environment name such as `staging`, `prod`, `preprod`, or `qa`. Derive the source catalog path as `config/sources.<ENV_NAME>.json` and use a distinct value per MCP entry. Do not invent the environment name, and do not reuse one shared runtime catalog path across staging and production.
+For multi-environment setup, ask the user for a short profile name such as `staging`, `prod`, `preprod`, or `qa`, then run connection-only bootstrap with `--profile <name>`. Bootstrap assigns that profile its machine-local catalog; do not invent profile names or catalog contents. Call `configure_index` only after the user explicitly names an index or pattern.
 
-If the operator already keeps target-specific host variables such as `KIBANA_BASE_URL_STAGING` and `KIBANA_BASE_URL_PROD`, preserve that host-side convention if it is useful to them. For each MCP entry, map those values into the standard runtime variables expected by the server:
+For direct environment-based startup, the operator must explicitly provide `KIBANA_SOURCE_CATALOG_PATH` or a configuration-file store. Keep catalogs distinct across environments; no checkout catalog is loaded implicitly.
+
+If the operator already keeps target-specific host variables such as `KIBANA_BASE_URL_STAGING` and `KIBANA_BASE_URL_PROD`, preserve that host-side convention if it is useful to them. For direct environment-based MCP entries, map those values into the standard runtime variables expected by the server:
 
 - `KIBANA_BASE_URL`
 - `KIBANA_USERNAME`
@@ -56,7 +58,7 @@ Keep `KIBANA_BASE_URL` limited to the Kibana base prefix. Endpoint paths such as
 
 The main benefit is durable handoff quality. A colleague should be able to send only the raw `INSTALL.md` link to another agent and get the same setup flow every time, instead of relying on undocumented tribal knowledge about the repo structure or Codex behavior.
 
-The environment-name rule matters because this repo persists runtime source catalogs. If two MCP entries share one runtime catalog path, one environment can silently overwrite the other. Deriving `config/sources.<env>.json` from the user-provided environment name prevents that collision.
+The profile-name rule matters because saved profiles keep connections and catalog paths distinct. `configure_index` persists sources in the selected managed catalog; sharing one catalog across environments would mix their sources. Guided setup can instead import a hand-authored catalog explicitly selected by the operator.
 
 The env-var mapping rule matters because operators often already have separate secrets or shell variables for each target environment. Allowing those host-side names while standardizing each MCP entry onto the server's `KIBANA_*` contract keeps the server simple without forcing users to reorganize their environment management.
 
@@ -87,15 +89,14 @@ Manual plugin-install fallback:
 If you cannot complete the repo-local plugin install yourself, open this repo in Codex, open plugins/kibana-log-investigation, install "Kibana Log Investigation" from the local marketplace, restart Codex if needed, then continue with MCP configuration.
 ```
 
-Derived source catalog paths:
+Named saved profiles:
 
-```text
-User says: staging
-Agent derives: config/sources.staging.json
-
-User says: prod
-Agent derives: config/sources.prod.json
+```bash
+npx -y @havesomecode/kibana-mcp-server bootstrap --profile staging --client codex
+npx -y @havesomecode/kibana-mcp-server bootstrap --profile prod --no-default --client codex
 ```
+
+Saved-profile server processes should not receive direct connection variables: those select environment startup and require an explicit catalog or store. No connection means startup fails with `No saved Kibana connection is available. Run connection bootstrap first.`
 
 Mapping target-specific host variables into the standard runtime variables for one MCP entry:
 
@@ -128,6 +129,5 @@ KIBANA_BASE_URL=https://gateway.example.com/logs/internal/search/es
 
 ## Related
 
-- [Persist runtime source catalog for client-configured Kibana MCP sessions](../integration-issues/kibana-mcp-config-reset-after-restart-2026-04-03.md)
 - [Kibana schema metadata endpoints may be unavailable behind a proxy](../integration-issues/kibana-mcp-schema-endpoints-may-be-unavailable-2026-04-03.md)
 - GitHub issue search was skipped because network access was unavailable in this session.

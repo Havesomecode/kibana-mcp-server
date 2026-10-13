@@ -1,8 +1,9 @@
 import { Command, CommanderError } from "commander";
 
+import registerBootstrapCommand from "../commands/bootstrap.js";
 import type { CliCommandContext } from "../commands/context.js";
 import registerServeCommand from "../commands/serve.js";
-import registerSetupCommands from "../commands/setup.js";
+import registerSetupCommand from "../commands/setup.js";
 import { startMcpServer } from "../transports/stdio.js";
 import { type CliIo, createCliIo } from "../utils/cli_io.js";
 import { createCliUi } from "../utils/cli_ui.js";
@@ -17,7 +18,6 @@ export async function runCli(
   const io = createCliIo(overrides);
   let exitCode = 0;
   const context: CliCommandContext = {
-    argv,
     io,
     ui: createCliUi(io),
     dependencies,
@@ -43,7 +43,8 @@ export async function runCli(
       }
     });
 
-  registerSetupCommands(program, context);
+  registerSetupCommand(program, context);
+  registerBootstrapCommand(program, context);
   registerServeCommand(program, context);
 
   try {

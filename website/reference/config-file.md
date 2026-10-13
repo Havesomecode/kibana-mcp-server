@@ -41,6 +41,7 @@ Command-line flag, then environment variable, then configuration file, then buil
 
 - `store` requires `url`, `user` and `password`, from the file or from the environment.
 - `store` cannot be combined with `KIBANA_SOURCE_CATALOG_PATH`.
+- Without `store`, a direct connection requires an explicit `KIBANA_SOURCE_CATALOG_PATH`. Saved-profile startup uses the path stored with the profile. There is no implicit catalog path.
 - A `.ts` file needs Node.js 22.18 or later. A `.mjs` file works on every supported version.
 - The package must be resolvable from the directory of the file, since the file imports it.
 

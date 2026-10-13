@@ -4,12 +4,6 @@ import { type KibanaClient, KibanaRequestError } from "./kibana/client.js";
 import { requireProfileRuntime, runWithProfileRuntime } from "./profiles/context.js";
 import { type ProfileRuntime, ProfileRuntimeRegistry } from "./profiles/runtime.js";
 import {
-  configureInputSchema,
-  configureOutputSchema,
-  createConfigureCallToolResult,
-  executeConfigure,
-} from "./tools/configure.js";
-import {
   configureIndexInputSchema,
   configureIndexOutputSchema,
   createConfigureIndexCallToolResult,
@@ -72,7 +66,6 @@ async function withKibanaRequestDiagnostics(
 export interface Application {
   server: McpServer;
   handlers: {
-    configure: (input: unknown) => Promise<Awaited<ReturnType<typeof executeConfigure>>["result"]>;
     configure_index: (
       input: unknown,
       callerSignal?: AbortSignal,
@@ -145,24 +138,7 @@ export function createApplication(
     }
   }
 
-  const configureHandler = async (input: unknown) => {
-    const current = registry.getDefault()?.config;
-    const { nextConfig, result } = await executeConfigure(configureInputSchema.parse(input), {
-      sourceCatalogPath: current?.sourceCatalogPath,
-    });
-    registry.setDefault({
-      ...nextConfig,
-      sourceCatalogPath: result.source_catalog_path,
-      profileName: current?.profileName,
-      sourceCatalogOrigin: current?.sourceCatalogOrigin,
-    });
-    return result;
-  };
-
   const configureIndexHandler = async (input: unknown, callerSignal?: AbortSignal) => {
-    if (!registry.isConfigured) {
-      throw new Error("No saved Kibana connection is available. Run connection bootstrap first.");
-    }
     const configureIndexFn = dependencies?.configureIndexFn ?? executeConfigureIndex;
     return withProfile((runtime) =>
       withKibanaToolDeadline(callerSignal, async (signal) => {
@@ -214,34 +190,21 @@ export function createApplication(
       ),
     );
 
-  if (!registry.isConfigured) {
-    server.registerTool(
-      "configure",
-      {
-        description:
-          "Advanced legacy setup for a server started without a saved profile. Replaces the Kibana connection and full source catalog.",
-        inputSchema: configureInputSchema,
-        outputSchema: configureOutputSchema,
-      },
-      async (input) => createConfigureCallToolResult(await configureHandler(input)),
-    );
-  } else {
-    server.registerTool(
-      "configure_index",
-      {
-        description:
-          "Configure exactly one Kibana index or index pattern after the user has explicitly named it. Never guess, list, scan, or auto-select indexes before calling this tool.",
-        inputSchema: configureIndexInputSchema,
-        outputSchema: configureIndexOutputSchema,
-      },
-      async (input, context) =>
-        withKibanaRequestDiagnostics(async () =>
-          createConfigureIndexCallToolResult(
-            await configureIndexHandler(input, context.mcpReq.signal),
-          ),
+  server.registerTool(
+    "configure_index",
+    {
+      description:
+        "Configure exactly one Kibana index or index pattern after the user has explicitly named it. Never guess, list, scan, or auto-select indexes before calling this tool.",
+      inputSchema: configureIndexInputSchema,
+      outputSchema: configureIndexOutputSchema,
+    },
+    async (input, context) =>
+      withKibanaRequestDiagnostics(async () =>
+        createConfigureIndexCallToolResult(
+          await configureIndexHandler(input, context.mcpReq.signal),
         ),
-    );
-  }
+      ),
+  );
 
   server.registerTool(
     "describe_fields",
@@ -299,7 +262,6 @@ export function createApplication(
   return {
     server,
     handlers: {
-      configure: configureHandler,
       configure_index: configureIndexHandler,
       describe_fields: describeFieldsHandler,
       discover: discoverHandler,
