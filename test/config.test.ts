@@ -3,15 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { createGeneratedCatalog } from "../src/bootstrap.js";
 import {
   PROFILE_NAME_ENV,
   loadConfigFromEnvironment,
   parseAppConfig,
   resolveSourceCatalogPath,
-} from "../src/config.js";
-import { resolveProfilePaths } from "../src/profile_paths.js";
-import { ProfileStore } from "../src/profile_store.js";
+} from "../src/config/environment.js";
+import { resolveProfilePaths } from "../src/profiles/paths.js";
+import { ProfileStore } from "../src/profiles/store.js";
+import { createGeneratedCatalog } from "../src/setup/bootstrap.js";
 
 const tempDirectories: string[] = [];
 

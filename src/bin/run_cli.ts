@@ -3,7 +3,7 @@ import { Command, CommanderError } from "commander";
 import type { CliCommandContext } from "../commands/context.js";
 import registerServeCommand from "../commands/serve.js";
 import registerSetupCommands from "../commands/setup.js";
-import { startMcpServer } from "../mcp_runtime.js";
+import { startMcpServer } from "../transports/stdio.js";
 import { type CliIo, createCliIo } from "../utils/cli_io.js";
 import { createCliUi } from "../utils/cli_ui.js";
 

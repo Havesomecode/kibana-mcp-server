@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-import type { SavedSecret } from "./types.js";
+import type { SavedSecret } from "../types.js";
 
 const DEFAULT_SERVICE_NAME = "com.zacaria.kibana-mcp-server";
 

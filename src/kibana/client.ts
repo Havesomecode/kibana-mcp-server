@@ -5,7 +5,7 @@ import type {
   SourceDefinition,
   SourceFieldDescriptor,
   SourceSchemaBackendConfig,
-} from "./types.js";
+} from "../types.js";
 
 const DEFAULT_META_FIELDS = ["_source", "_id", "_index", "_score"] as const;
 

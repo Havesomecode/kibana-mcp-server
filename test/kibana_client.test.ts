@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { KibanaClient } from "../src/kibana_client.js";
+import { KibanaClient } from "../src/kibana/client.js";
 import type { AppConfig, CompiledSourceQuery, SourceDefinition } from "../src/types.js";
 
 const source: SourceDefinition = {

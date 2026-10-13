@@ -1,15 +1,16 @@
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
-import { ProfileStore } from "./profile_store.js";
-import { type SecretStore, SecretStoreError, createSecretStore } from "./secret_store.js";
-import type { AppConfig, ResolvedAppConfig } from "./types.js";
+import { type SecretStore, SecretStoreError, createSecretStore } from "../profiles/secret_store.js";
+import { ProfileStore } from "../profiles/store.js";
+import type { AppConfig, ResolvedAppConfig } from "../types.js";
+import { writeTextAtomically } from "../utils/fs.js";
 
 export const DEFAULT_RUNTIME_SOURCE_CATALOG_PATH = "config/sources.runtime.json";
 export const DEFAULT_STATIC_SOURCE_CATALOG_PATH = "config/sources.json";
 export const PROFILE_NAME_ENV = "KIBANA_PROFILE";
+export const PROFILE_PLACEHOLDER = "{profile}";
 
 export class NoSavedProfileError extends Error {
   constructor(message: string) {
@@ -153,13 +154,9 @@ export async function loadConfigFromEnvironment(
   const overrides = startupOverrideSchema.parse(envInput);
   const readFileImpl = dependencies.readFile ?? readFile;
 
-  if (hasPartialBootstrapConfig(overrides)) {
-    throw new Error(
-      "Incomplete Kibana bootstrap environment. Provide KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD together.",
-    );
-  }
+  const kibana = readBootstrapConnection(envInput);
 
-  if (hasBootstrapConfig(overrides)) {
+  if (kibana) {
     const preferredPath = resolveSourceCatalogPath(envInput);
     const sourceCatalog = await loadSourceCatalog(
       preferredPath === DEFAULT_RUNTIME_SOURCE_CATALOG_PATH
@@ -167,10 +164,9 @@ export async function loadConfigFromEnvironment(
         : [preferredPath],
       readFileImpl,
     );
-    const config = parseAppConfig(overrides, sourceCatalog.value);
-
     return {
-      ...config,
+      kibana,
+      sources: sourceCatalogSchema.parse(sourceCatalog.value).sources,
       sourceCatalogPath: preferredPath,
       sourceCatalogOrigin:
         sourceCatalog.loadedFrom === DEFAULT_STATIC_SOURCE_CATALOG_PATH
@@ -225,6 +221,23 @@ export async function loadConfigFromEnvironment(
   };
 }
 
+/**
+ * Reads the connection supplied through the bootstrap environment variables, if any.
+ */
+export function readBootstrapConnection(
+  envInput: NodeJS.ProcessEnv = process.env,
+): AppConfig["kibana"] | undefined {
+  const overrides = startupOverrideSchema.parse(envInput);
+  if (hasPartialBootstrapConfig(overrides)) {
+    throw new Error(
+      "Incomplete Kibana bootstrap environment. Provide KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD together.",
+    );
+  }
+  return hasBootstrapConfig(overrides)
+    ? buildKibanaConfig(bootstrapEnvSchema.parse(overrides))
+    : undefined;
+}
+
 export async function persistSourceCatalog(
   sources: AppConfig["sources"],
   options: {
@@ -234,17 +247,10 @@ export async function persistSourceCatalog(
   } = {},
 ): Promise<string> {
   const sourceCatalogPath = options.sourceCatalogPath ?? resolveSourceCatalogPath(options.envInput);
-  await mkdir(dirname(sourceCatalogPath), { recursive: true });
-  const temporaryPath = `${sourceCatalogPath}.${process.pid}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temporaryPath, `${JSON.stringify(options.catalog ?? { sources }, null, 2)}\n`, {
-      encoding: "utf8",
-      mode: 0o600,
-    });
-    await rename(temporaryPath, sourceCatalogPath);
-  } finally {
-    await rm(temporaryPath, { force: true }).catch(() => {});
-  }
+  await writeTextAtomically(
+    sourceCatalogPath,
+    `${JSON.stringify(options.catalog ?? { sources }, null, 2)}\n`,
+  );
   return sourceCatalogPath;
 }
 

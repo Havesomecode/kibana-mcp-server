@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { resolveProfilePaths } from "../src/profile_paths.js";
-import { ProfileStore } from "../src/profile_store.js";
+import { resolveProfilePaths } from "../src/profiles/paths.js";
+import { ProfileStore } from "../src/profiles/store.js";
 
 const tempDirectories: string[] = [];
 

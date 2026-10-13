@@ -3,8 +3,8 @@ import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { z } from "zod";
 
-import { type ProfilePaths, resolveProfilePaths } from "./profile_paths.js";
-import type { SavedProfile, SavedProfileStoreState } from "./types.js";
+import type { SavedProfile, SavedProfileStoreState } from "../types.js";
+import { type ProfilePaths, resolveProfilePaths } from "./paths.js";
 
 const PROFILE_STORE_VERSION = 1;
 

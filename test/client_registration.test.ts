@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { CodexClientRegistrar, deriveCodexRegistrationName } from "../src/client_registration.js";
+import {
+  CodexClientRegistrar,
+  deriveCodexRegistrationName,
+} from "../src/setup/client_registration.js";
 
 interface CommandCall {
   command: string;

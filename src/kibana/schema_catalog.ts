@@ -1,4 +1,4 @@
-import type { SourceDefinition, SourceFieldDescriptor } from "./types.js";
+import type { SourceDefinition, SourceFieldDescriptor } from "../types.js";
 
 function normalizeFieldName(value: string): string {
   return value.trim().toLowerCase();

@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { acquireStateLock } from "../src/state_lock.js";
+import { acquireStateLock } from "../src/profiles/state_lock.js";
 
 const tempDirectories: string[] = [];
 

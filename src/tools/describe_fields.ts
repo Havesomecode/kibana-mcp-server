@@ -1,8 +1,8 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
-import type { SchemaCatalog } from "../schema_catalog.js";
-import type { SourceCatalog } from "../source_catalog.js";
+import type { SchemaCatalog } from "../kibana/schema_catalog.js";
+import type { SourceCatalog } from "../kibana/source_catalog.js";
 
 export const describeFieldsInputSchema = z.object({
   source_id: z.string().min(1),

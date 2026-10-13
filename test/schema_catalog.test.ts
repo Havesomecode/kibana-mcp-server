@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SchemaCatalog } from "../src/schema_catalog.js";
+import { SchemaCatalog } from "../src/kibana/schema_catalog.js";
 import type { SourceDefinition, SourceFieldDescriptor } from "../src/types.js";
 
 const source: SourceDefinition = {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { startMcpServer } from "./mcp_runtime.js";
+import { startMcpServer } from "./transports/stdio.js";
 
 startMcpServer().catch((error) => {
   console.error(error);
