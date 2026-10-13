@@ -4,6 +4,37 @@ This is the canonical install and handoff guide for `@havesomecode/kibana-mcp-se
 
 The supported newcomer path is a prompt-free, connection-only bootstrap. Bootstrap never lists, scans, infers, or configures Kibana indexes. Agents must use the CLI contract below instead of editing Codex or MCP configuration files.
 
+## Version-Matched README Handoff
+
+Before installation or agent handoff, read the raw `README.md` for the **resolved installation ref**, not a guessed release tag or the default branch. Follow `INSTALL.md` and installation skills from that same ref; older refs may have different installation contracts.
+
+For an installation explicitly resolved to `master`, the exact README URL is:
+
+```text
+https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md
+```
+
+For other refs, replace only the ref component:
+
+| Installation ref | Raw README URL |
+|---|---|
+| Branch | `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/<branch>/README.md` |
+| Tag | `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/tags/<tag>/README.md` |
+| Full commit SHA | `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<commit-sha>/README.md` |
+
+Do not infer a Git tag from an npm version. For npm installations, resolve the requested package to the exact version being installed, obtain its `gitHead` with `npm view @havesomecode/kibana-mcp-server@<exact-version> gitHead`, and pin the installation to that same package version. If that metadata is absent or the commit cannot be resolved, report the missing installation ref rather than claiming master matches the package. For a cloned checkout, use the selected branch/tag only if it resolves to the installation commit; for a detached checkout, use `git rev-parse HEAD`'s full commit SHA.
+
+From a maintained checkout containing the repository-only helper, verify a handoff with:
+
+```bash
+node scripts/readme-handoff.mjs refs/heads/master
+# Or pass the actual refs/tags/<tag> or full commit SHA selected for installation.
+```
+
+The helper does not install anything or change configuration. It resolves locally available Git refs, fetches the selected raw README with a timeout, compares it byte-for-byte to the resolved commit's README, and outputs JSON with `ref`, `commit`, and `url` only after verification. Fetch a missing ref explicitly before retrying; the helper does not fetch Git refs or assume a tag. Ambiguous branch/tag names require the qualified `refs/heads/` or `refs/tags/` form. Unknown refs, missing READMEs, HTTP failures, and content mismatches exit nonzero without a handoff. A moved branch must be resolved again; do not silently substitute master. This helper is not a published npm command or a requirement that historical tags contain it.
+
+Pass the verified URL and resolved commit to the receiving agent. A master preview link is not evidence that master matches a tagged or npm installation.
+
 ## Prerequisites
 
 - Node.js 22 or newer
