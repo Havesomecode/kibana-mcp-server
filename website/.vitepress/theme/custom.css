@@ -71,6 +71,19 @@
   --vp-sidebar-bg-color: var(--kmcp-ink-deep);
 }
 
+/* On tablet widths the full menu, the search field and the site title do not fit on one line:
+   keep the logo and a compact search button so the bar never pushes the page sideways. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .VPNavBarTitle .title span {
+    display: none;
+  }
+
+  .VPNavBarSearch .DocSearch-Button-Placeholder,
+  .VPNavBarSearch .DocSearch-Button-Keys {
+    display: none;
+  }
+}
+
 /* Headings: tight, and section titles carry a log-line marker. */
 .vp-doc h1,
 .VPHero .name,
@@ -131,6 +144,8 @@
 /* Home hero: a faint grid of the kind logs are read on, lit from the side the signal comes from. */
 .VPHome {
   position: relative;
+  /* Decorative layers (glows, floating chips) may reach past the edge; they must never make the page scroll sideways. */
+  overflow-x: clip;
 }
 
 .VPHero {
@@ -141,7 +156,7 @@
 .VPHero::before {
   content: "";
   position: absolute;
-  inset: -4rem -50vw 0;
+  inset: -4rem 0 0;
   z-index: -1;
   background-image: linear-gradient(var(--kmcp-grid) 1px, transparent 1px),
     linear-gradient(90deg, var(--kmcp-grid) 1px, transparent 1px),
@@ -397,6 +412,8 @@
 /* "Get started": the pitch on one side, the commands on the other. */
 .home-start {
   display: grid;
+  /* minmax(0, …) lets the column shrink below the width of its code block, which then scrolls. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
   align-items: start;
 }
@@ -963,14 +980,6 @@
 .investigation__chip--top {
   top: 0.2rem;
   right: -0.6rem;
-}
-
-.investigation__chip--bottom {
-  bottom: 0.3rem;
-  left: -0.8rem;
-  border-color: rgba(255, 175, 69, 0.45);
-  color: #ffc373;
-  animation-delay: -3.5s;
 }
 
 @keyframes investigation-float {
