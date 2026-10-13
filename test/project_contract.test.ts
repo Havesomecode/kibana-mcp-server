@@ -19,6 +19,13 @@ describe("project contract", () => {
     expect(server?.args).toEqual(["./mcp-launcher.mjs"]);
   });
 
+  it("lets the plugin launcher sanitize asynchronous startup failures", () => {
+    const entrypoint = readFileSync(resolve(repoRoot, "src/mcp_entry.ts"), "utf8");
+
+    expect(entrypoint).toContain("await startMcpServer();");
+    expect(entrypoint).not.toContain("console.error(error)");
+  });
+
   it("keeps GitHub Pages deployment aligned with the built documentation site", () => {
     const workflow = readFileSync(resolve(repoRoot, ".github/workflows/pages.yml"), "utf8");
 

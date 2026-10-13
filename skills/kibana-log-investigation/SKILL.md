@@ -9,13 +9,13 @@ Use this skill when an operator wants to install, configure, or use the read-onl
 
 ## Version-matched installation instructions
 
-Before installing or generating a handoff, read `README.md` at the resolved installation ref. For an explicitly selected master installation, use exactly:
+Before installing or generating a handoff, resolve the selected branch, tag, or package metadata to the full installation commit SHA. Read `README.md` at this immutable URL:
 
 ```text
-https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md
+https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
 ```
 
-For other installations, use `refs/heads/<branch>`, `refs/tags/<tag>`, or the full commit SHA directly in that URL, and read `INSTALL.md` and skills from the same ref. Do not infer a Git tag from an npm version. Resolve the exact npm package's `gitHead` instead, or report missing metadata; pin the package installation to the same exact version. A verified branch/tag must resolve to the actual installation commit. Never silently fall back to master if the ref or README is missing or retrieval fails.
+Branch and tag names are resolution inputs, not final handoff URLs. Read `INSTALL.md` and skills from the same resolved installation commit. Do not infer a Git tag from an npm version. Resolve the exact npm package's `gitHead` instead, or report missing metadata; pin the package installation to the same exact version. Never silently fall back to master if the ref or README is missing or retrieval fails.
 
 In a maintained clone with the repository-only helper, run `node scripts/readme-handoff.mjs <resolved-installation-ref>` and use its verified `url` and `commit` in the handoff. The helper checks the retrieved README against that Git commit before output. It is not an npm command and need not exist in historical tags. If unavailable, resolve the selected ref and validate its raw README explicitly; do not invent successful retrieval. See `INSTALL.md`'s version-matched handoff section.
 
