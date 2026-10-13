@@ -147,6 +147,7 @@ export async function loadConfigFromEnvironment(
   envInput: NodeJS.ProcessEnv = process.env,
   dependencies: {
     profileStore?: Pick<ProfileStore, "findProfile" | "getDefaultProfile">;
+    exactProfileName?: boolean;
     secretStore?: Pick<SecretStore, "load">;
     readFile?: typeof readFile;
   } = {},
@@ -181,7 +182,9 @@ export async function loadConfigFromEnvironment(
   const secretStore = dependencies.secretStore ?? createSecretStore();
   const requestedProfileName = overrides[PROFILE_NAME_ENV]?.trim();
   const profile = requestedProfileName
-    ? await profileStore.findProfile(requestedProfileName)
+    ? await profileStore.findProfile(requestedProfileName, {
+        exactName: dependencies.exactProfileName,
+      })
     : await profileStore.getDefaultProfile();
 
   if (!profile) {

@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { KibanaClient } from "../src/kibana/client.js";
 import { SchemaCatalog } from "../src/kibana/schema_catalog.js";
+import { createApplication } from "../src/server.js";
 import type { SourceDefinition, SourceFieldDescriptor } from "../src/types.js";
 
 const source: SourceDefinition = {
@@ -121,7 +123,123 @@ describe("SchemaCatalog", () => {
     expect(callCount).toBe(2);
   });
 
-  it("propagates the caller cancellation signal to schema discovery", async () => {
+  it("cancelling the first caller leaves shared discovery running for the second", async () => {
+    const controller = new AbortController();
+    let backendSignal: AbortSignal | undefined;
+    let finish: ((fields: SourceFieldDescriptor[]) => void) | undefined;
+    const catalog = new SchemaCatalog({
+      describeFields: (_source, signal) =>
+        new Promise((resolve, reject) => {
+          backendSignal = signal;
+          finish = resolve;
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        }),
+    });
+    const first = catalog.getFields(source, controller.signal);
+    const firstCancelled = first.catch((error: unknown) => error);
+    const second = catalog.getFields(source).catch((error: unknown) => error);
+    controller.abort();
+    expect(backendSignal?.aborted).toBe(false);
+    expect(await firstCancelled).toMatchObject({ code: "KIBANA_CANCELLED" });
+    finish?.(fieldDescriptors);
+    expect(await second).toHaveLength(fieldDescriptors.length);
+  });
+
+  it("cancelling a joined caller finishes it promptly without cancelling the owner", async () => {
+    const controller = new AbortController();
+    let finish: ((fields: SourceFieldDescriptor[]) => void) | undefined;
+    const catalog = new SchemaCatalog({
+      describeFields: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    });
+    const first = catalog.getFields(source);
+    const second = catalog.getFields(source, controller.signal);
+    const cancelled = expect(second).rejects.toMatchObject({ code: "KIBANA_CANCELLED" });
+    controller.abort();
+    await cancelled;
+    finish?.(fieldDescriptors);
+    await expect(first).resolves.toHaveLength(fieldDescriptors.length);
+  });
+
+  it("abandons sole cancelled work and permits immediate retry without stale cache writes", async () => {
+    const controller = new AbortController();
+    const work: { signal?: AbortSignal; finish: (fields: SourceFieldDescriptor[]) => void }[] = [];
+    const catalog = new SchemaCatalog({
+      describeFields: (_source, signal) => new Promise((finish) => work.push({ signal, finish })),
+    });
+    const first = catalog.getFields(source, controller.signal);
+    const cancelled = expect(first).rejects.toMatchObject({ code: "KIBANA_CANCELLED" });
+    controller.abort();
+    await cancelled;
+    expect(work[0].signal?.aborted).toBe(true);
+    const second = catalog.getFields(source);
+    expect(work).toHaveLength(2);
+    work[1].finish(fieldDescriptors);
+    const fields = await second;
+    work[0].finish([{ name: "stale", subfields: [] }]);
+    await first.catch(() => {});
+    await Promise.resolve();
+    expect(await catalog.getFields(source)).toBe(fields);
+  });
+
+  it("does not start discovery for an already cancelled caller or return cached fields to it", async () => {
+    let calls = 0;
+    const catalog = new SchemaCatalog({
+      describeFields: async () => {
+        calls += 1;
+        return fieldDescriptors;
+      },
+    });
+    const signal = AbortSignal.abort();
+    await expect(catalog.getFields(source, signal)).rejects.toMatchObject({
+      code: "KIBANA_CANCELLED",
+    });
+    expect(calls).toBe(0);
+    await catalog.getFields(source);
+    await expect(catalog.getFields(source, signal)).rejects.toMatchObject({
+      code: "KIBANA_CANCELLED",
+    });
+    expect(calls).toBe(1);
+  });
+
+  it("isolates cancellation between concurrent describe_fields tool calls", async () => {
+    const kibana = {
+      baseUrl: "https://kibana.example.com",
+      username: "elastic",
+      password: "secret",
+      timeoutMs: 2000,
+    };
+    const client = new KibanaClient(kibana);
+    let backendSignal: AbortSignal | undefined;
+    let finish: ((fields: SourceFieldDescriptor[]) => void) | undefined;
+    const describeFields = vi.spyOn(client, "describeFields").mockImplementation(
+      (_source, signal) =>
+        new Promise((resolve, reject) => {
+          backendSignal = signal;
+          finish = resolve;
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        }),
+    );
+    const app = createApplication({ kibana, sources: [source] }, { kibanaClient: client });
+    const controller = new AbortController();
+    const first = app.handlers
+      .describe_fields({ source_id: source.id }, controller.signal)
+      .catch((error: unknown) => error);
+    const second = app.handlers
+      .describe_fields({ source_id: source.id })
+      .catch((error: unknown) => error);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(describeFields).toHaveBeenCalledOnce();
+    controller.abort();
+    expect(await first).toMatchObject({ code: "KIBANA_CANCELLED" });
+    expect(backendSignal?.aborted).toBe(false);
+    finish?.(fieldDescriptors);
+    expect(await second).toMatchObject({ source_id: source.id, total: fieldDescriptors.length });
+  });
+
+  it("uses an independently cancellable signal for schema discovery", async () => {
     const controller = new AbortController();
     let receivedSignal: AbortSignal | undefined;
     const catalog = new SchemaCatalog({
@@ -133,6 +251,7 @@ describe("SchemaCatalog", () => {
 
     await catalog.getFields(source, controller.signal);
 
-    expect(receivedSignal).toBe(controller.signal);
+    expect(receivedSignal).toBeInstanceOf(AbortSignal);
+    expect(receivedSignal).not.toBe(controller.signal);
   });
 });

@@ -1,9 +1,10 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { type ServerResponse, createServer, request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { toProfileKey } from "../../src/profiles/names.js";
 import { createGeneratedCatalog } from "../../src/setup/bootstrap.js";
@@ -11,10 +12,16 @@ import { type HttpServerHandle, startHttpMcpServer } from "../../src/transports/
 import { callTool, source, sourceIds } from "./helpers.js";
 
 // Answers the two Kibana calls configure_index makes: field discovery, then a probe search.
-async function startFakeKibana(): Promise<{ url: string; close: () => Promise<void> }> {
+async function startFakeKibana(
+  onSearch?: (response: ServerResponse) => void,
+): Promise<{ url: string; close: () => Promise<void> }> {
   const server = createServer((request, response) => {
     request.resume();
     request.on("end", () => {
+      if (onSearch && !request.url?.includes("fields_for_wildcard")) {
+        onSearch(response);
+        return;
+      }
       response.writeHead(200, { "Content-Type": "application/json" });
       response.end(
         JSON.stringify(
@@ -69,6 +76,43 @@ describe("startHttpMcpServer", () => {
       join(directory, toProfileKey(profile), "sources.json"),
       JSON.stringify(createGeneratedCatalog(ids.map(source))),
     );
+  }
+
+  function postRpc(
+    message: Record<string, unknown>,
+    headers: Record<string, string> = {},
+    signal?: AbortSignal,
+  ) {
+    return fetch(handle?.url ?? "", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+        Authorization: "Bearer gateway-secret",
+        "X-Profile": "alice",
+        ...headers,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", ...message }),
+      signal,
+    });
+  }
+
+  async function initialize(headers: Record<string, string> = {}): Promise<string | null> {
+    const response = await postRpc(
+      {
+        id: 0,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "http-test", version: "1.0.0" },
+        },
+      },
+      headers,
+    );
+    expect(response.status).toBe(200);
+    await response.text();
+    return response.headers.get("mcp-session-id");
   }
 
   it("serves each caller the catalog of the profile carried by the trusted header", async () => {
@@ -130,6 +174,46 @@ describe("startHttpMcpServer", () => {
     expect(
       (await callTool(handle.url, "discover", { Authorization: "Bearer gateway-secret" })).status,
     ).toBe(401);
+  });
+
+  it.each([
+    { Host: "attacker.example" },
+    { Origin: "http://attacker.example" },
+    { Origin: "null" },
+  ])("rejects tokenless loopback requests with untrusted headers %j", async (headers) => {
+    await writeCatalog("alice", ["orders"]);
+    handle = await startHttpMcpServer(
+      { ...env, KIBANA_HTTP_AUTH_TOKEN: "" },
+      { port: 0, profileHeader: "x-profile" },
+    );
+    const status = await new Promise<number>((resolveStatus, rejectStatus) => {
+      const request = httpRequest(
+        handle?.url ?? "",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json, text/event-stream",
+            "X-Profile": "alice",
+            ...headers,
+          },
+        },
+        (response) => {
+          response.resume();
+          response.on("end", () => resolveStatus(response.statusCode ?? 0));
+        },
+      );
+      request.on("error", rejectStatus);
+      request.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "tools/call",
+          params: { name: "discover", arguments: {} },
+        }),
+      );
+    });
+    expect(status).toBe(403);
   });
 
   it("refuses unsafe or incoherent listen configurations", async () => {
@@ -268,6 +352,456 @@ describe("startHttpMcpServer", () => {
       await kibana.close();
     }
   });
+
+  it("reconnects a legacy GET stream after disconnect without closing its session", async () => {
+    const requests = vi.spyOn(WebStandardStreamableHTTPServerTransport.prototype, "handleRequest");
+    const interval = vi.spyOn(globalThis, "setInterval");
+    const clear = vi.spyOn(globalThis, "clearInterval");
+    const controllers = [new AbortController(), new AbortController()];
+    const timers: Array<ReturnType<typeof setInterval>> = [];
+    try {
+      await writeCatalog("alice", ["orders"]);
+      handle = await startHttpMcpServer(env, { port: 0, profileHeader: "x-profile" });
+      const sessionId = await initialize();
+      expect(sessionId).toBeTruthy();
+      const transport = requests.mock.contexts[0] as WebStandardStreamableHTTPServerTransport;
+      const headers = {
+        Authorization: "Bearer gateway-secret",
+        "X-Profile": "alice",
+        "Mcp-Session-Id": sessionId ?? "",
+        Accept: "application/json, text/event-stream",
+      };
+      for (const controller of controllers) {
+        const pending = fetch(handle.url, { headers, signal: controller.signal });
+        await vi.waitFor(() => expect(requests.mock.lastCall?.[0].method).toBe("GET"));
+        // GET has no initial frame: use an actual SDK notification to flush the HTTP headers.
+        await transport.send({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
+        const response = await pending;
+        expect(response.status).toBe(200);
+        const request = requests.mock.lastCall?.[0];
+        timers.push(interval.mock.results.at(-1)?.value);
+        controller.abort();
+        await vi.waitFor(() => expect(request?.signal.aborted).toBe(true));
+        expect(sourceIds((await callTool(handle.url, "discover", headers)).result)).toEqual([
+          "orders",
+        ]);
+      }
+      for (const timer of timers) expect(clear).toHaveBeenCalledWith(timer);
+    } finally {
+      for (const controller of controllers) controller.abort();
+      requests.mockRestore();
+      interval.mockRestore();
+      clear.mockRestore();
+    }
+  });
+
+  it("cancels a legacy body when its socket closes before stream attachment", async () => {
+    const original = WebStandardStreamableHTTPServerTransport.prototype.handleRequest;
+    const requests = vi.spyOn(WebStandardStreamableHTTPServerTransport.prototype, "handleRequest");
+    const interval = vi.spyOn(globalThis, "setInterval");
+    const clear = vi.spyOn(globalThis, "clearInterval");
+    const controller = new AbortController();
+    let resume: () => void = () => {};
+    const paused = new Promise<void>((resolve) => {
+      resume = resolve;
+    });
+    let arrived = false;
+    try {
+      handle = await startHttpMcpServer(env, { port: 0, profileHeader: "x-profile" });
+      const sessionId = await initialize();
+      const transport = requests.mock.contexts[0];
+      const state = transport as unknown as { _streamMapping: Map<string, unknown> };
+      requests.mockImplementationOnce(async function (
+        this: WebStandardStreamableHTTPServerTransport,
+        request,
+        options,
+      ) {
+        const response = await original.call(this, request, options);
+        arrived = true;
+        await paused;
+        return response;
+      });
+      const pending = fetch(handle.url, {
+        headers: {
+          Authorization: "Bearer gateway-secret",
+          "X-Profile": "alice",
+          "Mcp-Session-Id": sessionId ?? "",
+          Accept: "text/event-stream",
+        },
+        signal: controller.signal,
+      }).catch(() => undefined);
+      await vi.waitFor(() => expect(arrived).toBe(true));
+      expect(state._streamMapping.has("_GET_stream")).toBe(true);
+      const request = requests.mock.lastCall?.[0];
+      const timer = interval.mock.results.at(-1)?.value;
+      controller.abort();
+      await pending;
+      await vi.waitFor(() => expect(request?.signal.aborted).toBe(true));
+      resume();
+      await vi.waitFor(() => expect(state._streamMapping.size).toBe(0));
+      expect(clear).toHaveBeenCalledWith(timer);
+      const healthy = await postRpc(
+        { id: 1, method: "tools/list" },
+        { "Mcp-Session-Id": sessionId ?? "" },
+      );
+      expect(healthy.status).toBe(200);
+      await healthy.text();
+    } finally {
+      controller.abort();
+      resume();
+      requests.mockRestore();
+      interval.mockRestore();
+      clear.mockRestore();
+    }
+  });
+
+  it.each(["cancelled", "completed"])(
+    "releases disconnected %s tool streams without disturbing another exchange",
+    async (outcome) => {
+      const requests = vi.spyOn(
+        WebStandardStreamableHTTPServerTransport.prototype,
+        "handleRequest",
+      );
+      const interval = vi.spyOn(globalThis, "setInterval");
+      const clear = vi.spyOn(globalThis, "clearInterval");
+      const backends: ServerResponse[] = [];
+      const controllers: AbortController[] = [];
+      const kibana = await startFakeKibana((response) => backends.push(response));
+      try {
+        await writeCatalog("alice", ["orders"]);
+        handle = await startHttpMcpServer(
+          { ...env, KIBANA_BASE_URL: kibana.url },
+          { port: 0, profileHeader: "x-profile" },
+        );
+        const sessionId = await initialize();
+        const headers = { "Mcp-Session-Id": sessionId ?? "" };
+        const transport = requests.mock.contexts[0] as WebStandardStreamableHTTPServerTransport;
+        // Read the installed SDK's actual retained response streams, not a mocked transport.
+        const state = transport as unknown as {
+          _streamMapping: Map<string, unknown>;
+          _requestToStreamMapping: Map<number, string>;
+          _requestResponseMap: Map<number, unknown>;
+        };
+        const query = async (id: number) => {
+          const controller = new AbortController();
+          controllers.push(controller);
+          const pending = postRpc(
+            {
+              id,
+              method: "tools/call",
+              params: {
+                name: "query",
+                arguments: {
+                  source_ids: ["orders"],
+                  start_time: "2026-04-02T12:00:00Z",
+                  end_time: "2026-04-02T12:05:00Z",
+                  mode: "count",
+                },
+              },
+            },
+            headers,
+            controller.signal,
+          );
+          await vi.waitFor(() => expect(backends).toHaveLength(controllers.length));
+          const request = requests.mock.lastCall?.[0];
+          const timer = interval.mock.results.at(-1)?.value;
+          await transport.send(
+            {
+              jsonrpc: "2.0",
+              method: "notifications/progress",
+              params: { progressToken: id, progress: 0 },
+            },
+            { relatedRequestId: id },
+          );
+          const response = await pending;
+          expect(response.status).toBe(200);
+          return { controller, request, timer, response };
+        };
+        const sibling = await query(100);
+        const siblingBody = sibling.response.text().catch(() => "");
+        for (const id of [1, 2, 3]) {
+          const current = await query(id);
+          expect(state._streamMapping.size).toBe(2);
+          if (outcome === "cancelled") {
+            expect(
+              (
+                await postRpc(
+                  { method: "notifications/cancelled", params: { requestId: id } },
+                  headers,
+                )
+              ).status,
+            ).toBe(202);
+            await vi.waitFor(() => expect(backends[id].destroyed).toBe(true));
+          }
+          current.controller.abort();
+          await vi.waitFor(() => expect(current.request?.signal.aborted).toBe(true));
+          await vi.waitFor(() => expect(state._streamMapping.size).toBe(1));
+          expect(clear).toHaveBeenCalledWith(current.timer);
+          expect(clear).not.toHaveBeenCalledWith(sibling.timer);
+          expect(backends[0].destroyed).toBe(false);
+          if (outcome === "completed") {
+            backends[id].end(JSON.stringify({ rawResponse: { hits: { total: { value: 0 } } } }));
+            await vi.waitFor(() => expect(state._requestToStreamMapping.has(id)).toBe(false));
+          }
+        }
+        backends[0].end(JSON.stringify({ rawResponse: { hits: { total: { value: 0 } } } }));
+        expect(await siblingBody).toContain('"id":100');
+        await vi.waitFor(() => expect(state._streamMapping.size).toBe(0));
+        expect(clear).toHaveBeenCalledWith(sibling.timer);
+        // The SDK suppresses final responses for cancelled handlers, retaining request-ID
+        // metadata; this adapter only owns response streams and their keepalives.
+        if (outcome === "completed") expect(state._requestToStreamMapping.size).toBe(0);
+        expect(state._requestResponseMap.size).toBe(0);
+      } finally {
+        for (const controller of controllers) controller.abort();
+        for (const backend of backends) backend.destroy();
+        await kibana.close();
+        requests.mockRestore();
+        interval.mockRestore();
+        clear.mockRestore();
+      }
+    },
+  );
+
+  it("routes separate legacy cancellation POSTs to the initialized client's backend work", async () => {
+    let backend: ServerResponse | undefined;
+    let cancelled = false;
+    const kibana = await startFakeKibana((response) => {
+      backend = response;
+      response.on("close", () => {
+        cancelled = true;
+      });
+    });
+    const controller = new AbortController();
+    let query: Promise<Response> | undefined;
+    try {
+      await writeCatalog("alice", ["orders"]);
+      handle = await startHttpMcpServer(
+        { ...env, KIBANA_BASE_URL: kibana.url },
+        { port: 0, profileHeader: "x-profile" },
+      );
+      const sessionId = await initialize();
+      const headers: Record<string, string> = sessionId ? { "Mcp-Session-Id": sessionId } : {};
+      query = postRpc(
+        {
+          id: 1,
+          method: "tools/call",
+          params: {
+            name: "query",
+            arguments: {
+              source_ids: ["orders"],
+              start_time: "2026-04-02T12:00:00Z",
+              end_time: "2026-04-02T12:05:00Z",
+              mode: "count",
+            },
+          },
+        },
+        headers,
+        controller.signal,
+      );
+      await vi.waitFor(() => expect(backend).toBeDefined());
+      expect(
+        (
+          await postRpc(
+            {
+              method: "notifications/cancelled",
+              params: { requestId: 1 },
+            },
+            headers,
+          )
+        ).status,
+      ).toBe(202);
+      await vi.waitFor(() => expect(cancelled).toBe(true));
+      expect(sessionId).toBeTruthy();
+    } finally {
+      controller.abort();
+      await query?.catch(() => undefined);
+      backend?.destroy();
+      await kibana.close();
+    }
+  });
+
+  it("isolates identical request IDs between legacy sessions and rejects profile changes", async () => {
+    const backends: ServerResponse[] = [];
+    const kibana = await startFakeKibana((response) => {
+      backends.push(response);
+    });
+    const controller = new AbortController();
+    const queries: Array<Promise<Response>> = [];
+    try {
+      await writeCatalog("alice", ["orders"]);
+      handle = await startHttpMcpServer(
+        { ...env, KIBANA_BASE_URL: kibana.url },
+        { port: 0, profileHeader: "x-profile" },
+      );
+      const first = await initialize();
+      const second = await initialize();
+      expect(first).toBeTruthy();
+      expect(second).toBeTruthy();
+      expect(first).not.toBe(second);
+      for (const sessionId of [first, second]) {
+        queries.push(
+          postRpc(
+            {
+              id: 1,
+              method: "tools/call",
+              params: {
+                name: "query",
+                arguments: {
+                  source_ids: ["orders"],
+                  start_time: "2026-04-02T12:00:00Z",
+                  end_time: "2026-04-02T12:05:00Z",
+                  mode: "count",
+                },
+              },
+            },
+            { "Mcp-Session-Id": sessionId ?? "" },
+            controller.signal,
+          ),
+        );
+        await vi.waitFor(() => expect(backends).toHaveLength(queries.length));
+      }
+      const cancellation = { method: "notifications/cancelled", params: { requestId: 1 } };
+      expect((await postRpc(cancellation, { "Mcp-Session-Id": "unknown" })).status).toBe(404);
+      expect(
+        (
+          await postRpc(cancellation, {
+            "Mcp-Session-Id": first ?? "",
+            "X-Profile": "bob",
+          })
+        ).status,
+      ).toBe(404);
+      expect(
+        (
+          await postRpc(cancellation, {
+            "Mcp-Session-Id": first ?? "",
+            Authorization: "Bearer wrong",
+          })
+        ).status,
+      ).toBe(401);
+      // No session cannot claim an initialized client's request, even under the same profile.
+      expect((await postRpc(cancellation)).status).toBe(202);
+      expect(backends.map((response) => response.destroyed)).toEqual([false, false]);
+      expect((await postRpc(cancellation, { "Mcp-Session-Id": second ?? "" })).status).toBe(202);
+      await vi.waitFor(() => expect(backends[1].destroyed).toBe(true));
+      expect(backends[0].destroyed).toBe(false);
+      expect((await postRpc(cancellation, { "Mcp-Session-Id": first ?? "" })).status).toBe(202);
+      await vi.waitFor(() => expect(backends[0].destroyed).toBe(true));
+    } finally {
+      controller.abort();
+      await Promise.all(queries.map((query) => query.catch(() => undefined)));
+      for (const response of backends) response.destroy();
+      await kibana.close();
+    }
+  });
+
+  it("deletes legacy sessions and keeps authentication required on each session request", async () => {
+    await writeCatalog("alice", ["orders"]);
+    handle = await startHttpMcpServer(env, { port: 0, profileHeader: "x-profile" });
+    const sessionId = await initialize();
+    expect(sessionId).toBeTruthy();
+    const headers = {
+      Authorization: "Bearer gateway-secret",
+      "X-Profile": "alice",
+      "Mcp-Session-Id": sessionId ?? "",
+    };
+    expect(sourceIds((await callTool(handle.url, "discover", headers)).result)).toEqual(["orders"]);
+    expect(
+      (
+        await fetch(handle.url, {
+          method: "DELETE",
+          headers: {
+            ...headers,
+            Authorization: "Bearer wrong",
+          },
+        })
+      ).status,
+    ).toBe(401);
+    expect((await fetch(handle.url, { method: "DELETE", headers })).status).toBe(200);
+    expect((await callTool(handle.url, "discover", headers)).status).toBe(404);
+    expect(
+      sourceIds(
+        (
+          await callTool(handle.url, "discover", {
+            Authorization: "Bearer gateway-secret",
+            "X-Profile": "alice",
+          })
+        ).result,
+      ),
+    ).toEqual(["orders"]);
+  });
+
+  it("expires idle legacy sessions without expiring recently used sessions", async () => {
+    handle = await startHttpMcpServer(env, { port: 0, profileHeader: "x-profile" });
+    const expired = await initialize();
+    const current = await initialize();
+    const headers = (id: string | null) => ({
+      Authorization: "Bearer gateway-secret",
+      "X-Profile": "alice",
+      "Mcp-Session-Id": id ?? "",
+    });
+    const now = Date.now();
+    const clock = vi.spyOn(Date, "now");
+    try {
+      clock.mockReturnValue(now + 20 * 60 * 1000);
+      expect((await callTool(handle.url, "discover", headers(current))).status).toBe(200);
+      clock.mockReturnValue(now + 31 * 60 * 1000);
+      expect((await callTool(handle.url, "discover", headers(expired))).status).toBe(404);
+      expect((await callTool(handle.url, "discover", headers(current))).status).toBe(200);
+      expect(await initialize()).toBeTruthy();
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("bounds concurrent legacy sessions and releases capacity on DELETE", async () => {
+    handle = await startHttpMcpServer(env, { port: 0, profileHeader: "x-profile" });
+    const responses = await Promise.all(
+      Array.from({ length: 129 }, () =>
+        postRpc({
+          id: 0,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-06-18",
+            capabilities: {},
+            clientInfo: { name: "capacity-test", version: "1.0.0" },
+          },
+        }),
+      ),
+    );
+    await Promise.all(responses.map((response) => response.text()));
+    expect(responses.filter((response) => response.status === 200)).toHaveLength(128);
+    expect(responses.filter((response) => response.status === 503)).toHaveLength(1);
+    const sessionId = responses
+      .find((response) => response.status === 200)
+      ?.headers.get("mcp-session-id");
+    expect(
+      (
+        await fetch(handle.url, {
+          method: "DELETE",
+          headers: {
+            Authorization: "Bearer gateway-secret",
+            "X-Profile": "alice",
+            "Mcp-Session-Id": sessionId ?? "",
+          },
+        })
+      ).status,
+    ).toBe(200);
+    expect(await initialize()).toBeTruthy();
+  });
+
+  it("retires long-lived sessions to bound SDK cancellation metadata", async () => {
+    handle = await startHttpMcpServer(env, { port: 0, profileHeader: "x-profile" });
+    const sessionId = await initialize();
+    const headers = { "Mcp-Session-Id": sessionId ?? "" };
+    for (let count = 0; count < 1024; count += 1) {
+      const response = await postRpc({ method: "notifications/initialized" }, headers);
+      expect(response.status).toBe(202);
+      await response.text();
+    }
+    expect((await postRpc({ id: 1, method: "tools/list" }, headers)).status).toBe(404);
+    expect(await initialize()).toBeTruthy();
+  }, 20_000);
 });
 
 describe("configuration file", () => {

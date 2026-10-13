@@ -31,7 +31,10 @@ function savedProfiles(defaultProfileId: string | null = "production") {
 
   return {
     profileStore: {
-      findProfile: async (query: string) => find(query),
+      findProfile: async (query: string, options?: { exactName?: boolean }) =>
+        options?.exactName
+          ? (profiles.find((profile) => profile.name === query) ?? null)
+          : find(query),
       getDefaultProfile: async () => (defaultProfileId ? find(defaultProfileId) : null),
     },
     secretStore: {
@@ -110,7 +113,7 @@ describe("resolveStartupConfiguration", () => {
       { KIBANA_TIMEOUT_MS: "2500", KIBANA_SOURCE_CATALOG_PATH: "/catalogs/override.json" },
       savedProfiles(),
     );
-    const staging = await loadProfileConfig?.("STAGING");
+    const staging = await loadProfileConfig?.("Staging");
 
     expect(defaultConfig?.kibana.baseUrl).toBe("https://production.kibana.example.com");
     expect(defaultConfig?.sourceCatalogPath).toBe("/catalogs/override.json");
@@ -124,6 +127,17 @@ describe("resolveStartupConfiguration", () => {
     await expect(loadProfileConfig?.("unknown")).rejects.toThrow(
       "Saved Kibana profile 'unknown' was not found",
     );
+  });
+
+  it("matches saved HTTP profiles exactly while startup keeps CLI case-insensitive selection", async () => {
+    const { defaultConfig, loadProfileConfig } = await resolveStartupConfiguration(
+      { KIBANA_PROFILE: "STAGING" },
+      savedProfiles(),
+    );
+    expect(defaultConfig?.profileName).toBe("Staging");
+    expect((await loadProfileConfig?.("Staging"))?.profileName).toBe("Staging");
+    await expect(loadProfileConfig?.("staging")).rejects.toThrow("was not found");
+    await expect(loadProfileConfig?.("STAGING")).rejects.toThrow("was not found");
   });
 
   it("falls back to the legacy unconfigured mode when no profile was ever saved", async () => {
@@ -170,6 +184,9 @@ describe("saved profiles behind the HTTP profile header", () => {
 
       const production = await callTool(handle.url, "discover", { "X-Profile": "production" });
       const staging = await callTool(handle.url, "discover", { "X-Profile": "Staging" });
+      const wrongCase = await callTool(handle.url, "discover", { "X-Profile": "STAGING" });
+      expect(wrongCase.result?.isError).toBe(true);
+      expect(JSON.stringify(wrongCase.result?.content)).toContain("was not found");
       const unknown = await callTool(handle.url, "discover", { "X-Profile": "nobody" });
 
       expect(sourceIds(production.result)).toEqual(["orders"]);

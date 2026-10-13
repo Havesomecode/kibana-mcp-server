@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import {
   type IncomingMessage,
   type Server as NodeHttpServer,
@@ -8,7 +8,16 @@ import {
 import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 
-import { createMcpHandler } from "@modelcontextprotocol/server";
+import {
+  type McpServer,
+  WebStandardStreamableHTTPServerTransport,
+  createMcpHandler,
+  isLegacyRequest,
+  localhostAllowedHostnames,
+  localhostAllowedOrigins,
+  validateHostHeader,
+  validateOriginHeader,
+} from "@modelcontextprotocol/server";
 
 import {
   HTTP_AUTH_TOKEN_ENV,
@@ -27,6 +36,9 @@ const DEFAULT_PORT = 3000;
 const DEFAULT_PATH = "/mcp";
 const HEALTH_PATH = "/healthz";
 const MAX_BODY_BYTES = 4 * 1024 * 1024;
+const MAX_LEGACY_SESSIONS = 128;
+const MAX_LEGACY_SESSION_REQUESTS = 1024;
+const LEGACY_SESSION_IDLE_MS = 30 * 60 * 1000;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 
 export interface HttpServerOptions {
@@ -93,7 +105,7 @@ async function listen(
     );
   }
 
-  // One MCP server per request; the registry is the only state shared between requests.
+  // Modern and handshake-free legacy calls stay per-request.
   const handler = createMcpHandler((context) => {
     const requestProfile = resolved.profileHeader
       ? readProfileHeader(context.requestInfo?.headers, resolved.profileHeader)
@@ -101,8 +113,96 @@ async function listen(
     return createApplication(undefined, { profileRegistry: registry, requestProfile }).server;
   });
 
+  const legacySessions = new Map<
+    string,
+    {
+      server: McpServer;
+      transport: WebStandardStreamableHTTPServerTransport;
+      profile: string | undefined;
+      lastUsed: number;
+      requests: number;
+    }
+  >();
+  let initializingSessions = 0;
+  const fetchHandler = async (request: Request): Promise<Response> => {
+    if (!(await isLegacyRequest(request))) return handler.fetch(request);
+    for (const session of legacySessions.values()) {
+      if (Date.now() - session.lastUsed >= LEGACY_SESSION_IDLE_MS) await session.server.close();
+    }
+    const profile = resolved.profileHeader
+      ? readProfileHeader(request.headers, resolved.profileHeader)
+      : undefined;
+    const sessionId = request.headers.get("mcp-session-id");
+    if (sessionId) {
+      let session = legacySessions.get(sessionId);
+      // ponytail: recycle bounded sessions until the SDK releases cancelled request metadata.
+      if (
+        session &&
+        session.profile === profile &&
+        session.requests >= MAX_LEGACY_SESSION_REQUESTS
+      ) {
+        await session.server.close();
+        session = undefined;
+      }
+      if (!session || session.profile !== profile) {
+        return Response.json(
+          {
+            jsonrpc: "2.0",
+            id: null,
+            error: { code: -32001, message: "Session not found" },
+          },
+          { status: 404 },
+        );
+      }
+      session.lastUsed = Date.now();
+      session.requests += 1;
+      return session.transport.handleRequest(request);
+    }
+    const body =
+      request.method === "POST"
+        ? await request
+            .clone()
+            .json()
+            .catch(() => undefined)
+        : undefined;
+    if (body?.method !== "initialize") return handler.fetch(request);
+    if (legacySessions.size + initializingSessions >= MAX_LEGACY_SESSIONS) {
+      return Response.json(
+        { error: "Too many MCP sessions. Close an existing session and retry." },
+        { status: 503 },
+      );
+    }
+
+    // The SDK owns request IDs and cancellation inside each unguessable client session.
+    initializingSessions += 1;
+    const server = createApplication(undefined, {
+      profileRegistry: registry,
+      requestProfile: profile,
+    }).server;
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: randomUUID,
+      onsessioninitialized: (id) => {
+        legacySessions.set(id, { server, transport, profile, lastUsed: Date.now(), requests: 0 });
+      },
+    });
+    transport.onclose = () => {
+      legacySessions.delete(transport.sessionId ?? "");
+    };
+    try {
+      await server.connect(transport);
+      const response = await transport.handleRequest(request, { parsedBody: body });
+      if (!transport.sessionId || response.status >= 400) await server.close();
+      return response;
+    } catch (error) {
+      await server.close().catch(() => {});
+      throw error;
+    } finally {
+      initializingSessions -= 1;
+    }
+  };
+
   const httpServer = createServer((request, response) => {
-    void handleRequest(request, response, resolved, handler.fetch).catch(() => {
+    void handleRequest(request, response, resolved, fetchHandler).catch(() => {
       if (!response.headersSent) {
         writeJson(response, 500, { error: "internal_error" });
         return;
@@ -125,6 +225,7 @@ async function listen(
     url: `http://${urlHost}:${address.port}${resolved.path}`,
     close: async () => {
       await handler.close();
+      await Promise.all([...legacySessions.values()].map((session) => session.server.close()));
       await closeHttpServer(httpServer);
       await startupConfiguration.close();
     },
@@ -199,6 +300,13 @@ async function handleRequest(
   response.once("close", () => abortController.abort());
   try {
     const headers = toWebHeaders(request);
+    if (
+      !options.authToken &&
+      (!validateHostHeader(headers.get("host"), localhostAllowedHostnames()).ok ||
+        !validateOriginHeader(headers.get("origin"), localhostAllowedOrigins()).ok)
+    ) {
+      throw new HttpRequestError(403, "Untrusted Host or Origin.");
+    }
     // Refused here to answer with a plain HTTP status; the MCP handler reads the value again.
     if (options.profileHeader) {
       readProfileHeader(headers, options.profileHeader);
@@ -218,7 +326,9 @@ async function handleRequest(
     response.end();
     return;
   }
-  Readable.fromWeb(webResponse.body as Parameters<typeof Readable.fromWeb>[0])
+  Readable.fromWeb(webResponse.body as Parameters<typeof Readable.fromWeb>[0], {
+    signal: abortController.signal,
+  })
     .on("error", () => response.destroy())
     .pipe(response);
 }

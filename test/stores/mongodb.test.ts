@@ -94,6 +94,18 @@ describe("mongodb catalog store", () => {
     expect(client.closed).toBe(true);
   });
 
+  it("passes multi-host MongoDB URIs unchanged to the driver and redacts their location", async () => {
+    vi.doMock("mongodb", () => ({ MongoClient: FakeMongoClient }));
+    const url = "mongodb://app:p%40ss@host1:27017,host2:27018/logs?replicaSet=rs0&authSource=admin";
+    const store = await mongodbCatalogStore({ url });
+    await expectCatalogStoreContract(store);
+    expect(FakeMongoClient.instances[0].url).toBe(url);
+    expect(store.describe?.("alice")).toBe(
+      "mongodb://host1:27017,host2:27018/logs/kibana_mcp_catalogs/alice",
+    );
+    await store.close?.();
+  });
+
   it("falls back to MONGO_URL and the database of the URL", async () => {
     vi.doMock("mongodb", () => ({ MongoClient: FakeMongoClient }));
     vi.stubEnv("KIBANA_STORE_URL", "");

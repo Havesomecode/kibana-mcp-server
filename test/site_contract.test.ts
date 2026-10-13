@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { buildGeneratedSource } from "../src/setup/bootstrap.js";
+
 const repoRoot = process.cwd();
 
 function readSiteFile(path: string): string {
@@ -9,6 +11,22 @@ function readSiteFile(path: string): string {
 }
 
 describe("site contract", () => {
+  it("uses the configured source ID throughout the investigation walkthrough", () => {
+    const examples = [
+      ...readSiteFile("website/guide/investigating.md").matchAll(/```json\n([\s\S]*?)```/g),
+    ].map(([, json]) => JSON.parse(json));
+    const configured = examples[0];
+    const source = buildGeneratedSource(
+      [configured.index],
+      configured.source_name,
+      configured.source_id,
+    );
+    for (const example of examples.slice(1)) {
+      if (example.source_id) expect(example.source_id).toBe(source.id);
+      if (example.source_ids) expect(example.source_ids).toEqual([source.id]);
+    }
+  });
+
   it("ships the documentation site sources", () => {
     for (const file of [
       "website/index.md",

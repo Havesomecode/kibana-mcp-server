@@ -1,4 +1,5 @@
 import type { SourceDefinition, SourceFieldDescriptor } from "../types.js";
+import { KibanaRequestError } from "./client.js";
 
 function normalizeFieldName(value: string): string {
   return value.trim().toLowerCase();
@@ -73,7 +74,14 @@ function mergeFieldHints(
 
 export class SchemaCatalog {
   private readonly cache = new Map<string, SourceFieldDescriptor[]>();
-  private readonly inFlight = new Map<string, Promise<SourceFieldDescriptor[]>>();
+  private readonly inFlight = new Map<
+    string,
+    {
+      promise: Promise<SourceFieldDescriptor[]>;
+      controller: AbortController;
+      callers: number;
+    }
+  >();
 
   constructor(
     private readonly client: {
@@ -88,28 +96,53 @@ export class SchemaCatalog {
     source: SourceDefinition,
     callerSignal?: AbortSignal,
   ): Promise<SourceFieldDescriptor[]> {
+    const cancelled = () =>
+      new KibanaRequestError(
+        "KIBANA_CANCELLED",
+        "request",
+        source.id,
+        0,
+        `[KIBANA_CANCELLED] Schema discovery for source '${source.id}' was cancelled.`,
+        callerSignal?.reason,
+      );
+    if (callerSignal?.aborted) {
+      throw cancelled();
+    }
     const existing = this.cache.get(source.id);
     if (existing) {
       return existing;
     }
 
-    const pending = this.inFlight.get(source.id);
-    if (pending) {
-      return pending;
+    let pending = this.inFlight.get(source.id);
+    if (!pending) {
+      const controller = new AbortController();
+      const promise = this.client.describeFields(source, controller.signal).then((fields) => {
+        const resolved = linkFieldRelationships(mergeFieldHints(source, fields));
+        if (!controller.signal.aborted) {
+          this.cache.set(source.id, resolved);
+        }
+        return resolved;
+      });
+      pending = { promise, controller, callers: 0 };
+      this.inFlight.set(source.id, pending);
     }
 
-    const discovery = this.client.describeFields(source, callerSignal).then((fields) => {
-      const resolved = linkFieldRelationships(mergeFieldHints(source, fields));
-      this.cache.set(source.id, resolved);
-      return resolved;
-    });
-    this.inFlight.set(source.id, discovery);
-
+    const discovery = pending;
+    discovery.callers += 1;
+    let onAbort: (() => void) | undefined;
     try {
-      return await discovery;
+      return await new Promise<SourceFieldDescriptor[]>((resolve, reject) => {
+        onAbort = () => reject(cancelled());
+        callerSignal?.addEventListener("abort", onAbort, { once: true });
+        discovery.promise.then(resolve, reject);
+        if (callerSignal?.aborted) onAbort();
+      });
     } finally {
-      if (this.inFlight.get(source.id) === discovery) {
+      if (onAbort) callerSignal?.removeEventListener("abort", onAbort);
+      discovery.callers -= 1;
+      if (discovery.callers === 0 && this.inFlight.get(source.id) === discovery) {
         this.inFlight.delete(source.id);
+        if (callerSignal?.aborted) discovery.controller.abort();
       }
     }
   }

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { bindCatalogStore } from "../../src/stores/catalog_store.js";
 import sqliteCatalogStore from "../../src/stores/sqlite.js";
 import { expectCatalogStoreContract } from "./contract.js";
 
@@ -44,6 +45,29 @@ describe("sqlite catalog store", () => {
     expect(await reopened.read("alice")).toBe("v2");
     await reopened.close?.();
     expect((await stat(path)).isFile()).toBe(true);
+  });
+
+  it("isolates colliding-looking identities across updates and reopening", async () => {
+    const path = join(directory, "identities.sqlite");
+    const store = await sqliteCatalogStore({ path });
+    try {
+      const alice = bindCatalogStore(store, "Alice");
+      const literal = bindCatalogStore(store, "alice-3bc51062973c");
+      await alice.replace(undefined, "alice-v1");
+      expect(await literal.read()).toBeUndefined();
+      await literal.replace(undefined, "literal-v1");
+      await alice.replace("alice-v1", "alice-v2");
+      expect(await literal.read()).toBe("literal-v1");
+    } finally {
+      await store.close?.();
+    }
+    const reopened = await sqliteCatalogStore({ path });
+    try {
+      expect(await bindCatalogStore(reopened, "Alice").read()).toBe("alice-v2");
+      expect(await bindCatalogStore(reopened, "alice-3bc51062973c").read()).toBe("literal-v1");
+    } finally {
+      await reopened.close?.();
+    }
   });
 
   it("reads its path from KIBANA_STORE_URL, with or without the sqlite: prefix", async () => {

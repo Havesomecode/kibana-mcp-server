@@ -12,6 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_STALE_MS = 5 * 60 * 1000;
@@ -20,6 +21,9 @@ const DEFAULT_RECLAIM_GRACE_MS = 25;
 const LOCK_DIRECTORY_NAME = ".state.lock";
 
 export interface StateLockOptions {
+  signal?: AbortSignal;
+  /** Override the directory name for a catalog-specific lock in the same parent directory. */
+  lockName?: string;
   timeoutMs?: number;
   staleMs?: number;
   retryMs?: number;
@@ -39,6 +43,7 @@ export async function acquireStateLock(
   stateRoot: string,
   options: StateLockOptions = {},
 ): Promise<() => Promise<void>> {
+  options.signal?.throwIfAborted();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
   const retryMs = options.retryMs ?? DEFAULT_RETRY_MS;
@@ -46,10 +51,11 @@ export async function acquireStateLock(
   const releaseGraceMs = options.releaseGraceMs ?? 0;
   const releaseTimeoutMs = options.releaseTimeoutMs ?? Math.max(1000, reclaimGraceMs * 4);
   const startedAt = Date.now();
-  const lockPath = join(stateRoot, LOCK_DIRECTORY_NAME);
+  const lockName = options.lockName ?? LOCK_DIRECTORY_NAME;
+  const lockPath = join(stateRoot, lockName);
   const ownerPath = join(lockPath, "owner.json");
   const token = randomUUID();
-  const pendingPath = join(stateRoot, `${LOCK_DIRECTORY_NAME}.${token}.pending`);
+  const pendingPath = join(stateRoot, `${lockName}.${token}.pending`);
   const pendingOwnerPath = join(pendingPath, "owner.json");
   const owner: LockOwner = {
     token,
@@ -65,13 +71,14 @@ export async function acquireStateLock(
       mode: 0o600,
     });
     while (true) {
+      options.signal?.throwIfAborted();
       try {
         await rename(pendingPath, lockPath);
       } catch (error) {
         if (!isLockOccupiedError(error)) throw error;
         if (!(await lockExists(lockPath))) {
           if (Date.now() - startedAt >= timeoutMs) throw error;
-          await sleep(retryMs);
+          await delay(retryMs, undefined, { signal: options.signal });
           continue;
         }
 
@@ -83,7 +90,7 @@ export async function acquireStateLock(
             `Timed out waiting for another Kibana MCP setup process to release '${lockPath}'.`,
           );
         }
-        await sleep(retryMs);
+        await delay(retryMs, undefined, { signal: options.signal });
         continue;
       }
 
@@ -98,7 +105,7 @@ export async function acquireStateLock(
       }, heartbeatMs);
       heartbeat.unref();
 
-      return async () => {
+      const release = async () => {
         clearInterval(heartbeat);
         await heartbeatInFlight;
         // The critical section has already committed or rolled back. Release is best effort;
@@ -114,6 +121,11 @@ export async function acquireStateLock(
           releaseTimeoutMs,
         ).catch(() => {});
       };
+      if (options.signal?.aborted) {
+        await release();
+        options.signal.throwIfAborted();
+      }
+      return release;
     }
   } catch (error) {
     await rm(pendingPath, { recursive: true, force: true }).catch(() => {});

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { KibanaRequestError } from "../src/kibana/client.js";
 import { createApplication } from "../src/server.js";
@@ -331,7 +331,9 @@ describe("createApplication", () => {
         },
         describeFields: async (_source: unknown, signal?: AbortSignal) => {
           schemaSignal = signal;
-          return [];
+          return new Promise<never>((_resolve, reject) => {
+            signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+          });
         },
       } as never,
     });
@@ -345,7 +347,7 @@ describe("createApplication", () => {
       },
       controller.signal,
     );
-    await application.handlers.describe_fields(
+    const discovery = application.handlers.describe_fields(
       {
         source_id: "consumer",
         limit: 20,
@@ -353,9 +355,12 @@ describe("createApplication", () => {
       controller.signal,
     );
 
+    const cancelled = expect(discovery).rejects.toThrow("KIBANA_CANCELLED");
+    await vi.waitFor(() => expect(schemaSignal).toBeDefined());
     expect(querySignal?.aborted).toBe(false);
     expect(schemaSignal?.aborted).toBe(false);
     controller.abort();
+    await cancelled;
     expect(querySignal?.aborted).toBe(true);
     expect(schemaSignal?.aborted).toBe(true);
   });

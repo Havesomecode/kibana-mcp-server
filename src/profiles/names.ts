@@ -19,7 +19,8 @@ export function normalizeProfileName(value: string): string {
 
 /**
  * Derives a filesystem-safe key from a profile name. Names that are not already a plain slug get a
- * digest suffix so that distinct names (for example identity subjects) never share a key.
+ * digest suffix. Literal names ending in that suffix are hashed too, reserving the generated
+ * namespace so that they cannot impersonate another identity's key.
  */
 export function toProfileKey(profileName: string): string {
   const name = normalizeProfileName(profileName);
@@ -29,7 +30,7 @@ export function toProfileKey(profileName: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, MAX_PROFILE_SLUG_LENGTH)
     .replace(/-+$/g, "");
-  if (slug === name) {
+  if (slug === name && !/-[a-f0-9]{12}$/.test(name)) {
     return slug;
   }
 

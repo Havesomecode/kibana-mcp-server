@@ -11,7 +11,7 @@ An investigation follows the same three moves every time: find the source, check
 A fresh profile has no source. The agent must not guess one: it asks which exact Kibana index or index pattern to use, then calls [`configure_index`](../reference/tools/configure-index) with that value.
 
 ```json
-{ "index": "app-logs-*", "source_name": "Application logs" }
+{ "index": "app-logs-*", "source_name": "Application logs", "source_id": "app-logs" }
 ```
 
 The server checks that the pattern resolves to fields, picks a time field, runs one probe search and saves the source in the profile's catalog. Later conversations reuse it.

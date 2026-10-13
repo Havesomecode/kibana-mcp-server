@@ -1,5 +1,5 @@
 import { CatalogConflictError, type CatalogStore } from "./catalog_store.js";
-import { DEFAULT_TABLE_NAME, describeStoreUrl, importDriver, resolveStoreUrl } from "./shared.js";
+import { DEFAULT_TABLE_NAME, importDriver, resolveStoreConnectionString } from "./shared.js";
 
 const DUPLICATE_KEY_ERROR_CODE = 11000;
 
@@ -44,17 +44,21 @@ export default async function mongodbCatalogStore(
   let close: (() => Promise<void>) | undefined;
 
   if (!collection) {
-    const url = resolveStoreUrl(
+    const url = resolveStoreConnectionString(
       "MongoDB",
       options.url,
       ["MONGODB_URI", "MONGO_URL"],
       ["mongodb:", "mongodb+srv:"],
     );
     const { MongoClient } = await importDriver<typeof import("mongodb")>("MongoDB", "mongodb");
-    const client = new MongoClient(url.href);
+    // MongoDB's driver accepts seed lists and SRV URIs that WHATWG URL cannot parse.
+    const client = new MongoClient(url);
     await client.connect();
     collection = client.db(options.database).collection<MongodbCatalogDocument>(collectionName);
-    label = describeStoreUrl(url);
+    label = url
+      .split(/[?#]/, 1)[0]
+      .replace(/(\/\/)[^/]*@/, "$1")
+      .replace(/\/$/, "");
     close = () => client.close();
   }
 
@@ -66,7 +70,8 @@ export default async function mongodbCatalogStore(
       const document = await catalogs.findOne({ _id: profileKey });
       return typeof document?.content === "string" ? document.content : undefined;
     },
-    async replace(profileKey, expected, next) {
+    async replace(profileKey, expected, next, signal) {
+      signal?.throwIfAborted();
       const updatedAt = new Date();
       if (expected === undefined) {
         try {

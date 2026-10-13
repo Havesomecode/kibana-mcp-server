@@ -1,8 +1,9 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { acquireStateLock } from "../src/profiles/state_lock.js";
 import { createGeneratedCatalog } from "../src/setup/bootstrap.js";
 import { CatalogConflictError } from "../src/stores/catalog_store.js";
 import { configureIndexInputSchema, executeConfigureIndex } from "../src/tools/configure_index.js";
@@ -132,6 +133,38 @@ describe("configure_index", () => {
       evidenceFields: ["trace.id"],
     });
     expect(persisted.generatedBy.sourceHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("does not commit if cancelled while waiting for the persistence lock", async () => {
+    const { root, catalogPath } = await createEmptyCatalog();
+    const original = await readFile(catalogPath, "utf8");
+    const release = await acquireStateLock(root);
+    const controller = new AbortController();
+    const pending = executeConfigureIndex(
+      { index: "consumer-*" },
+      {
+        config: config(catalogPath),
+        stateRoot: root,
+        callerSignal: controller.signal,
+        kibanaClient: {
+          describeFields: async () => fields,
+          execute: async (query) => ({ source: query.source, rawResponse: {} }),
+        },
+      },
+    );
+    const rejected = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    try {
+      const deadline = Date.now() + 1000;
+      while (!(await readdir(root)).some((name) => name.endsWith(".pending"))) {
+        if (Date.now() > deadline) throw new Error("configure_index did not wait for the lock");
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      }
+      controller.abort();
+    } finally {
+      await release();
+    }
+    await rejected;
+    expect(await readFile(catalogPath, "utf8")).toBe(original);
   });
 
   it("does not inspect Kibana or overwrite a modified catalog", async () => {
