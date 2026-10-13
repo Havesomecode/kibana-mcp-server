@@ -276,6 +276,40 @@ describe("runCli", () => {
     expect(receivedProfile).toBe("staging");
   });
 
+  it("starts the HTTP transport with --http and rejects HTTP flags without it", async () => {
+    let received: unknown;
+    const stderr: string[] = [];
+    const io = { stdout: () => {}, stderr: (text: string) => stderr.push(text), env: {} };
+
+    const exitCode = await runCli(
+      [
+        "node",
+        "kibana-mcp-server",
+        "serve",
+        "--http",
+        "--port",
+        "8123",
+        "--profile-header",
+        "x-profile",
+      ],
+      io,
+      {
+        async startHttpMcpServerFn(_env, options) {
+          received = options;
+          return { url: "http://127.0.0.1:8123/mcp", close: async () => {} };
+        },
+      },
+    );
+    const stdioExitCode = await runCli(["node", "kibana-mcp-server", "serve", "--port", "1"], io, {
+      async startMcpServerFn() {},
+    });
+
+    expect(exitCode).toBe(0);
+    expect(received).toMatchObject({ port: 8123, profileHeader: "x-profile" });
+    expect(stdioExitCode).toBe(1);
+    expect(stderr.join("\n")).toContain("require --http");
+  });
+
   it("uses Commander validation for unrecognized CLI options", async () => {
     const stderr: string[] = [];
 

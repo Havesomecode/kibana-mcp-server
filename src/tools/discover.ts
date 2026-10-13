@@ -1,7 +1,7 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
-import type { SourceCatalog } from "../source_catalog.js";
+import type { SourceCatalog } from "../kibana/source_catalog.js";
 
 export const discoverInputSchema = z.object({
   query: z.string().trim().min(1).optional(),

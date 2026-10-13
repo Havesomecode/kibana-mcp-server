@@ -1,3 +1,5 @@
+import type { CatalogHandle } from "./stores/catalog_store.js";
+
 export type BackendKind = "elasticsearch_search" | "kibana_internal_search_es";
 export type SchemaBackendKind =
   | "elasticsearch_field_caps"
@@ -68,6 +70,8 @@ export interface AppConfig {
 
 export interface ResolvedAppConfig extends AppConfig {
   profileName?: string;
+  /** Set when the catalog of the profile lives in a catalog store rather than at a plain path. */
+  catalog?: CatalogHandle;
   sourceCatalogPath?: string;
   sourceCatalogOrigin?: "environment" | "profile" | "runtime_default" | "static_default";
 }

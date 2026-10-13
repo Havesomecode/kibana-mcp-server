@@ -1,18 +1,15 @@
-import { readFile } from "node:fs/promises";
-
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
+import type { KibanaClient } from "../kibana/client.js";
 import {
   buildGeneratedSource,
   chooseGeneratedSourceFields,
   createGeneratedCatalog,
   parseGeneratedCatalog,
-} from "../bootstrap.js";
-import { persistSourceCatalog } from "../config.js";
-import type { KibanaClient } from "../kibana_client.js";
-import { resolveProfilePaths } from "../profile_paths.js";
-import { acquireStateLock } from "../state_lock.js";
+} from "../setup/bootstrap.js";
+import { type CatalogHandle, bindCatalogStore } from "../stores/catalog_store.js";
+import { createFileCatalogStore } from "../stores/file.js";
 import type { ResolvedAppConfig, SourceDefinition } from "../types.js";
 
 export const configureIndexInputSchema = z
@@ -49,99 +46,129 @@ export async function executeConfigureIndex(
 ): Promise<{
   sources: SourceDefinition[];
   result: z.infer<typeof configureIndexOutputSchema>;
+  /** The serialized catalog that was written. */
+  catalogContent?: string;
 }> {
   const input = configureIndexInputSchema.parse(inputValue);
-  const sourceCatalogPath = options.config.sourceCatalogPath;
+  options.callerSignal?.throwIfAborted();
+  // A catalog kept at a plain path goes through the same store contract as any other: the write
+  // only happens if the catalog is still the one that was read, so Kibana is never called under a lock.
+  const catalog = options.config.catalog ?? fileCatalogOf(options.config, options.stateRoot);
+  const existingContent = await catalog.read();
+  // Sources without a catalog at the persisted location were loaded from somewhere else, such as
+  // the static fallback catalog: starting from an empty catalog would silently drop them.
+  if (existingContent === undefined && options.config.sources.length > 0) {
+    throw new Error(
+      `Source catalog '${catalog.location}' does not exist although sources are configured. Refusing to replace them with a new managed catalog.`,
+    );
+  }
+  const next = await buildNextCatalog(input, existingContent, options);
+  const catalogContent = `${JSON.stringify(next.catalog, null, 2)}\n`;
+  options.callerSignal?.throwIfAborted();
+  await catalog.replace(existingContent, catalogContent, options.callerSignal);
+
+  return {
+    sources: next.sources,
+    catalogContent,
+    result: {
+      configured: true,
+      persisted: true,
+      source_catalog_path: catalog.location,
+      source_count: next.sources.length,
+      source_id: next.source.id,
+      index: input.index,
+      time_field: next.source.timeField,
+    },
+  };
+}
+
+function fileCatalogOf(config: ResolvedAppConfig, stateRoot?: string): CatalogHandle {
+  const sourceCatalogPath = config.sourceCatalogPath;
   if (!sourceCatalogPath) {
     throw new Error(
       "configure_index requires a persisted source catalog. Run connection bootstrap first.",
     );
   }
+  return bindCatalogStore(
+    createFileCatalogStore(() => sourceCatalogPath, stateRoot),
+    config.profileName ?? "default",
+  );
+}
 
-  const stateRoot = options.stateRoot ?? resolveProfilePaths().stateRoot;
-  const releaseLock = await acquireStateLock(stateRoot);
-  try {
-    const existingContent = await readFile(sourceCatalogPath, "utf8");
-    const existingCatalog = parseGeneratedCatalog(existingContent);
-    if (!existingCatalog) {
-      throw new Error(
-        "configure_index can update only a managed generated catalog. Refusing to overwrite a hand-authored or modified catalog.",
-      );
-    }
+interface NextCatalog {
+  sources: SourceDefinition[];
+  source: SourceDefinition;
+  catalog: ReturnType<typeof createGeneratedCatalog>;
+}
 
-    const proposedSource = buildGeneratedSource([input.index], input.source_name, input.source_id);
-    const existingSource = existingCatalog.sources.find(
-      (source) => source.id === proposedSource.id,
+async function buildNextCatalog(
+  input: z.output<typeof configureIndexInputSchema>,
+  existingContent: string | undefined,
+  options: { kibanaClient: ConfigureIndexClient; callerSignal?: AbortSignal },
+): Promise<NextCatalog> {
+  // A profile that has no catalog yet starts from an empty managed one.
+  const existingCatalog =
+    existingContent === undefined
+      ? createGeneratedCatalog([])
+      : parseGeneratedCatalog(existingContent);
+  if (!existingCatalog) {
+    throw new Error(
+      "configure_index can update only a managed generated catalog. Refusing to overwrite a hand-authored or modified catalog.",
     );
-    if (
-      existingSource &&
-      !input.replace &&
-      JSON.stringify(existingSource.backend.index) !== JSON.stringify(proposedSource.backend.index)
-    ) {
-      throw new Error(
-        `Source id '${proposedSource.id}' already refers to a different index. Re-run with replace=true only after the user explicitly approves replacement.`,
-      );
-    }
-
-    const discoveredFields = await options.kibanaClient.describeFields(
-      proposedSource,
-      options.callerSignal,
-    );
-    if (discoveredFields.length === 0) {
-      throw new Error(
-        `Explicit index pattern '${input.index}' resolved to no fields. Check the index and Kibana permissions.`,
-      );
-    }
-    const generatedFields = chooseGeneratedSourceFields(discoveredFields, input.time_field);
-    const verifiedSource: SourceDefinition = {
-      ...proposedSource,
-      ...generatedFields,
-    };
-
-    await options.kibanaClient.execute(
-      {
-        source: verifiedSource,
-        request: {
-          body: {
-            size: 1,
-            track_total_hits: false,
-            query: { match_all: {} },
-          },
-        },
-        resolvedFilters: [],
-        resolvedNestedFilters: [],
-        resolvedSortBy: verifiedSource.timeField,
-        advisories: [],
-      },
-      options.callerSignal,
-    );
-
-    const sources = existingSource
-      ? existingCatalog.sources.map((source) =>
-          source.id === verifiedSource.id ? verifiedSource : source,
-        )
-      : [...existingCatalog.sources, verifiedSource];
-    const generatedCatalog = createGeneratedCatalog(sources);
-    await persistSourceCatalog(sources, {
-      sourceCatalogPath,
-      catalog: generatedCatalog,
-    });
-
-    return {
-      sources,
-      result: {
-        configured: true,
-        persisted: true,
-        source_catalog_path: sourceCatalogPath,
-        source_count: sources.length,
-        source_id: verifiedSource.id,
-        index: input.index,
-        time_field: verifiedSource.timeField,
-      },
-    };
-  } finally {
-    await releaseLock();
   }
+
+  const proposedSource = buildGeneratedSource([input.index], input.source_name, input.source_id);
+  const existingSource = existingCatalog.sources.find((source) => source.id === proposedSource.id);
+  if (
+    existingSource &&
+    !input.replace &&
+    JSON.stringify(existingSource.backend.index) !== JSON.stringify(proposedSource.backend.index)
+  ) {
+    throw new Error(
+      `Source id '${proposedSource.id}' already refers to a different index. Re-run with replace=true only after the user explicitly approves replacement.`,
+    );
+  }
+
+  const discoveredFields = await options.kibanaClient.describeFields(
+    proposedSource,
+    options.callerSignal,
+  );
+  if (discoveredFields.length === 0) {
+    throw new Error(
+      `Explicit index pattern '${input.index}' resolved to no fields. Check the index and Kibana permissions.`,
+    );
+  }
+  const generatedFields = chooseGeneratedSourceFields(discoveredFields, input.time_field);
+  const verifiedSource: SourceDefinition = {
+    ...proposedSource,
+    ...generatedFields,
+  };
+
+  await options.kibanaClient.execute(
+    {
+      source: verifiedSource,
+      request: {
+        body: {
+          size: 1,
+          track_total_hits: false,
+          query: { match_all: {} },
+        },
+      },
+      resolvedFilters: [],
+      resolvedNestedFilters: [],
+      resolvedSortBy: verifiedSource.timeField,
+      advisories: [],
+    },
+    options.callerSignal,
+  );
+
+  const sources = existingSource
+    ? existingCatalog.sources.map((source) =>
+        source.id === verifiedSource.id ? verifiedSource : source,
+      )
+    : [...existingCatalog.sources, verifiedSource];
+
+  return { sources, source: verifiedSource, catalog: createGeneratedCatalog(sources) };
 }
 
 export function createConfigureIndexCallToolResult(

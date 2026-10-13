@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { SchemaCatalog } from "../src/schema_catalog.js";
-import { SourceCatalog } from "../src/source_catalog.js";
+import { SchemaCatalog } from "../src/kibana/schema_catalog.js";
+import { SourceCatalog } from "../src/kibana/source_catalog.js";
 import { executeFilter, filterInputSchema } from "../src/tools/filter.js";
 import type { SourceDefinition, SourceFieldDescriptor } from "../src/types.js";
 

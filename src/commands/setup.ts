@@ -1,7 +1,7 @@
 import { type Command, InvalidArgumentError, Option } from "commander";
 
-import { type BootstrapResult, runBootstrap as runBootstrapFlow } from "../bootstrap.js";
-import { runSetupFlow } from "../setup_flow.js";
+import { type BootstrapResult, runBootstrap as runBootstrapFlow } from "../setup/bootstrap.js";
+import { runSetupFlow } from "../setup/setup_flow.js";
 import { PromptCancelledError, createPromptIo } from "../utils/cli_prompts.js";
 import type { CliCommandContext } from "./context.js";
 
@@ -112,7 +112,7 @@ async function runBootstrap(options: SetupOptions, context: CliCommandContext): 
 async function resolveBootstrapOptions(
   values: SetupOptions,
   context: CliCommandContext,
-  prompter?: import("../setup_flow.js").SetupPrompter,
+  prompter?: import("../setup/setup_flow.js").SetupPrompter,
 ): Promise<Parameters<typeof runBootstrapFlow>[0]> {
   const { env, stdin } = context.io;
   const baseUrl = values.url?.trim() || (await prompter?.prompt("Kibana base URL"))?.trim();

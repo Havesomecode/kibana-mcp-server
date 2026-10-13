@@ -3,7 +3,7 @@ import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { createGeneratedCatalog } from "../dist/src/bootstrap.js";
+import { createGeneratedCatalog } from "../dist/src/setup/bootstrap.js";
 
 export async function verifyPluginInstall(sourcePluginRoot) {
   const installRoot = await mkdtemp(join(tmpdir(), "kibana-plugin-install-"));

@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { acquireStateLock } from "../src/state_lock.js";
+import { acquireStateLock } from "../src/profiles/state_lock.js";
 
 const tempDirectories: string[] = [];
 
@@ -56,6 +56,25 @@ describe("acquireStateLock", () => {
     const releaseSecond = await second;
     expect(secondAcquired).toBe(true);
     await releaseSecond();
+  });
+
+  it("aborts a waiter promptly and removes only its pending directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "kibana-state-lock-"));
+    tempDirectories.push(root);
+    const release = await acquireStateLock(root);
+    const controller = new AbortController();
+    const pending = acquireStateLock(root, { signal: controller.signal, retryMs: 10000 });
+    const rejected = expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    try {
+      await waitFor(async () => (await readdir(root)).some((name) => name.endsWith(".pending")));
+      controller.abort();
+      await rejected;
+      expect(await readdir(root)).toEqual([".state.lock"]);
+    } finally {
+      await release();
+    }
+    const releaseNext = await acquireStateLock(root, { timeoutMs: 100 });
+    await releaseNext();
   });
 
   it("lets only one contender reclaim a stale lock", async () => {

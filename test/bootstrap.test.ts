@@ -3,16 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { resolveProfilePaths } from "../src/profiles/paths.js";
+import { SecretStoreError } from "../src/profiles/secret_store.js";
+import { ProfileStore } from "../src/profiles/store.js";
 import {
   buildGeneratedSource,
   chooseGeneratedSourceFields,
   createGeneratedCatalog,
   resolveCurrentPackageSpecifier,
   runBootstrap,
-} from "../src/bootstrap.js";
-import { resolveProfilePaths } from "../src/profile_paths.js";
-import { ProfileStore } from "../src/profile_store.js";
-import { SecretStoreError } from "../src/secret_store.js";
+} from "../src/setup/bootstrap.js";
 import type { SavedSecret, SourceFieldDescriptor } from "../src/types.js";
 
 const tempDirectories: string[] = [];

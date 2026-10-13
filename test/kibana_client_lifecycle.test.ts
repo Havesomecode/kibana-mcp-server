@@ -4,7 +4,7 @@ import { performance } from "node:perf_hooks";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { KibanaClient } from "../src/kibana_client.js";
+import { KibanaClient } from "../src/kibana/client.js";
 import type { CompiledSourceQuery, SourceDefinition } from "../src/types.js";
 
 const source: SourceDefinition = {
@@ -255,7 +255,9 @@ describe("KibanaClient request lifecycle", () => {
         code: "KIBANA_TIMEOUT",
       });
       await waitFor(() => backend.activeRequestCount === 0);
-      expect(backend.liveSocketCount).toBeLessThanOrEqual(1);
+      // The server sees a socket close slightly after its request ends, so wait for it rather
+      // than sampling once: a leak would still fail, by timing out.
+      await waitFor(() => backend.liveSocketCount <= 1);
     }
 
     backend.recover();

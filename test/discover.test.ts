@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { SourceCatalog } from "../src/source_catalog.js";
+import { SourceCatalog } from "../src/kibana/source_catalog.js";
 import { executeDiscover, formatDiscoverResult } from "../src/tools/discover.js";
 
 const catalog = new SourceCatalog([
