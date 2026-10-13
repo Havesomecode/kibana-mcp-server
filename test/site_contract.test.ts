@@ -163,15 +163,15 @@ describe("site contract", () => {
     expect(handoff).not.toContain("/Users/");
   });
 
-  it("labels the raw master README as a preview, not version-matched installation guidance", () => {
-    const html = readSiteFile("site/index.html");
+  it("publishes commit-pinned installation handoffs on the agent plugin page", () => {
+    const guide = readSiteFile("website/ai/agent-plugins.md");
 
-    expect(html).toContain(
-      'href="https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md"',
+    expect(guide).toContain("resolved installation commit");
+    expect(guide).toContain(
+      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md",
     );
-    expect(html).toContain("README (master preview)");
-    expect(html).toContain("installation commit");
-    expect(html).not.toContain("kibana-mcp-server/blob/master/README.md");
+    expect(guide).toContain("Do not infer a Git tag from an npm version");
+    expect(guide).not.toContain("kibana-mcp-server/refs/heads/master/README.md");
   });
 
   it.each([
@@ -179,6 +179,7 @@ describe("site contract", () => {
     "README.md",
     "skills/kibana-log-investigation/SKILL.md",
     "plugins/kibana-log-investigation/skills/install-and-configure/SKILL.md",
+    "website/ai/agent-plugins.md",
   ])("requires a version-matched README handoff in %s", (path) => {
     const instructions = readSiteFile(path);
     expect(instructions).toContain("resolved installation commit");
