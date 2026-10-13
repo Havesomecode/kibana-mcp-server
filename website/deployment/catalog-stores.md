@@ -1,3 +1,7 @@
+---
+description: "Where source catalogs can live: files, Redis, PostgreSQL, MongoDB, SQLite or a custom store."
+---
+
 # Catalog stores
 
 A source catalog is the list of logical sources a profile can query. By default catalogs are files. A **catalog store** keeps them somewhere else, one entry per profile, so that several server processes can share them and a redeploy does not lose them.

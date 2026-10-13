@@ -1,3 +1,7 @@
+---
+description: "Reference of the configure_index tool: configure one index or pattern as a logical source."
+---
+
 # `configure_index`
 
 Configures exactly one index or index pattern as a logical source, after the user has named it.

@@ -119,6 +119,7 @@
     "tsx": "^4.0.0",
     "typescript": "^7.0.2",
     "vitepress": "^1.6.4",
+    "vitepress-plugin-llms": "^1.14.0",
     "vitest": "^4.1.3"
   }
 }

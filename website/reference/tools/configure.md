@@ -1,3 +1,7 @@
+---
+description: "Reference of the legacy configure tool, only exposed over stdio on an unconfigured server."
+---
+
 # `configure`
 
 Legacy tool that replaces the Kibana connection and the whole source catalog. Only exposed over stdio, on a server started without any configuration.

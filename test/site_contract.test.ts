@@ -28,10 +28,49 @@ describe("site contract", () => {
     }
   });
 
+  it("publishes the documentation for language models", () => {
+    const config = readSiteFile("website/.vitepress/config.ts");
+
+    expect(config).toContain('from "vitepress-plugin-llms"');
+    expect(config).toContain("plugins: [llmstxt(");
+    expect(readSiteFile("website/ai/llms.md")).toContain("llms-full.txt");
+  });
+
+  it("keeps the Claude Code marketplace aligned with the documented install commands", () => {
+    const marketplace = JSON.parse(readSiteFile(".claude-plugin/marketplace.json")) as {
+      name: string;
+      plugins: Array<{ name: string; source: string }>;
+    };
+    const plugin = JSON.parse(readSiteFile(".claude-plugin/plugin.json")) as {
+      name: string;
+      mcpServers: Record<string, { command: string; args: string[] }>;
+    };
+    const guide = readSiteFile("website/ai/agent-plugins.md");
+
+    expect(marketplace.plugins).toHaveLength(1);
+    expect(marketplace.plugins[0]).toMatchObject({ name: plugin.name, source: "./" });
+    // The plugin root is the repository root, where the published skill lives.
+    expect(existsSync(resolve(repoRoot, "skills", plugin.name, "SKILL.md"))).toBe(true);
+    expect(Object.values(plugin.mcpServers)[0]).toEqual({
+      command: "npx",
+      args: ["-y", "@havesomecode/kibana-mcp-server", "serve"],
+    });
+    const skill = readSiteFile(`skills/${plugin.name}/SKILL.md`);
+
+    // The plugin registers the server, so in Claude Code the skill must not ask bootstrap to.
+    expect(skill).toMatch(/\| Claude Code \|[^\n]*\| `--client none` \|/);
+    expect(skill).toContain(`/plugin install ${plugin.name}@${marketplace.name}`);
+    expect(guide).toContain("claude plugin marketplace add Havesomecode/kibana-mcp-server");
+    expect(guide).toContain(`claude plugin install ${plugin.name}@${marketplace.name}`);
+  });
+
   it("serves the site from the project Pages path", () => {
     const config = readSiteFile("website/.vitepress/config.ts");
 
-    expect(config).toContain('base: "/kibana-mcp-server/"');
+    expect(config).toContain('const siteBase = "/kibana-mcp-server/"');
+    expect(config).toContain("base: siteBase");
+    // The AI icon of the navigation bar is a social link, which needs the base spelled out.
+    expect(config).toContain("link: `${siteBase}ai/`");
   });
 
   it("links every navigation and sidebar entry to an existing page", () => {

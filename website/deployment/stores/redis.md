@@ -1,3 +1,7 @@
+---
+description: "Keep source catalogs in Redis with the redis or ioredis client: options and durability requirements."
+---
+
 # Redis store
 
 Keeps one key per profile, without expiry. Two entry points are provided, one per client library; they behave the same.

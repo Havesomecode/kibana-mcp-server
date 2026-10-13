@@ -1,0 +1,20 @@
+{
+  "name": "kibana-mcp-server",
+  "owner": {
+    "name": "Havesomecode",
+    "url": "https://github.com/Havesomecode"
+  },
+  "metadata": {
+    "description": "Agent plugin for read-only Kibana log investigation: the investigation skill and the Kibana MCP server."
+  },
+  "plugins": [
+    {
+      "name": "kibana-log-investigation",
+      "displayName": "Kibana Log Investigation",
+      "source": "./",
+      "description": "Skill and MCP server to investigate Kibana logs: discover logical sources, inspect fields and run structured read-only queries.",
+      "category": "productivity",
+      "tags": ["kibana", "elasticsearch", "logs", "observability", "mcp", "investigation"]
+    }
+  ]
+}

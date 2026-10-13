@@ -1,3 +1,7 @@
+---
+description: "Every KIBANA_* environment variable read by the server."
+---
+
 # Environment variables
 
 The server reads its connection from environment variables when they are set. A [configuration file](./config-file) supplies the same values as defaults: a variable that is set always wins.

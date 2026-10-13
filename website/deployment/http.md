@@ -1,3 +1,7 @@
+---
+description: "Run one shared server over Streamable HTTP with a source catalog per caller."
+---
+
 # HTTP transport
 
 By default the server speaks stdio and serves one global configuration. To run it as a shared service, for example behind an MCP gateway, start it over Streamable HTTP:

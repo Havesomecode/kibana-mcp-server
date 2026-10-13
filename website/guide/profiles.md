@@ -1,3 +1,7 @@
+---
+description: "Saved machine profiles and how to work with several Kibana environments."
+---
+
 # Profiles and environments
 
 The preferred path is deterministic connection-only bootstrap:

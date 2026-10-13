@@ -1,4 +1,5 @@
 import type { Theme } from "vitepress";
+import CopyOrDownloadAsMarkdownButtons from "vitepress-plugin-llms/vitepress-components/CopyOrDownloadAsMarkdownButtons.vue";
 import DefaultTheme from "vitepress/theme";
 
 import Layout from "./Layout.vue";
@@ -11,6 +12,7 @@ export default {
   Layout,
   enhanceApp({ app }) {
     app.component("ContributorWall", ContributorWall);
+    app.component("CopyOrDownloadAsMarkdownButtons", CopyOrDownloadAsMarkdownButtons);
     app.component("PathCard", PathCard);
   },
 } satisfies Theme;

@@ -1,3 +1,7 @@
+---
+description: "What the HTTP transport trusts, the safeguards built in and how credentials are handled."
+---
+
 # Security model
 
 ## What the server trusts

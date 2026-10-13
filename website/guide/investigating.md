@@ -1,3 +1,7 @@
+---
+description: "The investigation workflow step by step: configure a source, discover, describe fields, then query."
+---
+
 # Investigating with an agent
 
 An investigation follows the same three moves every time: find the source, check its fields, then query. The agent drives them through MCP tools; this page shows what happens at each step.

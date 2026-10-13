@@ -1,3 +1,7 @@
+---
+description: "Implement the CatalogStore contract to keep source catalogs in any backend."
+---
+
 # Custom store
 
 A store is an object with two required methods. Implement them to keep catalogs anywhere: another database, an object bucket, an internal service.

@@ -1,3 +1,7 @@
+---
+description: "Keep source catalogs in MongoDB: options, document shape and replica set connections."
+---
+
 # MongoDB store
 
 Keeps one document per profile.

@@ -1,3 +1,7 @@
+---
+description: "What an MCP gateway or reverse proxy must do in front of the HTTP transport, with an nginx example."
+---
+
 # Behind an MCP gateway
 
 The HTTP transport does not authenticate end users. It expects to sit behind something that does: an MCP gateway, an API gateway or a reverse proxy. This page describes what that component has to do, whatever it is built with.

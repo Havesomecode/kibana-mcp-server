@@ -1,3 +1,7 @@
+---
+description: "Reference of the discover tool: list the logical sources of the current profile."
+---
+
 # `discover`
 
 Lists the logical sources configured for the current profile, with their field hints.

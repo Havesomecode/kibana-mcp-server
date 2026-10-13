@@ -1,3 +1,7 @@
+---
+description: "Reference of the filter tool: exact-field filtering without alias resolution."
+---
+
 # `filter`
 
 Runs an exact-field filter when the field name is already known, bypassing alias resolution.

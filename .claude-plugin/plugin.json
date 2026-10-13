@@ -1,0 +1,19 @@
+{
+  "name": "kibana-log-investigation",
+  "displayName": "Kibana Log Investigation",
+  "description": "Skill and MCP server to investigate Kibana logs: discover logical sources, inspect fields and run structured read-only queries.",
+  "author": {
+    "name": "Havesomecode",
+    "url": "https://github.com/Havesomecode"
+  },
+  "homepage": "https://havesomecode.github.io/kibana-mcp-server/ai/agent-plugins",
+  "repository": "https://github.com/Havesomecode/kibana-mcp-server",
+  "license": "MIT",
+  "keywords": ["kibana", "elasticsearch", "logs", "observability", "mcp", "investigation"],
+  "mcpServers": {
+    "kibana-log-investigation": {
+      "command": "npx",
+      "args": ["-y", "@havesomecode/kibana-mcp-server", "serve"]
+    }
+  }
+}
