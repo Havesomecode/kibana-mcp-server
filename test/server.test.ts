@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { KibanaRequestError } from "../src/kibana_client.js";
+import { KibanaRequestError } from "../src/kibana/client.js";
 import { createApplication } from "../src/server.js";
 import type { AppConfig } from "../src/types.js";
 
@@ -252,11 +252,11 @@ describe("createApplication", () => {
         }) as never,
     });
 
-    expect(() =>
+    await expect(
       application.handlers.discover({
         limit: 10,
       }),
-    ).toThrow("Server is not configured");
+    ).rejects.toThrow("Server is not configured");
 
     const configureResult = await application.handlers.configure({
       kibana: {
@@ -273,7 +273,7 @@ describe("createApplication", () => {
     const persistedCatalogPath = configureResult.source_catalog_path;
     expect(persistedCatalogPath).toContain("config/sources.runtime.json");
 
-    const discoverResult = application.handlers.discover({
+    const discoverResult = await application.handlers.discover({
       limit: 10,
     });
     expect(discoverResult.total).toBe(1);

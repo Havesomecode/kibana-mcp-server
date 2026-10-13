@@ -1,21 +1,22 @@
-import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type ClientRegistrar, CodexClientRegistrar } from "./client_registration.js";
-import { sourceCatalogSchema, sourceDefinitionSchema } from "./config.js";
-import { KibanaClient } from "./kibana_client.js";
-import { type ProfilePaths, resolveProfilePaths } from "./profile_paths.js";
-import { ProfileStore, deriveProfileId } from "./profile_store.js";
-import { type SecretStore, SecretStoreError, createSecretStore } from "./secret_store.js";
-import { acquireStateLock } from "./state_lock.js";
+import { sourceCatalogSchema, sourceDefinitionSchema } from "../config/environment.js";
+import { KibanaClient } from "../kibana/client.js";
+import { type ProfilePaths, resolveProfilePaths } from "../profiles/paths.js";
+import { type SecretStore, SecretStoreError, createSecretStore } from "../profiles/secret_store.js";
+import { acquireStateLock } from "../profiles/state_lock.js";
+import { ProfileStore, deriveProfileId } from "../profiles/store.js";
 import type {
   KibanaConnectionConfig,
   SavedSecret,
   SourceDefinition,
   SourceFieldDescriptor,
-} from "./types.js";
+} from "../types.js";
+import { readOptionalFile, writeTextAtomically } from "../utils/fs.js";
+import { type ClientRegistrar, CodexClientRegistrar } from "./client_registration.js";
 
 const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_MCP_NAME = "kibana-log-investigation";
@@ -373,8 +374,8 @@ function normalizeOptions(options: BootstrapOptions): RequiredBootstrapOptions {
 export async function resolveCurrentPackageSpecifier(): Promise<string> {
   const moduleDirectory = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(moduleDirectory, "..", "package.json"),
     join(moduleDirectory, "..", "..", "package.json"),
+    join(moduleDirectory, "..", "..", "..", "package.json"),
   ];
 
   for (const candidate of candidates) {
@@ -499,31 +500,8 @@ function normalizeBaseUrl(rawValue: string): string {
   return parsed.toString().replace(/\/+$/, "");
 }
 
-async function readOptionalFile(path: string): Promise<string | undefined> {
-  try {
-    return await readFile(path, "utf8");
-  } catch (error) {
-    if (isMissingFileError(error)) return undefined;
-    throw error;
-  }
-}
-
 async function writeJsonAtomically(path: string, value: unknown): Promise<void> {
   await writeTextAtomically(path, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-async function writeTextAtomically(path: string, content: string): Promise<void> {
-  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
-  await mkdir(dirname(path), { recursive: true });
-  try {
-    await writeFile(temporaryPath, content, {
-      encoding: "utf8",
-      mode: 0o600,
-    });
-    await rename(temporaryPath, path);
-  } finally {
-    await rm(temporaryPath, { force: true }).catch(() => {});
-  }
 }
 
 async function restoreFile(path: string, previousContent: string | undefined): Promise<void> {
@@ -544,10 +522,6 @@ async function restoreSecret(
     return;
   }
   await secretStore.delete(profileId);
-}
-
-function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
-  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
 }
 
 function formatIndex(index: string | string[] | undefined): string {

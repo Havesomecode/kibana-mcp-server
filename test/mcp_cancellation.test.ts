@@ -1,7 +1,7 @@
 import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { describe, expect, it } from "vitest";
 
-import { KibanaRequestError } from "../src/kibana_client.js";
+import { KibanaRequestError } from "../src/kibana/client.js";
 import { createApplication } from "../src/server.js";
 import type { AppConfig } from "../src/types.js";
 

@@ -1,9 +1,9 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
-import type { KibanaClient } from "../kibana_client.js";
-import type { SchemaCatalog } from "../schema_catalog.js";
-import type { SourceCatalog } from "../source_catalog.js";
+import type { KibanaClient } from "../kibana/client.js";
+import type { SchemaCatalog } from "../kibana/schema_catalog.js";
+import type { SourceCatalog } from "../kibana/source_catalog.js";
 import { executeQuery, queryOutputSchema } from "./query.js";
 
 const exactFilterSchema = z.object({

@@ -224,6 +224,108 @@ If you still prefer env-bootstrap entries, keep these distinct per environment:
 
 Using separate source-catalog paths matters because the `configure` tool persists sources to disk, and one shared runtime file would cause the environments to overwrite each other.
 
+### HTTP transport and per-caller profiles
+
+By default the server speaks stdio and serves one global configuration. To run it as a shared service, for example behind an MCP gateway, start it over Streamable HTTP:
+
+```bash
+KIBANA_BASE_URL=https://kibana.example.com \
+KIBANA_USERNAME=service-account \
+KIBANA_PASSWORD=... \
+KIBANA_SOURCE_CATALOG_PATH='/var/lib/kibana-mcp/catalogs/{profile}.json' \
+KIBANA_HTTP_AUTH_TOKEN=... \
+kibana-mcp-server serve --http --port 3000 --profile-header x-kibana-profile
+```
+
+One process then serves every caller. Each tool call is bound to the profile named by the configured header, so callers never share a source catalog:
+
+- with the `{profile}` placeholder in `KIBANA_SOURCE_CATALOG_PATH`, every profile gets its own catalog file and shares the environment connection.
+- with a `store` in the configuration file (see below), every profile gets its own entry in that store.
+- without bootstrap environment variables, the header selects a saved machine profile by name or id.
+- without `--profile-header`, the server refuses to start unless a default profile is named (`--profile`, `KIBANA_PROFILE` or `profile` in the configuration file); every caller is then served that one profile. Over stdio, per-profile catalogs fall back to the `default` profile.
+- profile names are compared exactly: `Alice` and `alice` are two profiles.
+
+A profile without a catalog starts empty and fills it through `configure_index`. Profile names are turned into filesystem-safe keys before they reach a path or a store: a plain lowercase slug is kept as is, anything else gets a digest suffix.
+
+HTTP options, as flags or environment variables:
+
+- `--host` / `KIBANA_HTTP_HOST`, default `127.0.0.1`
+- `--port` / `KIBANA_HTTP_PORT`, default `3000`
+- `--path` / `KIBANA_HTTP_PATH`, default `/mcp`
+- `--profile-header` / `KIBANA_HTTP_PROFILE_HEADER`, no default
+- `KIBANA_HTTP_AUTH_TOKEN`, shared secret expected as `Authorization: Bearer <token>`
+
+`GET /healthz` answers `200` without authentication.
+
+The profile header is trusted as sent: the server does not authenticate end users itself. Only a gateway that has already authenticated the caller should be able to reach it. The server refuses to listen on a non-loopback host without `KIBANA_HTTP_AUTH_TOKEN`, and the legacy `configure` tool is not exposed over HTTP.
+
+### Configuration file and catalog stores
+
+Instead of environment variables, the server can read a configuration file, in stdio and in HTTP mode alike:
+
+```bash
+kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
+```
+
+```ts
+// kibana.mcp.config.ts
+import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";
+import store from "@havesomecode/kibana-mcp-server/stores/redis";
+
+export default defineKibanaMcpConfig({
+  url: process.env.KIBANA_URL,
+  user: process.env.KIBANA_USER,
+  password: process.env.KIBANA_PASSWORD,
+  store,
+  storeOptions: { url: process.env.REDIS_URL, keyPrefix: "kibana-mcp:production:" },
+  http: { port: 3000, profileHeader: "x-kibana-profile", authToken: process.env.MCP_TOKEN },
+});
+```
+
+- `url`, `user`, `password`, `timeoutMs`, `profile` and `http.*` are defaults: the matching `KIBANA_*` environment variable or `serve` flag wins when set.
+- `store` decides where source catalogs live, one per profile. `storeOptions` is handed to the store factory. Without `store`, catalogs are files.
+- The file is executed as code, so it is loaded only when named with `--config` or `KIBANA_MCP_CONFIG`, never discovered from the working directory. A `.ts` file needs Node.js 22.18 or later; `.mjs` works everywhere.
+
+Bundled stores, each imported from its own entry point so that only the driver you use is loaded:
+
+| Import | Driver to install | `storeOptions` |
+| --- | --- | --- |
+| `@havesomecode/kibana-mcp-server/stores/redis` | `redis` | `url`, `keyPrefix`, `client` |
+| `@havesomecode/kibana-mcp-server/stores/ioredis` | `ioredis` | `url`, `keyPrefix`, `client` (standalone, Sentinel or Cluster) |
+| `@havesomecode/kibana-mcp-server/stores/postgres` | `pg` | `url`, `table`, `createTable`, `client` |
+| `@havesomecode/kibana-mcp-server/stores/mongodb` | `mongodb` | `url`, `database`, `collectionName`, `collection` |
+| `@havesomecode/kibana-mcp-server/stores/sqlite` | none, uses `node:sqlite` | `path`, `table`, `database` |
+
+- Drivers are optional peer dependencies: install the one you need next to the server.
+- `url` defaults to `KIBANA_STORE_URL`, then to the usual variable of the backend (`REDIS_URL`, `DATABASE_URL`, `MONGODB_URI` or `MONGO_URL`). For SQLite, `path` defaults to `KIBANA_STORE_URL`.
+- Defaults: key prefix `kibana-mcp:catalog:`, table and collection `kibana_mcp_catalogs`. The SQL stores create their table unless `createTable` is `false`.
+- Pass `client`, `collection` or `database` to reuse a connection you configured yourself. The store then never closes it.
+- Every store replaces a catalog only if it still holds the content that was read, so concurrent writers cannot overwrite each other.
+- With Redis, use an instance with persistence and a `noeviction` policy: catalogs are data, not a cache.
+
+A store-backed catalog is read on every tool call, so several server processes sharing one store always serve the same sources.
+
+To keep catalogs anywhere else, implement the store contract:
+
+```ts
+import { CatalogConflictError, type CatalogStore } from "@havesomecode/kibana-mcp-server/config";
+
+export default function myStore(options: { table: string }): CatalogStore {
+  return {
+    // serialized catalog of the profile, or undefined when it has none yet
+    read: async (profileKey) => db.get(options.table, profileKey),
+    // write only if the stored content is still `expected`, else throw CatalogConflictError
+    replace: async (profileKey, expected, next) => {
+      if (!(await db.compareAndSet(options.table, profileKey, expected, next))) {
+        throw new CatalogConflictError(profileKey);
+      }
+    },
+    describe: (profileKey) => `db://${options.table}/${profileKey}`,
+    close: () => db.close(),
+  };
+}
+```
+
 Each source definition should provide:
 
 - stable `id`

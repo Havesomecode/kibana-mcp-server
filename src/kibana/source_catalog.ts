@@ -1,4 +1,4 @@
-import type { DiscoverSourceResult, SourceDefinition } from "./types.js";
+import type { DiscoverSourceResult, SourceDefinition } from "../types.js";
 
 export class SourceCatalog {
   private readonly sourceMap: Map<string, SourceDefinition>;

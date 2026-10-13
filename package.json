@@ -10,6 +10,34 @@
   },
   "type": "module",
   "main": "dist/src/mcp_entry.js",
+  "exports": {
+    ".": "./dist/src/mcp_entry.js",
+    "./config": {
+      "types": "./dist/src/config/config_file.d.ts",
+      "default": "./dist/src/config/config_file.js"
+    },
+    "./stores/ioredis": {
+      "types": "./dist/src/stores/ioredis.d.ts",
+      "default": "./dist/src/stores/ioredis.js"
+    },
+    "./stores/mongodb": {
+      "types": "./dist/src/stores/mongodb.d.ts",
+      "default": "./dist/src/stores/mongodb.js"
+    },
+    "./stores/postgres": {
+      "types": "./dist/src/stores/postgres.d.ts",
+      "default": "./dist/src/stores/postgres.js"
+    },
+    "./stores/redis": {
+      "types": "./dist/src/stores/redis.d.ts",
+      "default": "./dist/src/stores/redis.js"
+    },
+    "./stores/sqlite": {
+      "types": "./dist/src/stores/sqlite.d.ts",
+      "default": "./dist/src/stores/sqlite.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "kibana-mcp-server": "dist/src/bin/kibana-mcp-server.js"
   },
@@ -55,11 +83,35 @@
     "commander": "^14.0.3",
     "zod": "^4.0.0"
   },
+  "peerDependencies": {
+    "ioredis": ">=5.0.0",
+    "mongodb": "^6.0.0 || ^7.0.0",
+    "pg": "^8.0.0",
+    "redis": "^6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "ioredis": {
+      "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "redis": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@biomejs/biome": "^1.8.3",
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@types/node": "^25.5.2",
+    "ioredis": "^6.0.0",
+    "mongodb": "^7.6.0",
+    "pg": "^8.23.0",
+    "redis": "^6.2.1",
     "semantic-release": "^25.0.1",
     "tsx": "^4.0.0",
     "typescript": "^7.0.2",

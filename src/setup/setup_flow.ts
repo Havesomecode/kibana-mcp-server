@@ -2,12 +2,12 @@ import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { sourceCatalogSchema } from "./config.js";
-import { type ProfilePaths, resolveProfilePaths } from "./profile_paths.js";
-import { ProfileStore, deriveProfileId } from "./profile_store.js";
-import { type SecretStore, SecretStoreError, createSecretStore } from "./secret_store.js";
-import { acquireStateLock } from "./state_lock.js";
-import type { SavedProfile } from "./types.js";
+import { sourceCatalogSchema } from "../config/environment.js";
+import { type ProfilePaths, resolveProfilePaths } from "../profiles/paths.js";
+import { type SecretStore, SecretStoreError, createSecretStore } from "../profiles/secret_store.js";
+import { acquireStateLock } from "../profiles/state_lock.js";
+import { ProfileStore, deriveProfileId } from "../profiles/store.js";
+import type { SavedProfile } from "../types.js";
 
 const DEFAULT_TIMEOUT_MS = 10000;
 const KNOWN_ENDPOINT_PATHS = [

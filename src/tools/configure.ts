@@ -1,7 +1,7 @@
 import type { CallToolResult } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
-import { persistSourceCatalog, sourceDefinitionSchema } from "../config.js";
+import { persistSourceCatalog, sourceDefinitionSchema } from "../config/environment.js";
 import type { AppConfig } from "../types.js";
 
 export const configureInputSchema = z.object({

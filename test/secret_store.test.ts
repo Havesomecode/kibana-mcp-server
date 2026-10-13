@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { type SecretStoreError, createSecretStore } from "../src/secret_store.js";
+import { type SecretStoreError, createSecretStore } from "../src/profiles/secret_store.js";
 
 interface CommandCall {
   command: string;
