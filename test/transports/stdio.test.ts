@@ -150,7 +150,7 @@ describe("serve over stdio, as a real process", () => {
   });
 
   afterEach(async () => {
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
 
   it("answers MCP requests on stdout using a configuration file and its store", async () => {
@@ -216,8 +216,11 @@ describe("serve over stdio, as a real process", () => {
 
       expect(sourceIdsOf(responses.get(2))).toEqual(["orders"]);
     } finally {
+      // Wait for the process to be gone: on Windows its database file cannot be removed before.
       child.removeAllListeners("exit");
+      const exited = new Promise((resolveExit) => child.once("exit", resolveExit));
       child.kill();
+      await exited;
     }
   }, 20_000);
 });
