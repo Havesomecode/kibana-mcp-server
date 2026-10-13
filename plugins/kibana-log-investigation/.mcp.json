@@ -3,8 +3,9 @@
     "kibana-log-investigation": {
       "type": "stdio",
       "command": "node",
-      "args": ["./dist/src/mcp_entry.js"],
-      "note": "Local stdio MCP server for this repo. Requires Node.js 22+ and a built dist/ directory. If dependencies or dist are missing, run npm install and npm run build from the repository root first."
+      "args": ["./mcp-launcher.mjs"],
+      "cwd": ".",
+      "note": "Requires Node.js 22+. The built plugin includes its runtime dependencies. Build the checkout before installing the plugin. If runtime files are missing, rebuild and reinstall; opening new discussions does not repair startup failures."
     }
   }
 }

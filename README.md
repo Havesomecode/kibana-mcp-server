@@ -103,7 +103,7 @@ npm run build
 4. Open the cloned repo in Codex.
 5. Open the plugin directory in Codex and install `Kibana Log Investigation` from the repo marketplace.
    - if the current model cannot complete that install itself, do the Codex UI click manually and let the agent continue with configuration afterward
-6. Restart Codex if the new MCP server does not appear immediately.
+6. Check the plugin's process startup status. If it fails, inspect sanitized stderr and rebuild/reinstall the plugin; repeated fresh threads cannot fix missing runtime files. Restart once only after startup succeeds if the tools need refreshing.
 7. Run `node dist/src/bin/kibana-mcp-server.js bootstrap --client none` to verify the connection and save an empty profile. The repo plugin already supplies the client registration.
 8. In a fresh thread, call `discover`, ask the user for the exact index or pattern, then call `configure_index` only after they answer.
 
@@ -112,6 +112,10 @@ Repo-scoped plugin files:
 - `.agents/plugins/marketplace.json`
 - `plugins/kibana-log-investigation/.codex-plugin/plugin.json`
 - `plugins/kibana-log-investigation/.mcp.json`
+- `plugins/kibana-log-investigation/mcp-launcher.mjs`
+- `plugins/kibana-log-investigation/dist/` (generated bundled runtime and dependency notices)
+
+The build packages the server and runtime dependencies inside the plugin. Codex resolves its declared `cwd: "."` against the installed plugin root, so it does not need the original checkout or repository `node_modules` to start. `npm run verify:entrypoint` tests a copied, installed plugin with `initialize`, `tools/list`, and `discover` using a synthetic connection-only fixture. A saved registration, process startup, native tools in a fresh Codex thread, and backend/index access are separate checks; see [startup diagnostics](./INSTALL.md#diagnose-plugin-startup-before-restarting-discussions).
 
 ### Minimal handoff prompt
 

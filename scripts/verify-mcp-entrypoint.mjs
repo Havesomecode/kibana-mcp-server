@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { verifyPluginInstall } from "./verify-plugin-install.mjs";
 
 const execFileAsync = promisify(execFile);
 const npmExecPath = process.env.npm_execpath;
@@ -31,7 +32,7 @@ if (!server?.args?.length) {
   throw new Error("MCP config missing args for kibana-log-investigation.");
 }
 
-const entrypoint = resolve(repoRoot, server.args[0]);
+const entrypoint = resolve(repoRoot, expectedServerPath);
 
 if (!existsSync(entrypoint)) {
   throw new Error(`Expected MCP entrypoint missing: ${entrypoint}`);
@@ -58,9 +59,8 @@ if (packageJson?.scripts?.start !== `node ${expectedServerPath}`) {
   );
 }
 
-const normalizedEntrypoint = server.args[0].replace(/^[.][\\/]/, "");
-if (normalizedEntrypoint !== expectedServerPath) {
-  throw new Error(`MCP config must point to ${expectedServerPath}. Received: ${server.args[0]}`);
+if (server.command !== "node" || server.cwd !== "." || server.args[0] !== "./mcp-launcher.mjs") {
+  throw new Error("MCP config must launch the bundled runtime from the installed plugin root.");
 }
 
 const builtEntrypoint = await readFile(entrypoint, "utf8");
@@ -97,6 +97,12 @@ try {
     process.execPath,
     [npmExecPath, "install", "--ignore-scripts", "--no-audit", "--no-fund", tarballPath],
     { ...npmCommandOptions, cwd: consumerRoot },
+  );
+  await verifyPluginInstall(
+    join(
+      consumerRoot,
+      "node_modules/@havesomecode/kibana-mcp-server/plugins/kibana-log-investigation",
+    ),
   );
   const installedCli = join(
     consumerRoot,
