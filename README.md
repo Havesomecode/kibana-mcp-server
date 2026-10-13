@@ -50,6 +50,8 @@ npx skills add Havesomecode/kibana-mcp-server \
 
 `INSTALL.md` is the deterministic install and handoff guide for agents.
 
+For a version-matched handoff, resolve the selected branch, tag, or package metadata to the full commit SHA. That SHA is the **resolved installation commit** used in `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md`. Read `INSTALL.md` and the skills from the same commit. Do not infer a Git tag from an npm version; use the exact package's `gitHead`. A maintained checkout can verify the handoff with `node scripts/readme-handoff.mjs <resolved-installation-ref>`.
+
 ## Run it as a shared service
 
 By default the server speaks stdio and serves one configuration. Over HTTP, one process serves every caller of your gateway, each with their own source catalog:
@@ -75,11 +77,16 @@ kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
 
 Catalogs can live in files, Redis, PostgreSQL, MongoDB, SQLite, or a store you write. The HTTP transport trusts the profile header as sent: only a gateway that has authenticated the caller should reach it.
 
+## Repository Codex plugin
+
+`npm run build` creates a self-contained runtime in `plugins/kibana-log-investigation/dist/`. The repo-local Codex plugin launches that installed bundle through `mcp-launcher.mjs`, without depending on the original checkout or its `node_modules`. Use `npm run verify:entrypoint` for the isolated copied-plugin handshake, and inspect Codex's MCP startup status plus sanitized stderr before restarting a discussion.
+
 ## Documentation
 
 | Topic | Link |
 | --- | --- |
 | Getting started | https://havesomecode.github.io/kibana-mcp-server/guide/getting-started |
+| Agent plugins and skills | https://havesomecode.github.io/kibana-mcp-server/ai/agent-plugins |
 | Investigating with an agent | https://havesomecode.github.io/kibana-mcp-server/guide/investigating |
 | HTTP transport and security model | https://havesomecode.github.io/kibana-mcp-server/deployment/http |
 | Catalog stores | https://havesomecode.github.io/kibana-mcp-server/deployment/catalog-stores |

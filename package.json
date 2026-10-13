@@ -49,6 +49,9 @@
     "dist/**",
     "plugins/kibana-log-investigation/.mcp.json",
     "plugins/kibana-log-investigation/.codex-plugin/plugin.json",
+    "plugins/kibana-log-investigation/mcp-launcher.mjs",
+    "plugins/kibana-log-investigation/dist/**",
+    "plugins/kibana-log-investigation/skills/**",
     "skills/kibana-log-investigation/**",
     "README.md",
     "LICENSE",
@@ -59,7 +62,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/build-plugin.mjs",
     "check:types": "tsc --noEmit -p tsconfig.json",
     "lint": "biome lint .",
     "format": "biome format . --write",
@@ -111,6 +114,7 @@
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@types/node": "^25.5.2",
+    "esbuild": "^0.28.2",
     "ioredis": "^6.0.0",
     "mongodb": "^7.6.0",
     "pg": "^8.23.0",

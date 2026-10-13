@@ -35,6 +35,9 @@ describe("package contract", () => {
       "dist/**",
       "plugins/kibana-log-investigation/.mcp.json",
       "plugins/kibana-log-investigation/.codex-plugin/plugin.json",
+      "plugins/kibana-log-investigation/mcp-launcher.mjs",
+      "plugins/kibana-log-investigation/dist/**",
+      "plugins/kibana-log-investigation/skills/**",
       "README.md",
       "LICENSE",
     ];

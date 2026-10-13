@@ -148,6 +148,19 @@ node dist/src/bin/kibana-mcp-server.js bootstrap --client none
 
 The repo-scoped Codex plugin already supplies the MCP entry, so `--client none` avoids a duplicate global registration.
 
+`npm run build` also bundles the MCP server and its runtime dependencies into `plugins/kibana-log-investigation/dist/`. Install the plugin only after that build. The plugin declares `cwd: "."`, which Codex resolves against its installed plugin directory, and its launcher resolves the bundle relative to itself. The installed plugin does not depend on the original checkout, its root `dist/`, or its `node_modules`. Node.js 22+ must still be available on `PATH`.
+
+Run `npm run verify:entrypoint` to pack and install the actual npm artifact, copy only its plugin into an isolated cache directory, and perform a bounded `initialize`, `tools/list`, and `discover` handshake. This uses an explicitly synthetic connection and empty managed catalog; it does not validate a real Kibana backend or a native Codex discussion.
+
+### Diagnose plugin startup before restarting discussions
+
+1. **Saved configuration:** a plugin entry or successful bootstrap is not proof the process started.
+2. **Process startup:** inspect Codex's MCP startup status and sanitized stderr. A missing plugin runtime requires rebuilding the checkout and reinstalling the built plugin, not another discussion. Node/version and module-loading failures print repair instructions on stderr, never MCP stdout.
+3. **Current discussion:** after startup succeeds, open one fresh Codex discussion and call the native `discover` tool. If it is absent, inspect plugin enablement and startup logs; do not repeat restarts indefinitely.
+4. **Backend access:** an empty `discover` response proves local tools work, not backend reachability. Bootstrap verifies `/api/status`; only an explicitly selected `configure_index` validation establishes access to that index.
+
+Before sharing startup logs, remove credentials, authorization headers, credential-bearing URLs, and any operational data. Never paste passwords or complete environment dumps into an issue.
+
 ## Verification
 
 Bootstrap success verifies:
