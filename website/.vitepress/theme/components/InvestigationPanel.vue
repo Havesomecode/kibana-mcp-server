@@ -63,8 +63,5 @@ const peak = Math.max(...histogram);
     <span class="investigation__chip investigation__chip--top" aria-hidden="true">
       query_echo · app-logs · 60m window
     </span>
-    <span class="investigation__chip investigation__chip--bottom" aria-hidden="true">
-      service.name = checkout
-    </span>
   </div>
 </template>
