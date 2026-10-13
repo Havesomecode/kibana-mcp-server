@@ -69,10 +69,40 @@ describe("site contract", () => {
     );
 
     expect(handoff).toContain(
-      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/master/INSTALL.md",
+      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md",
     );
+    expect(handoff).not.toContain("kibana-mcp-server/master/INSTALL.md");
+    expect(handoff).toContain("resolved installation ref");
     expect(handoff).not.toContain("raw.githubusercontent.com/Zacaria/");
     expect(handoff).not.toContain("/Users/");
+  });
+
+  it("labels the raw master README as a preview, not version-matched installation guidance", () => {
+    const html = readSiteFile("site/index.html");
+
+    expect(html).toContain(
+      'href="https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md"',
+    );
+    expect(html).toContain("README (master preview)");
+    expect(html).toContain("resolved installation ref");
+    expect(html).not.toContain("kibana-mcp-server/blob/master/README.md");
+  });
+
+  it.each([
+    "INSTALL.md",
+    "README.md",
+    "skills/kibana-log-investigation/SKILL.md",
+    "plugins/kibana-log-investigation/skills/install-and-configure/SKILL.md",
+  ])("requires a version-matched README handoff in %s", (path) => {
+    const instructions = readSiteFile(path);
+    expect(instructions).toContain("resolved installation ref");
+    expect(instructions).toContain(
+      "https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md",
+    );
+    expect(instructions).toContain("refs/heads/<branch>");
+    expect(instructions).toContain("refs/tags/<tag>");
+    expect(instructions).toContain("commit SHA");
+    expect(instructions).toContain("Do not infer a Git tag from an npm version");
   });
 
   it("keeps the timeout bug handoff synthetic and portable", () => {

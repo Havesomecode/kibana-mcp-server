@@ -7,6 +7,18 @@ description: Bootstrap and use the Kibana log investigation MCP safely.
 
 Use this skill when an operator wants to install, configure, or use the read-only Kibana MCP server from `@havesomecode/kibana-mcp-server`.
 
+## Version-matched installation instructions
+
+Before installing or generating a handoff, read `README.md` at the resolved installation ref. For an explicitly selected master installation, use exactly:
+
+```text
+https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/refs/heads/master/README.md
+```
+
+For other installations, use `refs/heads/<branch>`, `refs/tags/<tag>`, or the full commit SHA directly in that URL, and read `INSTALL.md` and skills from the same ref. Do not infer a Git tag from an npm version. Resolve the exact npm package's `gitHead` instead, or report missing metadata; pin the package installation to the same exact version. A verified branch/tag must resolve to the actual installation commit. Never silently fall back to master if the ref or README is missing or retrieval fails.
+
+In a maintained clone with the repository-only helper, run `node scripts/readme-handoff.mjs <resolved-installation-ref>` and use its verified `url` and `commit` in the handoff. The helper checks the retrieved README against that Git commit before output. It is not an npm command and need not exist in historical tags. If unavailable, resolve the selected ref and validate its raw README explicitly; do not invent successful retrieval. See `INSTALL.md`'s version-matched handoff section.
+
 ## Connection-only installation
 
 Do not edit Codex or MCP configuration files by hand. Bootstrap establishes only the Kibana connection and an empty managed source catalog. It must not list, scan, infer, or configure indexes.
