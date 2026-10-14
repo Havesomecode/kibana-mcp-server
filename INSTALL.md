@@ -2,7 +2,7 @@
 
 This is the canonical install and handoff guide for `@havesomecode/kibana-mcp-server`.
 
-The supported newcomer path is a prompt-free, connection-only bootstrap. Bootstrap never lists, scans, infers, or configures Kibana indexes. Agents must use the CLI contract below instead of editing Codex or MCP configuration files.
+The supported newcomer path is connection-only bootstrap. It prompts for missing connection values and is prompt-free when all values are supplied. Bootstrap never lists, scans, infers, or configures Kibana indexes. Agents must use the CLI contract below instead of editing Codex or MCP configuration files.
 
 ## Version-Matched README Handoff
 
@@ -32,15 +32,15 @@ Pass the verified URL and resolved commit to the receiving agent. A master previ
 - Node.js 22 or newer
 - `codex` on `PATH` when `--client codex` is used
 - a Kibana base URL reachable with basic authentication
-- credentials supplied through a trusted environment or stdin
+- credentials supplied through a trusted environment, stdin, or a secret prompt
 
-Provision these machine values before installation:
+For prompt-free automation, provision these values before installation:
 
 - `KIBANA_BASE_URL`
 - `KIBANA_USERNAME`
 - `KIBANA_PASSWORD`
 
-No index is required or accepted during bootstrap.
+Without these values, bootstrap prompts for the missing connection inputs. No index is required or accepted during bootstrap.
 
 ## Install The Agent Skill
 
@@ -73,7 +73,7 @@ npx -y @havesomecode/kibana-mcp-server bootstrap \
   --client codex
 ```
 
-Bootstrap is non-interactive and idempotent for profiles it generated. It:
+With all connection values supplied, bootstrap is non-interactive. It is idempotent for profiles it generated and:
 
 1. validates the connection inputs;
 2. checks for a missing or conflicting Codex registration;
@@ -88,6 +88,8 @@ Bootstrap is non-interactive and idempotent for profiles it generated. It:
 11. restores prior machine state if registration fails.
 
 A non-zero exit means installation did not complete. A successful exit verifies the connection, not any index.
+
+After bootstrap, remove `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` from the MCP server environment before reconnecting so startup uses the saved profile. In Bash, run `unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD`; in PowerShell, run `Remove-Item Env:KIBANA_BASE_URL, Env:KIBANA_USERNAME, Env:KIBANA_PASSWORD -ErrorAction SilentlyContinue`. Leaving direct connection values set overrides profile selection and requires an explicit catalog path or store.
 
 ## Explicit Index Selection
 
@@ -157,7 +159,7 @@ If a profile points to a hand-authored or operator-modified catalog, bootstrap f
 
 ## Example Catalog Policy
 
-`config/sources.example.json` is documentation data. It never participates in bootstrap precedence. `bootstrap` is always connection-only, including without flags. Guided `setup` is a separate command with no bootstrap flags, for operators who explicitly want a hand-authored catalog:
+`config/sources.example.json` is documentation data. It never participates in bootstrap precedence. `bootstrap` is always connection-only, including without flags. Bare `setup` guides operators who explicitly want a hand-authored catalog; with connection options, `setup` uses the same connection-only bootstrap flow:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server setup

@@ -91,11 +91,13 @@ describe("startMcpServer", () => {
     transports.startError = undefined;
     transports.instances.length = 0;
     directory = await mkdtemp(join(tmpdir(), "kibana-mcp-stdio-"));
+    vi.stubEnv("KIBANA_STATE_DIR", directory);
   });
 
   afterEach(async () => {
     for (const transport of transports.instances) transport.onclose?.();
     await new Promise((resolveDone) => setImmediate(resolveDone));
+    vi.unstubAllEnvs();
     await rm(directory, { recursive: true, force: true });
   });
 

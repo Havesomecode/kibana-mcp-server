@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 import { runCli } from "../src/bin/run_cli.js";
+import { PromptCancelledError } from "../src/utils/cli_prompts.js";
 
 const connectionEnv = {
   KIBANA_BASE_URL: "https://kibana.example.com",
@@ -227,7 +228,7 @@ describe("runCli", () => {
     expect(stdout.join("\n")).not.toContain("prompt-secret");
   });
 
-  it("registers setup and bootstrap separately and keeps connection flags off setup", async () => {
+  it("registers setup and bootstrap separately with shared connection options", async () => {
     const stdout: string[] = [];
     expect(
       await runCli(["node", "kibana-mcp-server", "--help"], {
@@ -246,8 +247,9 @@ describe("runCli", () => {
       }),
     ).toBe(0);
     expect(stdout.join("\n")).toContain("guided");
-    expect(stdout.join("\n")).not.toContain("--url");
-    expect(stdout.join("\n")).not.toContain("--password");
+    expect(stdout.join("\n")).toContain("--url");
+    expect(stdout.join("\n")).toContain("--password-stdin");
+    expect(stdout.join("\n")).not.toContain("--index");
   });
 
   it("passes Commander-parsed equals, repeated, numeric and negated bootstrap options", async () => {
@@ -364,20 +366,197 @@ describe("runCli", () => {
     expect(stdout.join("\n")).not.toContain("--time-field");
   });
 
-  it("rejects bootstrap flags on guided setup", async () => {
-    const runBootstrapFn = vi.fn();
-    const runSetupFlowFn = vi.fn();
-    const stderr: string[] = [];
+  it("accepts deterministic setup flags as a bootstrap-compatible alias", async () => {
+    let called = false;
     const exitCode = await runCli(
-      ["node", "kibana-mcp-server", "setup", "--profile", "default"],
-      { env: connectionEnv, stdout: () => {}, stderr: (text) => stderr.push(text) },
+      [
+        "node",
+        "kibana-mcp-server",
+        "setup",
+        "--profile",
+        "default",
+        "--url",
+        "https://kibana.example.com",
+        "--username",
+        "elastic",
+        "--password-env",
+        "KIBANA_PASSWORD",
+        "--client",
+        "none",
+      ],
+      {
+        stdout: () => {},
+        stderr: () => {},
+        env: {
+          KIBANA_BASE_URL: "https://kibana.example.com",
+          KIBANA_USERNAME: "elastic",
+          KIBANA_PASSWORD: "secret",
+        },
+      },
+      {
+        async runBootstrapFn() {
+          called = true;
+          return {
+            profileName: "default",
+            profileId: "default",
+            sourceCount: 0,
+            sourceCatalogPath: "/tmp/consumer.json",
+            client: "none" as const,
+            registered: false,
+            verified: true as const,
+          };
+        },
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(called).toBe(true);
+  });
+
+  it.each([
+    [["--profile=prod"], { profileName: "prod" }],
+    [["--url=https://override.example.com"], { baseUrl: "https://override.example.com" }],
+    [["--username=first", "--username=last"], { username: "last" }],
+    [["--password-stdin"], { password: " stdin-secret " }],
+    [["--password-env=OTHER_SECRET"], { password: " alternate-secret " }],
+    [["--timeout=120000"], { timeoutMs: 120000 }],
+    [["--client=none"], { client: "none" }],
+    [["--package=example@1.0.0"], { packageSpecifier: "example@1.0.0" }],
+    [["--mcp-name=custom"], { mcpName: "custom" }],
+    [["--replace"], { replaceExisting: true }],
+    [["--no-default"], { makeDefault: false }],
+  ] as const)(
+    "uses connection-only setup for explicitly supplied options %j",
+    async (flags, expected) => {
+      const runBootstrapFn = vi.fn().mockResolvedValue(bootstrapResult);
+      const runSetupFlowFn = vi.fn();
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const exitCode = await runCli(
+        ["node", "kibana-mcp-server", "setup", ...flags],
+        {
+          env: {
+            ...connectionEnv,
+            KIBANA_PROFILE: " staging ",
+            OTHER_SECRET: " alternate-secret ",
+          },
+          stdin: flags.some((flag) => flag === "--password-stdin")
+            ? Readable.from(" stdin-secret \r\n")
+            : new Readable({
+                read() {
+                  throw new Error("Unexpected stdin read");
+                },
+              }),
+          stdout: (text) => stdout.push(text),
+          stderr: (text) => stderr.push(text),
+        },
+        { runBootstrapFn, runSetupFlowFn },
+      );
+
+      expect(exitCode).toBe(0);
+      expect(stderr).toEqual([]);
+      expect(runSetupFlowFn).not.toHaveBeenCalled();
+      expect(runBootstrapFn).toHaveBeenCalledExactlyOnceWith({
+        profileName: "staging",
+        baseUrl: connectionEnv.KIBANA_BASE_URL,
+        username: connectionEnv.KIBANA_USERNAME,
+        password: connectionEnv.KIBANA_PASSWORD,
+        client: "codex",
+        makeDefault: true,
+        replaceExisting: false,
+        packageSpecifier: undefined,
+        mcpName: undefined,
+        timeoutMs: undefined,
+        ...expected,
+      });
+      expect(stdout.join("\n")).toContain("No Kibana indexes were inspected or configured");
+      expect(stdout.join("\n")).not.toContain("secret");
+    },
+  );
+
+  it.each([
+    [["--timeout=0"], "--timeout"],
+    [["--timeout=1.5"], "--timeout"],
+    [["--client=invalid"], "Allowed choices are codex, none"],
+    [["--password-stdin", "--password-env=OTHER_SECRET"], "cannot be used with"],
+    [["--password-env=OTHER_SECRET", "--password-stdin"], "cannot be used with"],
+    [["--password", "argument-secret"], "unknown option '--password'"],
+    [["--index", "logs-*"], "unknown option '--index'"],
+    [["--password-env=MISSING_SECRET"], "Kibana password is required"],
+  ] as const)(
+    "validates setup connection options %j before running bootstrap",
+    async (flags, message) => {
+      const runBootstrapFn = vi.fn();
+      const runSetupFlowFn = vi.fn();
+      const stderr: string[] = [];
+      const exitCode = await runCli(
+        ["node", "kibana-mcp-server", "setup", ...flags],
+        {
+          env: connectionEnv,
+          stdin: Readable.from(""),
+          stdout: () => {},
+          stderr: (text) => stderr.push(text),
+        },
+        { runBootstrapFn, runSetupFlowFn },
+      );
+
+      expect(exitCode).toBe(1);
+      expect(runBootstrapFn).not.toHaveBeenCalled();
+      expect(runSetupFlowFn).not.toHaveBeenCalled();
+      expect(stderr.join("\n")).toContain(message);
+      expect(stderr.join("\n")).not.toContain(connectionEnv.KIBANA_PASSWORD);
+    },
+  );
+
+  it("prompts only for missing connection values with setup options", async () => {
+    const runBootstrapFn = vi.fn().mockResolvedValue(bootstrapResult);
+    const runSetupFlowFn = vi.fn();
+    const stdout: string[] = [];
+    const exitCode = await runCli(
+      ["node", "kibana-mcp-server", "setup", "--url=https://override.example.com"],
+      {
+        env: {},
+        stdin: Readable.from("elastic\nprompt-secret\n"),
+        stdinIsTTY: false,
+        stdout: (text) => stdout.push(text),
+        stderr: () => {},
+      },
       { runBootstrapFn, runSetupFlowFn },
     );
 
-    expect(exitCode).toBe(1);
-    expect(stderr.join("\n")).toContain("unknown option '--profile'");
-    expect(runBootstrapFn).not.toHaveBeenCalled();
+    expect(exitCode).toBe(0);
     expect(runSetupFlowFn).not.toHaveBeenCalled();
+    expect(runBootstrapFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        baseUrl: "https://override.example.com",
+        username: "elastic",
+        password: "prompt-secret",
+      }),
+    );
+    expect(stdout.slice(0, 2)).toEqual(["Kibana username:", "Kibana password:"]);
+    expect(stdout.join("\n")).not.toContain("prompt-secret");
+  });
+
+  it("preserves guided setup cancellation with connection environment values", async () => {
+    const runBootstrapFn = vi.fn();
+    const runSetupFlowFn = vi.fn().mockRejectedValue(new PromptCancelledError());
+    const stderr: string[] = [];
+    expect(
+      await runCli(
+        ["node", "kibana-mcp-server", "setup"],
+        {
+          env: connectionEnv,
+          stdin: Readable.from(""),
+          stdinIsTTY: false,
+          stdout: () => {},
+          stderr: (text) => stderr.push(text),
+        },
+        { runBootstrapFn, runSetupFlowFn },
+      ),
+    ).toBe(130);
+    expect(runSetupFlowFn).toHaveBeenCalledOnce();
+    expect(runBootstrapFn).not.toHaveBeenCalled();
+    expect(stderr).toEqual([]);
   });
 
   it("reads a password from stdin without exposing it as a command argument", async () => {
