@@ -1,7 +1,7 @@
 ---
 title: Support Policy
 status: active
-updated: 2026-04-09
+updated: 2026-10-14
 ---
 
 # Support Policy
@@ -19,6 +19,10 @@ This MCP is designed for operators and AI agents that need read-only access to K
 - Guided machine setup for explicitly selected hand-authored source catalogs
 - Startup with a saved profile, or a complete explicit connection plus `KIBANA_SOURCE_CATALOG_PATH` or a configuration-file catalog store
 - Explicit user-approved source configuration through `configure_index`; no MCP tool accepts connection credentials
+
+## Connection Setup Boundary
+
+Connection setup is an operator step, not an MCP capability. The credential-taking `configure` tool and unconfigured startup are intentionally retired in favor of `bootstrap` plus `configure_index`. Direct environment startup must select a catalog path or store explicitly; the server no longer searches the working directory for one. This does not change the catalog JSON schema or delete existing catalog or profile files.
 
 ## Best-Effort Support
 
