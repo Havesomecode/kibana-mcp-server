@@ -1,10 +1,22 @@
 ---
 title: Release Checklist
 status: active
-updated: 2026-04-09
+updated: 2026-10-14
 ---
 
 # Release Checklist
+
+## Choose the release type
+
+Classify the delivered change, not the file extension. Packaged skills and prompts are product behavior.
+
+| Change | Commit / PR title | Release |
+| --- | --- | --- |
+| Improved agent workflow | `feat(skills): ...` | Minor |
+| Corrected agent instructions | `fix(skills): ...` | Patch |
+| Reference-only prose or behavior-preserving refactor | `docs: ...` or `refactor: ...` | None |
+
+Check the actual commit analyzer before handoff. A green Release job can publish nothing. After merging, renaming the PR does not change its Git commits; use a reviewed follow-up, never rewrite published history.
 
 ## Before merging
 
