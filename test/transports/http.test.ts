@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { type ServerResponse, createServer, request as httpRequest } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -9,10 +9,18 @@ import {
 } from "@modelcontextprotocol/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { toProfileKey } from "../../src/profiles/names.js";
 import { createGeneratedCatalog } from "../../src/setup/bootstrap.js";
 import { type HttpServerHandle, startHttpMcpServer } from "../../src/transports/http.js";
-import { PROTOCOL_VERSION, callTool, requestMeta, sendRpc, source, sourceIds } from "./helpers.js";
+import {
+  PROTOCOL_VERSION,
+  callModernTool,
+  callTool,
+  requestMeta,
+  sendRpc,
+  source,
+  sourceIds,
+  writeProfileCatalog,
+} from "./helpers.js";
 
 const queryMessage = {
   id: 1,
@@ -27,21 +35,6 @@ const queryMessage = {
     },
   },
 };
-
-async function callModernTool(
-  url: string,
-  name: string,
-  headers: Record<string, string> = {},
-  toolArguments: Record<string, unknown> = {},
-): Promise<{ status: number; result?: Record<string, unknown> }> {
-  const response = await sendRpc(
-    url,
-    { id: 1, method: "tools/call", params: { name, arguments: toolArguments } },
-    headers,
-  );
-  const payload = await response.json();
-  return { status: response.status, result: payload.result };
-}
 
 // Answers the two Kibana calls configure_index makes: field discovery, then a probe search.
 async function startFakeKibana(
@@ -103,13 +96,8 @@ describe.each([false, true])("startHttpMcpServer (modern=%s)", (modern) => {
     await rm(directory, { recursive: true, force: true });
   });
 
-  async function writeCatalog(profile: string, ids: string[]): Promise<void> {
-    await mkdir(join(directory, toProfileKey(profile)), { recursive: true });
-    await writeFile(
-      join(directory, toProfileKey(profile), "sources.json"),
-      JSON.stringify(createGeneratedCatalog(ids.map(source))),
-    );
-  }
+  const writeCatalog = (profile: string, ids: string[]) =>
+    writeProfileCatalog(directory, profile, ids);
 
   function postRpc(
     message: Record<string, unknown>,

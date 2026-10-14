@@ -8,7 +8,7 @@ Restrict HTTP access to an authenticated gateway. Bind to loopback or a private 
 
 ## Gateway trust
 
-Over HTTP the server authenticates **the gateway**, not the end user.
+With a shared secret, the server authenticates **the gateway**, not the end user.
 
 | Element | Role | Trusted because |
 | --- | --- | --- |
@@ -17,9 +17,21 @@ Over HTTP the server authenticates **the gateway**, not the end user.
 
 The header is trusted as sent. Anyone with port access and the shared secret can act as **any profile**.
 
+## OpenID Connect trust
+
+With [OpenID Connect](./oidc), the server authenticates **the end user**.
+
+| Element | Role | Trusted because |
+| --- | --- | --- |
+| `Authorization: Bearer <access token>` | Proves who the caller is | Signature, issuer, audience and expiration check out, or the provider says it is active |
+| Profile claim of the token | Names the caller | The provider issued it; the profile is `<issuer>#<claim value>` |
+
+A caller cannot pick another profile: no profile header can be configured alongside OpenID Connect.
+
 ## Safeguards built in
 
-- Non-loopback listening requires `KIBANA_HTTP_AUTH_TOKEN`.
+- Non-loopback listening requires `KIBANA_HTTP_AUTH_TOKEN` or `KIBANA_HTTP_OIDC_ISSUER`.
+- With OpenID Connect, the token audience must name this endpoint, and no profile header is accepted.
 - HTTP startup requires a profile header or explicitly named default profile. With a configured header, requests missing it get `401`.
 - Profile path/key values contain lowercase letters, digits and dashes; other names get a digest suffix. `../../etc/passwd` becomes `etc-passwd-<digest>`.
 - Profile names are exact: `Alice` and `alice` have separate catalogs.

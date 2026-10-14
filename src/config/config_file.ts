@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { CatalogStore } from "../stores/catalog_store.js";
+import type { HttpOidcOptions } from "../transports/oidc.js";
 import { PROFILE_NAME_ENV } from "./environment.js";
 
 export { CatalogConflictError } from "../stores/catalog_store.js";
@@ -14,6 +15,18 @@ export const HTTP_PORT_ENV = "KIBANA_HTTP_PORT";
 export const HTTP_PATH_ENV = "KIBANA_HTTP_PATH";
 export const HTTP_PROFILE_HEADER_ENV = "KIBANA_HTTP_PROFILE_HEADER";
 export const HTTP_AUTH_TOKEN_ENV = "KIBANA_HTTP_AUTH_TOKEN";
+export const HTTP_OIDC_ENV = {
+  issuer: "KIBANA_HTTP_OIDC_ISSUER",
+  resource: "KIBANA_HTTP_OIDC_RESOURCE",
+  audience: "KIBANA_HTTP_OIDC_AUDIENCE",
+  mode: "KIBANA_HTTP_OIDC_MODE",
+  clientId: "KIBANA_HTTP_OIDC_CLIENT_ID",
+  clientSecret: "KIBANA_HTTP_OIDC_CLIENT_SECRET",
+  requiredScopes: "KIBANA_HTTP_OIDC_REQUIRED_SCOPES",
+  scopesSupported: "KIBANA_HTTP_OIDC_SCOPES_SUPPORTED",
+  profileClaim: "KIBANA_HTTP_OIDC_PROFILE_CLAIM",
+  allowInsecureRequests: "KIBANA_HTTP_OIDC_ALLOW_INSECURE_REQUESTS",
+} as const;
 
 export type CatalogStoreFactory<TStoreOptions> = (
   options?: TStoreOptions,
@@ -46,6 +59,11 @@ export interface KibanaMcpConfig<TStoreOptions = Record<string, unknown>> {
     profileHeader?: string;
     /** Shared secret expected as `Authorization: Bearer <token>`. */
     authToken?: string;
+    /**
+     * OAuth 2.1 / OpenID Connect resource server: callers present an access token from `issuer`,
+     * and their profile is read from a token claim. Excludes `authToken` and `profileHeader`.
+     */
+    oidc?: HttpOidcOptions;
   };
 }
 
@@ -124,7 +142,8 @@ export function applyConfigFile(
   envInput: NodeJS.ProcessEnv,
   { config }: LoadedConfigFile,
 ): NodeJS.ProcessEnv {
-  const defaults: Record<string, string | number | undefined> = {
+  const oidc = config.http?.oidc;
+  const defaults: Record<string, string | number | boolean | undefined> = {
     KIBANA_BASE_URL: config.url,
     KIBANA_USERNAME: config.user,
     KIBANA_PASSWORD: config.password,
@@ -136,6 +155,10 @@ export function applyConfigFile(
     [HTTP_PROFILE_HEADER_ENV]: config.http?.profileHeader,
     [HTTP_AUTH_TOKEN_ENV]: config.http?.authToken,
   };
+  for (const [key, name] of Object.entries(HTTP_OIDC_ENV)) {
+    const value = oidc?.[key as keyof typeof HTTP_OIDC_ENV];
+    defaults[name] = Array.isArray(value) ? value.join(" ") : value;
+  }
 
   const env = { ...envInput };
   for (const [name, value] of Object.entries(defaults)) {

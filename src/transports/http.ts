@@ -1,4 +1,4 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
   type IncomingMessage,
   type Server as NodeHttpServer,
@@ -9,27 +9,33 @@ import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 
 import {
+  type AuthInfo,
   type McpServer,
   WebStandardStreamableHTTPServerTransport,
   createMcpHandler,
   isLegacyRequest,
-  localhostAllowedHostnames,
-  localhostAllowedOrigins,
-  validateHostHeader,
-  validateOriginHeader,
 } from "@modelcontextprotocol/server";
 
 import {
   HTTP_AUTH_TOKEN_ENV,
   HTTP_HOST_ENV,
+  HTTP_OIDC_ENV,
   HTTP_PATH_ENV,
   HTTP_PORT_ENV,
   HTTP_PROFILE_HEADER_ENV,
 } from "../config/config_file.js";
 import { type StartupConfiguration, loadStartupConfiguration } from "../config/startup.js";
-import { normalizeProfileName } from "../profiles/names.js";
 import { ProfileRuntimeRegistry } from "../profiles/runtime.js";
 import { createApplication } from "../server.js";
+import { isLoopbackHost } from "../utils/net.js";
+import {
+  type HttpAuthOptions,
+  type HttpAuthenticator,
+  type HttpCaller,
+  createHttpAuthenticator,
+  perCallerProfileSource,
+} from "./http_auth.js";
+import { oidcOptionsFromEnv } from "./oidc.js";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 3000;
@@ -39,7 +45,6 @@ const MAX_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_LEGACY_SESSIONS = 128;
 const MAX_LEGACY_SESSION_REQUESTS = 1024;
 const LEGACY_SESSION_IDLE_MS = 30 * 60 * 1000;
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost"]);
 
 export interface HttpServerOptions {
   host?: string;
@@ -57,8 +62,7 @@ interface ResolvedHttpOptions {
   host: string;
   port: number;
   path: string;
-  profileHeader?: string;
-  authToken?: string;
+  auth: HttpAuthOptions;
 }
 
 class HttpRequestError extends Error {
@@ -81,35 +85,54 @@ export async function startHttpMcpServer(
     ? { env: envInput, startupConfiguration: dependencies.startupConfiguration }
     : await loadStartupConfiguration(envInput);
   try {
-    return await listen(resolveHttpOptions(env, options), startupConfiguration);
+    const resolved = resolveHttpOptions(env, options);
+    const registry = createProfileRegistry(resolved.auth, startupConfiguration);
+    // Local checks first: OIDC discovery reaches the issuer over the network.
+    const authenticator = await createHttpAuthenticator(resolved.auth);
+    return await listen(resolved, startupConfiguration, registry, authenticator);
   } catch (error) {
     await startupConfiguration.close().catch(() => {});
     throw error;
   }
 }
 
-async function listen(
-  resolved: ResolvedHttpOptions,
+function createProfileRegistry(
+  auth: HttpAuthOptions,
   startupConfiguration: StartupConfiguration,
-): Promise<HttpServerHandle> {
+): ProfileRuntimeRegistry {
   const registry = new ProfileRuntimeRegistry(startupConfiguration);
-
-  if (resolved.profileHeader && !registry.supportsNamedProfiles) {
+  const perCallerProfile = perCallerProfileSource(auth);
+  if (perCallerProfile && !registry.supportsNamedProfiles) {
     throw new Error(
-      "A profile header requires named profiles: use saved profiles, a store in the configuration file, or the {profile} placeholder in KIBANA_SOURCE_CATALOG_PATH.",
+      `${perCallerProfile} requires named profiles: use saved profiles, a store in the configuration file, or the {profile} placeholder in KIBANA_SOURCE_CATALOG_PATH.`,
     );
   }
-  if (!resolved.profileHeader && !registry.hasDefault) {
+  if (!perCallerProfile && !registry.hasDefault) {
     throw new Error(
       "The HTTP transport needs a profile header, or a default profile named with --profile or KIBANA_PROFILE to serve every caller the same catalog.",
     );
   }
+  return registry;
+}
+
+async function listen(
+  resolved: ResolvedHttpOptions,
+  startupConfiguration: StartupConfiguration,
+  registry: ProfileRuntimeRegistry,
+  authenticator: HttpAuthenticator,
+): Promise<HttpServerHandle> {
+  // The SDK hands the caller's AuthInfo through to the server factory, by reference.
+  const callerProfiles = new WeakMap<AuthInfo, string | undefined>();
+  const profileOf = (authInfo: AuthInfo | undefined) => {
+    if (!authInfo || !callerProfiles.has(authInfo)) {
+      throw new Error("MCP request reached the handler without an authenticated caller.");
+    }
+    return callerProfiles.get(authInfo);
+  };
 
   // Modern and handshake-free legacy calls stay per-request.
   const handler = createMcpHandler((context) => {
-    const requestProfile = resolved.profileHeader
-      ? readProfileHeader(context.requestInfo?.headers, resolved.profileHeader)
-      : undefined;
+    const requestProfile = profileOf(context.authInfo);
     return createApplication(undefined, { profileRegistry: registry, requestProfile }).server;
   });
 
@@ -124,14 +147,15 @@ async function listen(
     }
   >();
   let initializingSessions = 0;
-  const fetchHandler = async (request: Request): Promise<Response> => {
-    if (!(await isLegacyRequest(request))) return handler.fetch(request);
+  const fetchHandler = async (
+    request: Request,
+    { authInfo, profile }: HttpCaller,
+  ): Promise<Response> => {
+    callerProfiles.set(authInfo, profile);
+    if (!(await isLegacyRequest(request))) return handler.fetch(request, { authInfo });
     for (const session of legacySessions.values()) {
       if (Date.now() - session.lastUsed >= LEGACY_SESSION_IDLE_MS) await session.server.close();
     }
-    const profile = resolved.profileHeader
-      ? readProfileHeader(request.headers, resolved.profileHeader)
-      : undefined;
     const sessionId = request.headers.get("mcp-session-id");
     if (sessionId) {
       let session = legacySessions.get(sessionId);
@@ -156,7 +180,7 @@ async function listen(
       }
       session.lastUsed = Date.now();
       session.requests += 1;
-      return session.transport.handleRequest(request);
+      return session.transport.handleRequest(request, { authInfo });
     }
     const body =
       request.method === "POST"
@@ -165,7 +189,7 @@ async function listen(
             .json()
             .catch(() => undefined)
         : undefined;
-    if (body?.method !== "initialize") return handler.fetch(request);
+    if (body?.method !== "initialize") return handler.fetch(request, { authInfo });
     if (legacySessions.size + initializingSessions >= MAX_LEGACY_SESSIONS) {
       return Response.json(
         { error: "Too many MCP sessions. Close an existing session and retry." },
@@ -190,7 +214,7 @@ async function listen(
     };
     try {
       await server.connect(transport);
-      const response = await transport.handleRequest(request, { parsedBody: body });
+      const response = await transport.handleRequest(request, { parsedBody: body, authInfo });
       if (!transport.sessionId || response.status >= 400) await server.close();
       return response;
     } catch (error) {
@@ -202,7 +226,7 @@ async function listen(
   };
 
   const httpServer = createServer((request, response) => {
-    void handleRequest(request, response, resolved, fetchHandler).catch(() => {
+    void handleRequest(request, response, resolved.path, authenticator, fetchHandler).catch(() => {
       if (!response.headersSent) {
         writeJson(response, 500, { error: "internal_error" });
         return;
@@ -239,10 +263,6 @@ function resolveHttpOptions(
   const host = options.host?.trim() || envInput[HTTP_HOST_ENV]?.trim() || DEFAULT_HOST;
   const port = options.port ?? parsePort(envInput[HTTP_PORT_ENV]) ?? DEFAULT_PORT;
   const path = options.path?.trim() || envInput[HTTP_PATH_ENV]?.trim() || DEFAULT_PATH;
-  const profileHeader = (
-    options.profileHeader?.trim() || envInput[HTTP_PROFILE_HEADER_ENV]?.trim()
-  )?.toLowerCase();
-  const authToken = envInput[HTTP_AUTH_TOKEN_ENV]?.trim() || undefined;
 
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new Error("HTTP port must be an integer between 0 and 65535.");
@@ -250,20 +270,45 @@ function resolveHttpOptions(
   if (!path.startsWith("/") || path === HEALTH_PATH) {
     throw new Error(`HTTP path must start with '/' and differ from ${HEALTH_PATH}.`);
   }
+  const auth = resolveAuthOptions(envInput, options);
+  // Without authentication anyone who reaches the port can query Kibana and assert any profile.
+  if (auth.kind === "local" && !isLoopbackHost(host)) {
+    throw new Error(
+      `Refusing to listen on non-loopback host '${host}' without ${HTTP_AUTH_TOKEN_ENV} or ${HTTP_OIDC_ENV.issuer}.`,
+    );
+  }
+  return { host, port, path, auth };
+}
+
+function resolveAuthOptions(
+  envInput: NodeJS.ProcessEnv,
+  options: HttpServerOptions,
+): HttpAuthOptions {
+  const profileHeader = (
+    options.profileHeader?.trim() || envInput[HTTP_PROFILE_HEADER_ENV]?.trim()
+  )?.toLowerCase();
+  const token = envInput[HTTP_AUTH_TOKEN_ENV]?.trim() || undefined;
+  const oidc = oidcOptionsFromEnv(envInput);
+
   if (profileHeader && !/^[a-z0-9!#$%&'*+.^_`|~-]+$/.test(profileHeader)) {
     throw new Error("Profile header must be a valid HTTP header name.");
   }
   if (profileHeader === "authorization") {
     throw new Error("Profile header must not be 'authorization'.");
   }
-  // Without a token anyone who reaches the port can query Kibana and assert any profile.
-  if (!authToken && !LOOPBACK_HOSTS.has(host)) {
+  if (!oidc) {
+    return token ? { kind: "token", token, profileHeader } : { kind: "local", profileHeader };
+  }
+  if (token) {
+    throw new Error(`${HTTP_OIDC_ENV.issuer} and ${HTTP_AUTH_TOKEN_ENV} are mutually exclusive.`);
+  }
+  // A caller-supplied header would let any authenticated user act as any profile.
+  if (profileHeader) {
     throw new Error(
-      `Refusing to listen on non-loopback host '${host}' without ${HTTP_AUTH_TOKEN_ENV}.`,
+      `${HTTP_OIDC_ENV.issuer} reads the profile from a token claim: drop the profile header and choose the claim with ${HTTP_OIDC_ENV.profileClaim}.`,
     );
   }
-
-  return { host, port, path, profileHeader, authToken };
+  return { kind: "oidc", oidc };
 }
 
 export function parsePort(value: string | undefined): number | undefined {
@@ -277,21 +322,33 @@ export function parsePort(value: string | undefined): number | undefined {
 async function handleRequest(
   request: IncomingMessage,
   response: ServerResponse,
-  options: ResolvedHttpOptions,
-  fetchHandler: (request: Request) => Promise<Response>,
+  path: string,
+  authenticator: HttpAuthenticator,
+  fetchHandler: (request: Request, caller: HttpCaller) => Promise<Response>,
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
   if (url.pathname === HEALTH_PATH && request.method === "GET") {
     writeJson(response, 200, { status: "ok" });
     return;
   }
-  if (url.pathname !== options.path) {
+  const headers = toWebHeaders(request);
+  if (url.pathname.startsWith("/.well-known/")) {
+    const metadata = authenticator.metadataResponse(
+      new Request(url, { method: request.method, headers }),
+    );
+    if (metadata) {
+      writeWebResponse(response, metadata);
+      return;
+    }
+  }
+  if (url.pathname !== path) {
     writeJson(response, 404, { error: "not_found" });
     return;
   }
-  if (options.authToken && !isAuthorized(request.headers.authorization, options.authToken)) {
-    response.setHeader("WWW-Authenticate", "Bearer");
-    writeJson(response, 401, { error: "invalid_token" });
+  // Before the body is read: unauthenticated callers cannot make the server buffer it.
+  const caller = await authenticator.authenticate(headers);
+  if (caller instanceof Response) {
+    writeWebResponse(response, caller);
     return;
   }
 
@@ -299,18 +356,6 @@ async function handleRequest(
   const abortController = new AbortController();
   response.once("close", () => abortController.abort());
   try {
-    const headers = toWebHeaders(request);
-    if (
-      !options.authToken &&
-      (!validateHostHeader(headers.get("host"), localhostAllowedHostnames()).ok ||
-        !validateOriginHeader(headers.get("origin"), localhostAllowedOrigins()).ok)
-    ) {
-      throw new HttpRequestError(403, "Untrusted Host or Origin.");
-    }
-    // Refused here to answer with a plain HTTP status; the MCP handler reads the value again.
-    if (options.profileHeader) {
-      readProfileHeader(headers, options.profileHeader);
-    }
     webRequest = await toWebRequest(request, url, headers, abortController.signal);
   } catch (error) {
     if (error instanceof HttpRequestError) {
@@ -320,38 +365,22 @@ async function handleRequest(
     throw error;
   }
 
-  const webResponse = await fetchHandler(webRequest);
+  writeWebResponse(response, await fetchHandler(webRequest, caller), abortController.signal);
+}
+
+function writeWebResponse(
+  response: ServerResponse,
+  webResponse: Response,
+  signal?: AbortSignal,
+): void {
   response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers));
   if (!webResponse.body) {
     response.end();
     return;
   }
-  Readable.fromWeb(webResponse.body as Parameters<typeof Readable.fromWeb>[0], {
-    signal: abortController.signal,
-  })
+  Readable.fromWeb(webResponse.body as Parameters<typeof Readable.fromWeb>[0], { signal })
     .on("error", () => response.destroy())
     .pipe(response);
-}
-
-function readProfileHeader(headers: Headers | undefined, headerName: string): string {
-  const value = headers?.get(headerName)?.trim();
-  if (!value) {
-    throw new HttpRequestError(401, `Missing required '${headerName}' header.`);
-  }
-  try {
-    return normalizeProfileName(value);
-  } catch (error) {
-    throw new HttpRequestError(400, error instanceof Error ? error.message : String(error));
-  }
-}
-
-function isAuthorized(authorization: string | undefined, expectedToken: string): boolean {
-  const match = /^Bearer +(.+)$/i.exec(authorization?.trim() ?? "");
-  if (!match) {
-    return false;
-  }
-  const digest = (value: string) => createHash("sha256").update(value).digest();
-  return timingSafeEqual(digest(match[1]), digest(expectedToken));
 }
 
 function toWebHeaders(request: IncomingMessage): Headers {

@@ -15,7 +15,9 @@ KIBANA_HTTP_AUTH_TOKEN=... \
 kibana-mcp-server serve --http --port 3000 --profile-header x-kibana-profile
 ```
 
-Only the gateway should reach the server. The profile header is trusted as sent: the server authenticates the gateway, not end users. Non-loopback listening requires `KIBANA_HTTP_AUTH_TOKEN`.
+Only the gateway should reach the server. The profile header is trusted as sent: the server authenticates the gateway, not end users. Non-loopback listening requires `KIBANA_HTTP_AUTH_TOKEN` or `KIBANA_HTTP_OIDC_ISSUER`.
+
+**No gateway?** Authenticate end users with your OpenID Connect provider instead: see [OpenID Connect authentication](./oidc). Each caller then gets the catalog named after the issuer and a claim of their access token.
 
 Without `--http`, the default is stdio with one global configuration.
 
@@ -43,7 +45,7 @@ Profile names become filesystem-safe path/store keys: plain lowercase slugs stay
 
 `GET /healthz` answers `200` without authentication.
 
-Without a token, MCP requests require a loopback `Host` and, if present, loopback `Origin`. Authenticated gateways may forward their own host/origin headers.
+Without a token or OpenID Connect, MCP requests require a loopback `Host` and, if present, loopback `Origin`. Authenticated gateways may forward their own host/origin headers.
 
 ## Legacy sessions
 
