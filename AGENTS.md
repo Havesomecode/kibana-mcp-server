@@ -1,32 +1,31 @@
 # Agent Instructions
 
-## First Step
-
 Read [`INSTALL.md`](./INSTALL.md) first.
 
-If the goal is to set up or use this repository in Codex, treat `INSTALL.md` as the primary operator and handoff guide.
+It is the Codex setup and handoff guide.
 
-## Setup Priority
+## Set up a cloned checkout
 
-When working from a fresh clone:
-
-1. Read `INSTALL.md`
-2. Follow the Codex/plugin installation flow there
-3. Use the plugin-local skills when relevant:
+1. Follow the Codex/plugin flow in `INSTALL.md`.
+2. Use the relevant local skill:
    - `plugins/kibana-log-investigation/skills/ensure-node-runtime/SKILL.md`
    - `plugins/kibana-log-investigation/skills/install-and-configure/SKILL.md`
 
-## Repository Context
+## Before editing
 
-This repo provides a read-only Kibana log investigation MCP server plus a repo-scoped Codex plugin for local installation from a cloned checkout.
-Documented learnings live in `docs/solutions/`, organized by category with YAML frontmatter such as `module`, `tags`, and `problem_type`, and are relevant when working in already documented areas.
+This repo provides a read-only Kibana MCP server and a repo-local Codex plugin.
 
-For product details and MCP behavior, read `README.md`.
+Read `README.md` for product behavior. Check relevant learnings in `docs/solutions/`, organized by category and frontmatter (`module`, `tags`, `problem_type`).
 
 ## CLI conventions
 
-Keep the human CLI decomposed by concern: the executable lives in `src/bin/`, Commander command registration lives in `src/commands/`, and terminal I/O plus Clack prompt adapters live outside command modules. Commands contain only command-specific validation and orchestration; do not add command logic back to `src/cli.ts`.
+- `src/bin/`: executables.
+- `src/commands/`: Commander registration, command-specific validation and orchestration only.
+- Keep terminal I/O and Clack prompt adapters outside command modules.
+
+Do not add command logic back to `src/cli.ts`.
 
 ## Lessons
 
+- When writing skills or instructions, lead with the action, use short numbered steps, keep warnings beside the affected action, and remove repeated rationale without removing contracts.
 - When a project format was used only by the owner, remove its obsolete code, callers, tests and documentation instead of adding compatibility or migration paths.
