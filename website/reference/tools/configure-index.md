@@ -4,9 +4,7 @@ description: "Reference of the configure_index tool: configure one index or patt
 
 # `configure_index`
 
-Configures exactly one index or index pattern as a logical source, after the user has named it.
-
-Use this tool only after the user explicitly names the exact index or index pattern to configure. It accepts no credentials and never lists or scans for candidate indexes.
+Configure **exactly the index or pattern explicitly named by the user**. Never guess, list or scan candidates; this tool accepts no credentials.
 
 Input:
 
@@ -17,4 +15,4 @@ Input:
 }
 ```
 
-The tool inspects fields and runs one bounded validation search only for that index. It then persists the generated source in the managed catalog. Optional `source_id`, `time_field`, and `replace` fields support explicit collision or schema handling.
+The tool inspects fields, runs one bounded validation search for that index only, then persists the generated logical source in the managed catalog. Use optional `source_id`, `time_field` and `replace` for explicit collision or schema handling.

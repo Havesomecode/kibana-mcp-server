@@ -4,7 +4,9 @@ description: "Implement the CatalogStore contract to keep source catalogs in any
 
 # Custom store
 
-A store is an object with two required methods. Implement them to keep catalogs anywhere: another database, an object bucket, an internal service.
+## 1. Implement the store
+
+Implement `read` and `replace` for your backend: a database, object bucket or internal service.
 
 ```ts
 import { CatalogConflictError, type CatalogStore } from "@havesomecode/kibana-mcp-server/config";
@@ -26,7 +28,7 @@ export default function myStore(options: { table: string }): CatalogStore {
 }
 ```
 
-## The contract
+### Contract
 
 | Method | Required | Role |
 | --- | --- | --- |
@@ -35,17 +37,17 @@ export default function myStore(options: { table: string }): CatalogStore {
 | `describe(profileKey)` | no | Human-readable location reported by tools. Must not expose credentials. |
 | `close()` | no | Releases connections when the server stops. |
 
-`profileKey` is derived by the server from the profile name. It only contains lowercase letters, digits and dashes, so it is safe as a file name, a key or a primary key.
+The server derives `profileKey` from the profile name using only lowercase letters, digits and dashes: safe for file names, keys and primary keys.
 
 Check the optional cancellation signal after any wait and before issuing a write. Cancellation never rolls back an already-dispatched write.
 
-## Why `replace` compares first
+### Require compare-and-set
 
-`configure_index` reads the catalog, validates the index against Kibana, then writes. Two callers, or two server processes, can do that at the same time. Writing only when the content is unchanged means the second writer fails with a conflict instead of silently erasing the first one's source. The caller simply retries.
+`configure_index` reads, validates against Kibana, then writes. Concurrent callers/processes must fail with a conflict if content changed, not erase another writer's source. Retry the operation after a conflict.
 
-## Using it
+## 2. Configure the store
 
-Create the store with its required options and give it to the configuration file.
+Pass the store and its required options to the configuration file:
 
 ```ts
 import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";

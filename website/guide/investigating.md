@@ -4,41 +4,41 @@ description: "The investigation workflow step by step: configure a source, disco
 
 # Investigating with an agent
 
-An investigation follows the same three moves every time: find the source, check its fields, then query. The agent drives them through MCP tools; this page shows what happens at each step.
+Ask the agent to discover a source, inspect its fields, then query. Configure a source only if none exists.
 
 ## 1. Configure a source, once
 
-A fresh profile has no source. The agent must not guess one: it asks which exact Kibana index or index pattern to use, then calls [`configure_index`](../reference/tools/configure-index) with that value.
+For a fresh profile, call `discover` first. If empty, ask for the exact Kibana index or pattern and wait. Never guess, list, or scan indexes. Call [`configure_index`](../reference/tools/configure-index) only with the user's answer; this example assumes they selected `app-logs-*`:
 
 ```json
 { "index": "app-logs-*", "source_name": "Application logs", "source_id": "app-logs" }
 ```
 
-The server checks that the pattern resolves to fields, picks a time field, runs one probe search and saves the source in the profile's catalog. Later conversations reuse it.
+Expected: fields checked, a time field selected, one probe search, and a saved source for later conversations.
 
 ## 2. Discover the sources
 
-[`discover`](../reference/tools/discover) lists the logical sources of the current profile, with their time field and field hints.
+Call [`discover`](../reference/tools/discover):
 
 ```json
 { "query": "application" }
 ```
 
+Expected: this profile's logical sources, time fields, and field hints.
+
 ## 3. Inspect the fields
 
-Before filtering, the agent asks [`describe_fields`](../reference/tools/describe-fields) which fields exist and which ones support exact matching.
+Before filtering, call [`describe_fields`](../reference/tools/describe-fields):
 
 ```json
 { "source_id": "app-logs", "query": "status" }
 ```
 
-A text field with a keyword sub-field is reported with a preferred exact field, for example `event` and `event.keyword`. That is what makes later filters reliable.
+Use the returned preferred exact field for matching, such as `event.keyword` for `event`.
 
 ## 4. Query
 
-[`query`](../reference/tools/query) searches one or more sources over an absolute time window. Start broad, then narrow.
-
-Count first:
+Call [`query`](../reference/tools/query) over an absolute time window. Count first:
 
 ```json
 {
@@ -50,7 +50,7 @@ Count first:
 }
 ```
 
-Then group to see where the errors come from:
+Group to locate the errors:
 
 ```json
 {
@@ -63,7 +63,7 @@ Then group to see where the errors come from:
 }
 ```
 
-Then read the hits of the service that stands out:
+Read hits for the service that stands out:
 
 ```json
 {
@@ -76,7 +76,7 @@ Then read the hits of the service that stands out:
 }
 ```
 
-When the exact field name is already known, [`filter`](../reference/tools/filter) skips alias resolution and filters on it directly.
+For a known exact field, use [`filter`](../reference/tools/filter) without alias resolution.
 
 ## Query modes
 
@@ -91,4 +91,4 @@ When the exact field name is already known, [`filter`](../reference/tools/filter
 
 ## When something fails
 
-Backend failures come back with a stable code such as `KIBANA_TIMEOUT` or `KIBANA_AUTHENTICATION`. See [Errors](../reference/errors).
+Look up stable failure codes such as `KIBANA_TIMEOUT` or `KIBANA_AUTHENTICATION` in [Errors](../reference/errors).

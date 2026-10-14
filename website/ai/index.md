@@ -4,7 +4,7 @@ description: "How Kibana MCP Server supports AI agents - LLM-friendly documentat
 
 # Built for agents
 
-Kibana MCP Server exists so that an agent can investigate logs. The project treats agents as first-class readers and users, in three ways.
+Choose how to give your agent the server, workflow, or documentation:
 
 | | What you get | Where |
 | --- | --- | --- |
@@ -14,19 +14,19 @@ Kibana MCP Server exists so that an agent can investigate logs. The project trea
 
 ## What the skill teaches
 
-The `kibana-log-investigation` skill tells an agent how to behave around this server:
+The `kibana-log-investigation` skill follows this sequence:
 
-- bootstrap the connection with the mode that fits the agent (Codex, Claude Code or another one), without editing configuration files by hand, and never put a password in a command argument;
-- call `discover` first, and when no source exists, ask the user which exact Kibana index or index pattern to use;
-- call `configure_index` only with the value the user gave, never a guessed or enumerated one;
-- inspect fields with `describe_fields` before filtering, then query over an absolute time window.
+1. Bootstrap with the agent's client mode. Do not hand-edit configuration files or put passwords in command arguments.
+2. Call `discover`. If empty, ask the user for the exact Kibana index or pattern and wait. Never guess, enumerate, or scan indexes.
+3. Call `configure_index` only with the user's value.
+4. Inspect `describe_fields` before filtering. Query an absolute time window.
 
 ## Pointing an agent at this documentation
 
-Give your agent the index of the documentation and let it fetch the pages it needs:
+Send your agent this prompt:
 
 ```text
 Read https://havesomecode.github.io/kibana-mcp-server/llms.txt and use it to answer questions about Kibana MCP Server.
 ```
 
-Every page also has a Markdown twin: add `.md` to its URL.
+For one page, add `.md` to its URL.

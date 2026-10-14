@@ -4,10 +4,10 @@ description: "A Docker image and compose file that run the server over HTTP with
 
 # Docker image
 
-This example builds an image that runs the server over HTTP, with catalogs in PostgreSQL. Swap the store for any other one by changing two lines.
+Create these files to run HTTP with PostgreSQL catalogs.
 
 ::: warning Version
-The HTTP transport, the configuration file and the catalog stores are not part of the releases published before this documentation. Use a version of the package that includes them.
+Use a package version with HTTP transport, configuration files, and catalog stores. Releases predating this documentation do not include them.
 :::
 
 ## Files
@@ -40,11 +40,11 @@ export default defineKibanaMcpConfig({
 });
 ```
 
-A `.mjs` file loads on every supported Node.js version. A `.ts` file works too from Node.js 22.18.
+Use `.mjs` on any supported Node.js version; `.ts` needs Node.js 22.18+.
 
 ### `Dockerfile`
 
-The server and the driver are installed in the same directory as the configuration file, so that its imports resolve.
+Install the server and driver beside the config file so imports resolve:
 
 ```dockerfile
 FROM node:22-alpine
@@ -65,6 +65,10 @@ CMD ["npx", "kibana-mcp-server", "serve", "--http", "--config", "kibana.mcp.conf
 ```
 
 ### `compose.yaml`
+
+**Keep the port private:** only your [gateway](./gateway) should reach it. This file binds to host loopback.
+
+**Keep catalogs persistent:** the `catalogs` volume below outlives the container. For file or SQLite stores, mount a volume at the catalog or database path.
 
 ```yaml
 services:
@@ -101,13 +105,19 @@ volumes:
 
 ## Run and check
 
+Supply `KIBANA_PASSWORD`, `KIBANA_MCP_TOKEN`, and `POSTGRES_PASSWORD` through your secret provider. Listening on `0.0.0.0` requires `KIBANA_MCP_TOKEN`; the server refuses non-loopback startup without a shared secret.
+
 ```bash
 docker compose up -d --build
 ```
 
+Check health:
+
 ```bash
 curl -s http://127.0.0.1:3000/healthz
 ```
+
+Check tool discovery for profile `alice`:
 
 ```bash
 curl -s http://127.0.0.1:3000/mcp \
@@ -118,9 +128,8 @@ curl -s http://127.0.0.1:3000/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
+Expected: a health response and MCP tool list, not proof of index access.
+
 ## Notes
 
-- **Listening on `0.0.0.0` requires `KIBANA_MCP_TOKEN`.** The server refuses to start on a non-loopback host without a shared secret.
-- **Catalogs must outlive the container.** They live in the `catalogs` volume here. With the file store, mount a volume at the catalog path; with SQLite, at the database path.
-- **Do not publish the port publicly.** Only your [gateway](./gateway) should reach it. The compose file binds it to the loopback interface of the host.
-- **SQLite instead of PostgreSQL.** Import `stores/sqlite`, set `storeOptions: { path: "/data/catalogs.sqlite" }`, drop the `pg` install and mount a volume at `/data`.
+**SQLite instead of PostgreSQL:** import `stores/sqlite`, set `storeOptions: { path: "/data/catalogs.sqlite" }`, drop the `pg` install, and mount a volume at `/data`.

@@ -4,11 +4,11 @@ description: "The format of a source definition, the supported backends and sche
 
 # Source catalog
 
-A source catalog is a JSON document listing the logical sources a profile can query. `configure_index` generates and maintains it; hand-authored catalogs remain supported for advanced setups.
+Use `configure_index` to maintain a profile's JSON source catalog. Hand-authored catalogs remain supported for advanced setups.
 
 ## Source definition
 
-Each source definition should provide:
+Define each logical source with:
 
 - stable `id`
 - human-readable `name`
@@ -20,7 +20,7 @@ Each source definition should provide:
 - `backend` describing how the source is queried
 - optional `schema` describing how field introspection is performed for `describe_fields` and other schema-dependent features
 
-Supported backend kinds:
+## Search backends
 
 - `kibana_internal_search_es`
   - POSTs to a Kibana endpoint like `/internal/search/es`
@@ -29,27 +29,19 @@ Supported backend kinds:
 - `elasticsearch_search`
   - POSTs the compiled Elasticsearch body directly to the configured path
 
-Supported schema backend kinds:
+## Schema backends
 
-- `kibana_data_views_fields`
-  - tries Kibana wildcard field-metadata endpoints, preferring `/internal/data_views/_fields_for_wildcard`
-  - adds `pattern=...` from `schema.index` or `backend.index`
-  - if all known field-metadata endpoints return `404`, falls back to sampling fields through the configured search backend
-- `kibana_index_patterns_fields`
-  - tries the legacy wildcard field-metadata endpoint `/api/index_patterns/_fields_for_wildcard` and related fallbacks
-  - adds `pattern=...` from `schema.index` or `backend.index`
-  - if all known field-metadata endpoints return `404`, falls back to sampling fields through the configured search backend
+- `kibana_data_views_fields`: tries wildcard field-metadata endpoints, preferring `/internal/data_views/_fields_for_wildcard`.
+- `kibana_index_patterns_fields`: tries legacy `/api/index_patterns/_fields_for_wildcard` and related fallbacks.
 - `elasticsearch_field_caps`
   - GETs an Elasticsearch field capabilities endpoint such as `/<index-pattern>/_field_caps?fields=*`
   - uses `schema.path` when provided or derives the default from `schema.index`
 
-Deployment note:
+Both Kibana schema backends add `pattern=...` from `schema.index` or `backend.index`. If all known metadata endpoints return `404`, they sample fields through the configured search backend. Some deployments expose only search transport; sampling is heuristic, not authoritative, but often recovers `.keyword` promotion and object-path discovery.
 
-- some Kibana deployments expose search transport but not field-metadata endpoints
-- when all known metadata endpoints for a Kibana data-view or index-pattern schema backend return `404`, the server falls back to sampling fields through the configured search backend; direct `elasticsearch_field_caps` failures are returned without that fallback
-- this fallback is heuristic rather than authoritative, but it is often sufficient to recover `.keyword` promotion and object-path discovery in search-only environments
+Direct `elasticsearch_field_caps` failures return without that fallback.
 
-Example source shape for an application log stream:
+## Application log example
 
 ```json
 {
@@ -68,4 +60,4 @@ Example source shape for an application log stream:
 }
 ```
 
-Keep `schema.path` omitted for this setup. The server will try the known Kibana metadata endpoints first and then fall back to search-transport sampling if those endpoints still return `404`.
+Omit `schema.path` here: try known Kibana metadata endpoints, then sample through search transport if all return `404`.

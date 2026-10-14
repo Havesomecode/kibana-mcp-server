@@ -6,54 +6,38 @@ updated: 2026-04-09
 
 # Release Checklist
 
-## Preconditions
+## Before merging
 
-- CI is green on `master`.
-- `npm run verify` passes locally.
-- Build output must correspond to current source: `npm run build` replaces root `dist/`, and every packed `dist/src/**/*.js` or `dist/src/**/*.d.ts` must have its corresponding `src/**/*.ts` file. `npm run verify:packlist` rejects orphaned outputs from removed modules.
-- The compatibility matrix is up to date (`docs/project/compatibility-matrix.md`).
-- Any new env or config requirements are documented in `README.md` and `INSTALL.md`.
-- Startup requires a connection and an explicit catalog path or store; saved profiles use their stored path. Docs must not advertise a credential-taking MCP setup tool or implicit checkout catalog.
-- Connection-only bootstrap remains the default install flow; guided setup remains supported for explicitly selected hand-authored catalogs.
-- The hosted homepage still matches the supported install paths and support posture.
-- The npm scope and package name (`@havesomecode/kibana-mcp-server`) are owned by the maintainers.
-- Maintainers understand that released versions are tracked in npm, tags, and GitHub Releases, not by the `package.json` version committed in git.
+1. Require green CI on `master` and local `npm run verify`.
+2. Check build freshness: `npm run build` replaces root `dist/`. Every packed `dist/src/**/*.js` or `dist/src/**/*.d.ts` needs its corresponding `src/**/*.ts`; `npm run verify:packlist` rejects orphaned output.
+3. Update `docs/project/compatibility-matrix.md`, and document new env/config requirements in `README.md` and `INSTALL.md`.
+4. Check the install contract and hosted homepage: connection-only bootstrap is default; guided setup supports explicitly selected hand-authored catalogs. Startup needs a connection and explicit catalog path/store; saved profiles use their stored path. Never advertise credential-taking MCP setup or implicit checkout catalogs.
+5. Confirm maintainers own the npm scope and `@havesomecode/kibana-mcp-server`, and the maintainer account can publish it.
 
-## Release Authorization
+## Authorize publishing
 
-- Releases are created via the `Release` GitHub Actions workflow.
-- Trusted publishing for npm must point at workflow file `release.yml`.
-- Tags and GitHub Releases are created by `semantic-release` after a verified push to `master`.
-- PRs that should affect semver must use a Conventional Commit title because squash merge will carry that title onto `master`.
-- Only maintainers listed in `CODEOWNERS` should have permission to trigger releases.
-
-## Security Posture for CI/Release
-
-- Workflow permissions must be minimal (`contents: read` for CI, `contents: write` + `id-token: write` for publish).
-- Publishing to npm must use OIDC trusted publishing.
-- Do not store long-lived npm tokens in repo secrets.
-- After trusted publishing is verified, disallow token-based publishing in npm package settings.
+1. Restrict release triggers to maintainers in `CODEOWNERS`. Use the `Release` GitHub Actions workflow and point npm trusted publishing at `release.yml`.
+2. Use minimal permissions: `contents: read` for CI; `contents: write` + `id-token: write` for publishing.
+3. Use OIDC trusted publishing. Never store long-lived npm tokens in repo secrets; disallow token-based publishing in npm settings after verifying OIDC.
 
 ## Threat Model (Top 3)
 
-1. **Compromised GitHub Actions workflow**: mitigate with minimal permissions, required reviews, and avoiding untrusted actions.
-2. **Malicious dependency update**: mitigate with dependency review workflow and human review of automated PRs.
-3. **Accidental secrets leakage in artifacts**: mitigate with `verify-packlist` and explicit exclusion of local config files.
+| Threat | Required mitigation |
+| --- | --- |
+| Compromised GitHub Actions workflow | Minimal permissions, required reviews, no untrusted actions |
+| Malicious dependency update | Dependency review workflow and human review of automated PRs |
+| Secrets leaked in artifacts | `verify-packlist` and explicit exclusion of local config files |
 
 ## Steps
 
-1. Open a PR with a semantic title such as `feat: ...`, `fix: ...`, or `feat!: ...`.
-2. Run `npm run verify`.
-3. Confirm the npm package identity is publishable by this maintainer account.
-4. Configure npm trusted publishing for `release.yml`.
-5. Merge with squash merge into `master`.
-6. Confirm the `Release` workflow either exits with no release or publishes a new version.
-7. Validate the Git tag, GitHub Release notes, published package contents, and provenance.
-8. Confirm the `Pages` workflow still deploys the homepage surface and that the install copy remains truthful.
+1. Open a PR with a Conventional Commit title such as `feat: ...`, `fix: ...`, or `feat!: ...`; squash merge carries it onto `master` for semver.
+2. Complete the checks and authorization above, then squash merge into `master`.
+3. Confirm `Release` either exits without a release or publishes. After a verified push to `master`, `semantic-release` creates the tags and GitHub Releases.
+4. Validate the Git tag, GitHub Release notes, package contents, and provenance.
+5. Confirm `Pages` deploys the homepage and its install copy remains truthful.
 
 ## Post-Release
 
-- Confirm install instructions still match the shipped artifact.
-- Confirm the hosted homepage still matches the shipped artifact and current support posture.
-- Update any compatibility claims that changed in the release.
-- If docs mention a specific current version, verify it against npm or GitHub Releases rather than reading `package.json` in git.
+1. Match install instructions and the homepage to the shipped artifact and support posture.
+2. Update changed compatibility claims.
+3. Read released versions from npm, tags, or GitHub Releases—not committed `package.json`. Verify any current-version claim against npm or GitHub Releases.

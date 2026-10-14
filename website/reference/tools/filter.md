@@ -4,9 +4,7 @@ description: "Reference of the filter tool: exact-field filtering without alias 
 
 # `filter`
 
-Runs an exact-field filter when the field name is already known, bypassing alias resolution.
-
-Use `filter` when you already know the backend field you want to target and want to avoid alias resolution.
+Filter a known backend field directly, without field-hint alias resolution.
 
 Input:
 
@@ -31,6 +29,6 @@ Input:
 }
 ```
 
-`filter` returns the same structured output envelope as `query`, but it does not apply field-hint alias rewrites.
-If schema metadata is available and you pass a logical text field such as `event`, the server may still promote it to a preferred exact field such as `event.keyword` for exact term matching. If you pass an exact backend field like `event.keyword`, it is used as-is.
-`sort_by` is supported for `hits` and `grouped_top_hits`.
+- Returns the same structured output envelope as `query`, without field-hint alias rewrites.
+- With schema metadata, a logical text field such as `event` may still promote to preferred exact field `event.keyword`. An exact backend field such as `event.keyword` is used as-is.
+- `sort_by` supports `hits` and `grouped_top_hits`.

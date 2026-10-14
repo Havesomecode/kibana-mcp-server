@@ -4,12 +4,12 @@ description: "Complete setups for running Kibana MCP Server as a shared service.
 
 # Integration examples
 
-These pages show complete, copyable setups for running the server as a shared service.
+Choose a shared-service setup:
 
 | Example | What it shows |
 | --- | --- |
-| [Behind an MCP gateway](./gateway) | The contract any gateway or reverse proxy must fulfil: authenticate the caller, forward its identity in a header. |
-| [Ts.ED gateway](./tsed) | A concrete gateway built with Ts.ED, protected by OIDC, forwarding the token subject as the profile. |
-| [Docker image](./docker) | A container image that runs the server over HTTP with a catalog store. |
+| [Behind an MCP gateway](./gateway) | Authenticate callers, overwrite the profile header with verified identity, send the shared secret. |
+| [Ts.ED gateway](./tsed) | Use OIDC and the verified token subject as the profile. |
+| [Docker image](./docker) | Run HTTP with a persistent catalog store. |
 
-All three rely on the [HTTP transport](../deployment/http) and on [catalog stores](../deployment/catalog-stores).
+All use [HTTP transport](../deployment/http) and [catalog stores](../deployment/catalog-stores).

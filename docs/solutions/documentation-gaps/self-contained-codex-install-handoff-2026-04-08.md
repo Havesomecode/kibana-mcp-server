@@ -25,56 +25,45 @@ tags: [codex, install, plugin, multi-environment, kibana]
 
 ## Context
 
-The repo-local install path for this Kibana MCP worked in practice, but the handoff was still fragile. A colleague could not reliably give only the raw `INSTALL.md` link to another agent and expect the full setup flow to succeed without extra human explanation about the repo name, plugin location, build requirements, fallback behavior, or environment-specific configuration rules.
+The 2026-04-08 handoff needed extra explanation about repository, build, plugin fallback, and environment isolation. Older Codex model variants stalled on plugin installation; endpoint-shaped `KIBANA_BASE_URL` values caused avoidable `404`s.
 
-The friction showed up most clearly when older Codex model variants failed to complete the repo-local plugin install autonomously, and when one workspace needed both staging and production MCP entries. The setup guidance also left room for a common configuration mistake: setting `KIBANA_BASE_URL` to a full Kibana API endpoint instead of the base prefix that the server should join with source backend paths.
+## Repo-local handoff steps
 
-## Guidance
+Use `INSTALL.md` as the canonical operator handoff, including for raw-link setup, multiple environments, host-variable mapping, and base-URL troubleshooting.
 
-Treat `INSTALL.md` as the canonical operator handoff for this repo. An agent that receives only the raw file link should still be able to infer all of the following without extra prompting:
+1. With Node.js 22+, run `git clone https://github.com/Havesomecode/kibana-mcp-server` and `cd kibana-mcp-server`. Read `INSTALL.md` first.
+2. Resolve the full installation commit SHA using the commands below, then `git checkout <resolved-commit>`. Verify README, INSTALL, and skills from that commit. Stop on missing refs or files; never substitute master.
+3. Run `npm install` and `npm run build`.
 
-- the GitHub repository to clone
-- the repo-scoped plugin name and location
-- the required Node.js major and build steps
-- the manual plugin-install fallback path if the model cannot complete the Codex UI step itself
-- the MCP configuration and verification flow
+### Install and connect
 
-For multi-environment setup, ask the user for a short profile name such as `staging`, `prod`, `preprod`, or `qa`, then run connection-only bootstrap with `--profile <name>`. Bootstrap assigns that profile its machine-local catalog; do not invent profile names or catalog contents. Call `configure_index` only after the user explicitly names an index or pattern.
+1. In Codex, install **Kibana Log Investigation** from `.agents/plugins/marketplace.json`; plugin root: `plugins/kibana-log-investigation`. If the model stalls, use the manual fallback below and wait for confirmation.
+2. Ask for a short profile name, such as `staging` or `prod`. Supply credentials through operator-side environment input or secure prompts. On Linux, unlock the Secret Service keyring.
+3. Run `node dist/src/bin/kibana-mcp-server.js bootstrap --profile <name> --client none`. Do not register a duplicate standalone MCP or invent catalog contents. Bootstrap verifies the connection, stores platform credentials, and creates an empty machine-local catalog without listing, scanning, inferring, or configuring indexes.
+4. Restart Codex, load `skills/kibana-log-investigation/SKILL.md` from the same commit, and check MCP tools. Ask for the exact index or pattern before `configure_index`.
 
-For direct environment-based startup, the operator must explicitly provide `KIBANA_SOURCE_CATALOG_PATH` or a configuration-file store. Keep catalogs distinct across environments; no checkout catalog is loaded implicitly.
+### Resolve the installation commit
 
-If the operator already keeps target-specific host variables such as `KIBANA_BASE_URL_STAGING` and `KIBANA_BASE_URL_PROD`, preserve that host-side convention if it is useful to them. For direct environment-based MCP entries, map those values into the standard runtime variables expected by the server:
+| Input | Resolve the SHA |
+| --- | --- |
+| Checkout branch/tag | `git rev-parse <ref>^{commit}` |
+| Detached checkout | `git rev-parse HEAD` |
+| Exact npm version | `npm view @havesomecode/kibana-mcp-server@<exact-version> gitHead` |
 
-- `KIBANA_BASE_URL`
-- `KIBANA_USERNAME`
-- `KIBANA_PASSWORD`
-- `KIBANA_SOURCE_CATALOG_PATH`
+Do not infer a Git tag from an npm version. Pin the same exact package version. Fetch missing selected refs explicitly; absent metadata is an error.
 
-Treat manual plugin installation as a supported continuation path, not as a setup failure. If a model cannot complete the repo-local plugin install from prompting alone, the agent should tell the user exactly which Codex UI steps to click, wait for confirmation, then continue with configuration and verification.
+Verify the commit-pinned README with `node scripts/readme-handoff.mjs <resolved-commit>`. The repository-only helper compares fetched bytes against Git and returns `url` and `commit` without installing or configuring anything. Historical checkouts without it need explicit resolution and retrieval verification.
 
-Keep `KIBANA_BASE_URL` limited to the Kibana base prefix. Endpoint paths such as `/internal/search/es` belong in the source backend configuration, not in `KIBANA_BASE_URL`.
+## Keep environments separate
 
-## Why This Matters
-
-The main benefit is durable handoff quality. A colleague should be able to send only the raw `INSTALL.md` link to another agent and get the same setup flow every time, instead of relying on undocumented tribal knowledge about the repo structure or Codex behavior.
-
-The profile-name rule matters because saved profiles keep connections and catalog paths distinct. `configure_index` persists sources in the selected managed catalog; sharing one catalog across environments would mix their sources. Guided setup can instead import a hand-authored catalog explicitly selected by the operator.
-
-The env-var mapping rule matters because operators often already have separate secrets or shell variables for each target environment. Allowing those host-side names while standardizing each MCP entry onto the server's `KIBANA_*` contract keeps the server simple without forcing users to reorganize their environment management.
-
-The `KIBANA_BASE_URL` clarification matters because the wrong value looks plausible but produces a bad combined URL at runtime. Calling out correct and incorrect shapes removes a common source of confusing 404 debugging.
-
-## When to Apply
-
-- When this repo is being handed to another operator or agent for first-time setup from a cloned checkout
-- When the handoff must work from the raw `INSTALL.md` link alone
-- When one Codex workspace needs both staging and production MCP entries
-- When the operator already uses target-specific host variables and needs them mapped into the server's runtime variables
-- When a user reports 404s after setup and the configured `KIBANA_BASE_URL` may include a full endpoint path
+1. Give each saved profile its own catalog. `configure_index` writes to the selected managed catalog; guided `setup` instead imports an explicitly selected hand-authored catalog.
+2. For direct environment startup, provide `KIBANA_SOURCE_CATALOG_PATH` or a configuration-file store. Keep catalogs distinct; no checkout catalog loads implicitly.
+3. Preserve useful host-specific variables such as `KIBANA_BASE_URL_STAGING` and `KIBANA_BASE_URL_PROD`; map each entry to standard `KIBANA_BASE_URL`, `KIBANA_USERNAME`, `KIBANA_PASSWORD`, and `KIBANA_SOURCE_CATALOG_PATH` as shown below.
+4. Set `KIBANA_BASE_URL` to the Kibana base prefix. Put paths such as `/internal/search/es` in the source backend configuration, not the base URL.
 
 ## Examples
 
-Resolve the selected branch, tag, or package metadata to the full installation commit SHA before handing off. Branch and tag names are resolution inputs, not durable README URLs. Do not infer a Git tag from an npm version or silently fall back to master. Read `INSTALL.md` and skills from the same resolved installation commit. The current [installation guide](../../../INSTALL.md#version-matched-readme-handoff) documents the resolver and retrieval checks.
+Copy the resolved commit into this handoff; branch/tag names are resolution inputs, not durable README URLs:
 
 ```text
 For the resolved installation commit, read this README:
@@ -89,14 +78,14 @@ Manual plugin-install fallback:
 If you cannot complete the repo-local plugin install yourself, open this repo in Codex, open plugins/kibana-log-investigation, install "Kibana Log Investigation" from the local marketplace, restart Codex if needed, then continue with MCP configuration.
 ```
 
-Named saved profiles:
+Standalone package registration with named profiles (not alongside the repo-local plugin):
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap --profile staging --client codex
 npx -y @havesomecode/kibana-mcp-server bootstrap --profile prod --no-default --client codex
 ```
 
-Saved-profile server processes should not receive direct connection variables: those select environment startup and require an explicit catalog or store. No connection means startup fails with `No saved Kibana connection is available. Run connection bootstrap first.`
+Leave direct connection variables unset for saved-profile server processes; they select environment startup and require an explicit catalog/store. Without a saved connection, startup fails with `No saved Kibana connection is available. Run connection bootstrap first.`
 
 Mapping target-specific host variables into the standard runtime variables for one MCP entry:
 

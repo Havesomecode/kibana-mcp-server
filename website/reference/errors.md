@@ -6,7 +6,7 @@ description: "Kibana request error codes, catalog errors and HTTP transport stat
 
 ## Kibana request errors
 
-A tool call that fails while talking to Kibana returns an error result whose `_meta.kibana_request_error` carries diagnostic fields: `code`, `phase` (`queue`, `request` or `response`), `source_id`, `timeout_ms`, and `status` or `cause_code` when available.
+Read `_meta.kibana_request_error` on failed Kibana tool calls: `code`, `phase` (`queue`, `request` or `response`), `source_id`, `timeout_ms`, plus `status` or `cause_code` when available.
 
 | Code | Meaning |
 | --- | --- |
@@ -23,7 +23,7 @@ A tool call that fails while talking to Kibana returns an error result whose `_m
 
 ## Concurrency limits
 
-Each Kibana connection allows eight concurrent requests and thirty-two queued ones. Beyond that, calls fail immediately with `KIBANA_OVERLOADED`. Profiles that share a connection share that budget.
+Each Kibana connection allows eight concurrent requests and thirty-two queued; excess calls fail immediately with `KIBANA_OVERLOADED`. Profiles sharing a connection share its budget.
 
 ## Startup errors
 

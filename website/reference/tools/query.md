@@ -4,7 +4,7 @@ description: "Reference of the query tool: search sources over a time window in 
 
 # `query`
 
-Searches one or more sources over an absolute time window, in hits, count, histogram, terms, stats or grouped mode.
+Search one or more sources over an absolute time window.
 
 Input:
 
@@ -33,26 +33,29 @@ Input:
 }
 ```
 
-Supported modes:
+## Modes
 
-- `hits`
-- `count`
-- `histogram`
-  - requires `histogram_interval`
-- `terms`
-  - requires `group_by`
-- `stats`
-  - requires `stats_field`
-  - can also take `group_by`
-- `grouped_top_hits`
-  - requires `group_by`
-  - requires `sort_by`
-  - accepts `top_hits_size`
+| Mode | Required fields | Optional fields |
+| --- | --- | --- |
+| `hits` | | `sort_by` (sort on a chosen field) |
+| `count` | | |
+| `histogram` | `histogram_interval` | |
+| `terms` | `group_by` | |
+| `stats` | `stats_field` | `group_by` |
+| `grouped_top_hits` | `group_by`, `sort_by` | `top_hits_size` |
 
-Every response includes a `query_echo` section so the investigating agent can explain which sources, bounds, filters, and mode were actually used.
-For `hits` mode, you can also pass `sort_by` to sort on a chosen field. In `query`, exact filters and grouped bucket fields use field-hint alias resolution plus schema-aware exact-field preference when metadata is available. When the server rewrites a logical field such as `event` to a safer exact field such as `event.keyword`, the response includes an advisory. If schema metadata is unavailable, the query proceeds with the requested field and returns a `schema_unavailable` advisory instead of silently pretending exact-safe resolution happened.
+## Field resolution
 
-For very large single-source hit sets, `query` also supports cursor pagination:
+- Exact filters and grouped bucket fields use field-hint aliases and, with metadata, schema-aware exact-field preference.
+- Rewriting `event` to safer exact field `event.keyword` returns an advisory.
+- Without metadata, queries use the requested field and return `schema_unavailable`; exact-safe resolution is not claimed.
+- Nested filters require working `schema` metadata; otherwise they fail early with a configuration error, not a backend 404.
+
+Every response includes `query_echo`: sources, bounds, filters and mode actually used.
+
+## Cursor pagination
+
+For large hit sets, pass `cursor`. Supported only for **single-source `hits`** queries:
 
 ```json
 {
@@ -65,11 +68,7 @@ For very large single-source hit sets, `query` also supports cursor pagination:
 }
 ```
 
-Cursor pagination is currently supported only for single-source `hits` queries.
-
-Nested filtering also depends on schema metadata. If a source does not expose a working `schema` backend, nested requests fail early with a clear configuration error instead of reaching Kibana and failing with a backend 404.
-
-Example `stats` query:
+## `stats` example
 
 ```json
 {
@@ -83,7 +82,7 @@ Example `stats` query:
 }
 ```
 
-Example `grouped_top_hits` query:
+## `grouped_top_hits` example
 
 ```json
 {

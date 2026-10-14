@@ -4,7 +4,7 @@ description: "Reference of the discover tool: list the logical sources of the cu
 
 # `discover`
 
-Lists the logical sources configured for the current profile, with their field hints.
+List the current profile's configured logical sources and field hints.
 
 Input:
 

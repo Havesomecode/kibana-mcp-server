@@ -4,16 +4,16 @@ description: "What an MCP gateway or reverse proxy must do in front of the HTTP 
 
 # Behind an MCP gateway
 
-The HTTP transport does not authenticate end users. It expects to sit behind something that does: an MCP gateway, an API gateway or a reverse proxy. This page describes what that component has to do, whatever it is built with.
+Put HTTP behind an MCP/API gateway or reverse proxy. The server does not authenticate end users; the gateway must.
 
 ## The contract
 
-For every request it forwards, the gateway must:
+For every forwarded request:
 
-1. **Authenticate the caller** with whatever your organization uses: OIDC, an API key, mutual TLS.
-2. **Set the profile header** to a stable identifier of that caller, typically the `sub` claim of its token. The server uses it to select the caller's source catalog.
-3. **Overwrite, never forward, that header.** A value sent by the client must not reach the server, or a caller could read another caller's catalog.
-4. **Send the shared secret** as `Authorization: Bearer <token>`, so the server knows the request comes from the gateway.
+1. **Authenticate the caller:** OIDC, API key, or mutual TLS.
+2. **Set the profile header** from a stable verified identity, typically token `sub`. It selects the caller's catalog.
+3. **Overwrite, never forward, that header.** Client-supplied values could expose another caller's catalog.
+4. **Send the shared secret** as `Authorization: Bearer <token>` to authenticate the gateway to the server.
 
 ```
 caller ──(OIDC token)──▶ gateway ──(Authorization: Bearer <shared secret>
@@ -22,6 +22,8 @@ caller ──(OIDC token)──▶ gateway ──(Authorization: Bearer <shared 
 
 ## Server side
 
+Set a profile header, or name one default profile. Non-loopback HTTP requires `KIBANA_HTTP_AUTH_TOKEN`; otherwise startup is refused.
+
 ```bash
 KIBANA_HTTP_AUTH_TOKEN=change-me \
 kibana-mcp-server serve --http \
@@ -29,11 +31,9 @@ kibana-mcp-server serve --http \
   --profile-header x-kibana-profile
 ```
 
-The server refuses to start over HTTP without a profile header unless you name a single default profile, and refuses to listen on a non-loopback host without `KIBANA_HTTP_AUTH_TOKEN`.
-
 ## Example: nginx with an auth subrequest
 
-Any proxy that can run an authentication step and copy its result into a header works. With nginx and an OAuth2 proxy:
+With nginx and an OAuth2 proxy, authenticate and overwrite headers:
 
 ```nginx
 location /mcp/kibana {
@@ -49,8 +49,8 @@ location /mcp/kibana {
 
 ## One server per Kibana
 
-A server process holds a single Kibana connection. To expose several Kibana instances, for example production and staging, run one server per instance, each on its own port and with its own store prefix or table, and route to them from the gateway.
+Run one process per Kibana instance. Give each its own port and store prefix or table, then route from the gateway.
 
 ## Callers without an identity
 
-A caller whose identity has no stable identifier, such as a machine token without `sub`, produces an empty header, and the server answers `401`. Either reject such callers at the gateway or map them to a named profile there.
+Reject identities without a stable identifier, or map them to a named profile at the gateway. An empty profile header (for example, a token without `sub`) returns `401`.

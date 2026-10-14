@@ -4,11 +4,11 @@ description: "Expose Kibana MCP Server through a Ts.ED gateway protected by OIDC
 
 # Ts.ED gateway
 
-[Ts.ED](https://tsed.dev/docs/mcp.html) can expose a third-party MCP server on one of its own endpoints, protected by OAuth. This example mounts a Kibana MCP server for each environment and gives every user their own source catalog.
+Use [Ts.ED](https://tsed.dev/docs/mcp.html) to expose OAuth-protected MCP endpoints: one Kibana server per environment, one catalog per user.
 
 ## Run the Kibana MCP server
 
-One process per Kibana instance:
+1. Create one config per Kibana instance:
 
 ```ts
 // kibana.production.config.ts
@@ -29,15 +29,17 @@ export default defineKibanaMcpConfig({
 });
 ```
 
+2. Start production:
+
 ```bash
 kibana-mcp-server serve --http --config ./kibana.production.config.ts
 ```
 
-Staging uses the same file with its own URL, port `3102` and prefix `kibana-mcp:staging:`.
+3. For staging, use its own URL, port `3102`, and prefix `kibana-mcp:staging:`.
 
 ## Declare the gateway
 
-Ts.ED interpolates `${OAUTH_SUB}` with the subject of the verified token. Placeholders are plain strings, not template literals.
+Set the profile from the verified token subject. Ts.ED interpolates `${OAUTH_SUB}`; keep placeholders as plain strings, not template literals. Overwrite client-supplied profile headers; never trust them.
 
 ```ts
 import type { PlatformMcpSettings } from "@tsed/platform-mcp";
@@ -73,10 +75,9 @@ export const mcpsConfig: PlatformMcpSettings[] = [
 
 ## What each user gets
 
-- Their own catalog, keyed by the token subject. A new user starts with an empty catalog and fills it by asking the agent to configure an index.
-- The shared Kibana service account for queries.
+Expected: a catalog per token subject; queries use the shared Kibana service account. New catalogs are empty. Call `discover`, ask for the exact index or pattern, and wait before `configure_index`. Never guess, list, or scan indexes.
 
 ## Things to check
 
-- `${OAUTH_SUB}` is empty for tokens without a string `sub`, which is common for `client_credentials` grants and for custom pre-authentication checks that return no subject. The server then answers `401`. Reject those identities in Ts.ED, or give them a subject there.
-- Compared with a `stdio` upstream, an `http` upstream keeps one Kibana MCP process for all users instead of one process per token.
+- Reject tokens without a string `sub`, or assign a subject in Ts.ED. `${OAUTH_SUB}` is otherwise empty and the server returns `401`; check `client_credentials` and custom pre-authentication results.
+- Use `http` for one MCP process shared across users. A `stdio` upstream starts one process per token.
