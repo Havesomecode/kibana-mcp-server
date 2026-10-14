@@ -1,118 +1,73 @@
 ---
 name: ensure-node-runtime
-description: Ensure Node.js 22+ is available for this repo using a user-level install path on Windows, macOS, or Linux.
+description: Check or install Node.js 22+ at user scope.
 ---
 
 # Ensure Node Runtime
 
-Use this skill when the repository has been cloned locally and Codex needs to make sure Node.js is available before building or running the Kibana MCP server.
+Run these before building the cloned repository:
 
-This skill prefers user-level installation paths and avoids system-wide package installs.
+```bash
+node --version
+npm --version
+```
 
-## Goals
+If both work and Node is 22+, stop. Otherwise install at user scope with `fnm`; avoid system-wide installs. Choose the section matching the OS and shell.
 
-- detect whether `node` and `npm` are already usable
-- install Node.js 22+ at user scope when missing
-- choose commands based on the current operating system and shell
-- verify the runtime before continuing with repo setup
+## Windows: PowerShell
 
-## Detection
+1. If `fnm` is missing, run `winget install Schniz.fnm`. If winget is blocked or unavailable, download the official Windows `fnm` release binary, extract it under the user's home, and add that directory to the user PATH. Do not assume Scoop exists.
+2. Configure the current session:
 
-1. Check whether `node` and `npm` are already present:
-   - `node --version`
-   - `npm --version`
-2. If `node` is present and major version is `22` or newer, stop here.
-3. Otherwise install a user-level Node version manager, then install Node.js `22`.
+   ```powershell
+   fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
+   ```
 
-## Preferred cross-platform strategy
+3. Create `$PROFILE` if needed. Add that same line once for future sessions.
+4. [Install and verify Node](#install-and-verify-node).
 
-Use `fnm` as the default version manager because it works on Windows, macOS, and Linux and supports shell auto-configuration.
+## macOS or Linux
 
-The repo pins the desired major in `.node-version`, so after `fnm` is installed you can use either:
+1. If `fnm` is missing, run its official user-level installer:
 
-- `fnm install 22 && fnm default 22`
-- or `fnm use --install-if-missing`
+   ```bash
+   curl -fsSL https://fnm.vercel.app/install | bash
+   ```
 
-## Windows
+2. Configure the active shell; add the same line once to its startup file.
 
-Prefer a PowerShell-first install path.
+   | Shell | Current session | Startup file |
+   | --- | --- | --- |
+   | Bash | `eval "$(fnm env --use-on-cd)"` | `~/.bashrc` |
+   | Zsh | `eval "$(fnm env --use-on-cd)"` | `~/.zshrc` |
+   | Fish | `fnm env --use-on-cd \| source` | `~/.config/fish/config.fish` |
 
-Use `winget` when it is available. If it is blocked or unavailable, fall back to the official `fnm` release binary extracted into the user's home directory.
+3. [Install and verify Node](#install-and-verify-node).
 
-Reference basis:
+## Install and verify Node
 
-- `fnm` officially documents Windows installation via `winget`
-- `fnm` also supports installation from a release binary on Windows
-- PowerShell profile setup is the standard way to enable `fnm` in Windows shells
+1. Install the repository's Node major:
 
-### Recommended flow
+   ```bash
+   fnm install 22
+   fnm default 22
+   ```
 
-1. If `fnm` already exists, skip to Node installation.
-2. If `winget` is available:
-   - `winget install Schniz.fnm`
-3. If `winget` is not available or is blocked:
-   - download the latest Windows `fnm` release binary from the official GitHub releases page
-   - extract it into a user-level directory such as `%USERPROFILE%\\.local\\bin\\fnm` or `%USERPROFILE%\\.fnm\\bin`
-   - add that directory to the user PATH in PowerShell
-4. Configure the current PowerShell session:
-   - `fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression`
-5. Persist shell integration for future PowerShell sessions:
-   - create `$PROFILE` if needed
-   - append `fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression` to `$PROFILE` if it is not already present
-6. Install and select Node.js 22:
-   - `fnm install 22`
-   - `fnm default 22`
+   In the checkout, `fnm use --install-if-missing` also reads `.node-version`.
 
-## macOS
+2. Verify the selected runtime:
 
-Prefer a user-level `fnm` install using the official install script.
+   ```bash
+   fnm --version
+   node --version
+   npm --version
+   ```
 
-### Recommended flow
+   Node must report 22+ and npm must work. If PATH has not refreshed, restart the terminal or Codex and check again.
 
-1. If `fnm` is missing:
-   - `curl -fsSL https://fnm.vercel.app/install | bash`
-2. Configure the current shell:
-   - bash/zsh: `eval "$(fnm env --use-on-cd)"`
-   - fish: `fnm env --use-on-cd | source`
-3. Persist shell integration:
-   - bash: add `eval "$(fnm env --use-on-cd)"` to `~/.bashrc`
-   - zsh: add `eval "$(fnm env --use-on-cd)"` to `~/.zshrc`
-   - fish: add `fnm env --use-on-cd | source` to `~/.config/fish/config.fish`
-4. Install and select Node.js 22:
-   - `fnm install 22`
-   - `fnm default 22`
+3. Continue setup:
 
-## Linux
-
-Use the same user-level `fnm` flow as macOS.
-
-### Recommended flow
-
-1. If `fnm` is missing:
-   - `curl -fsSL https://fnm.vercel.app/install | bash`
-2. Configure and persist shell integration for the active shell:
-   - bash: `eval "$(fnm env --use-on-cd)"` plus `~/.bashrc`
-   - zsh: `eval "$(fnm env --use-on-cd)"` plus `~/.zshrc`
-   - fish: `fnm env --use-on-cd | source` plus `~/.config/fish/config.fish`
-3. Install and select Node.js 22:
-   - `fnm install 22`
-   - `fnm default 22`
-
-## Verification
-
-After installation, verify all of:
-
-- `fnm --version`
-- `node --version`
-- `npm --version`
-
-The resulting `node --version` must report major `22` or higher.
-
-## Notes
-
-- Prefer user-level installs over admin installs.
-- On Windows, prefer PowerShell-native flows and avoid assuming Scoop is available.
-- If the current shell cannot pick up the new PATH cleanly, restart the terminal or restart Codex after installation.
-- Once Node is available, continue with:
-  - `npm install`
-  - `npm run build`
+   ```bash
+   npm install
+   npm run build
+   ```

@@ -4,11 +4,15 @@ description: "Keep source catalogs in PostgreSQL: options, table definition and 
 
 # PostgreSQL store
 
-Keeps one row per profile.
+## 1. Install the driver
 
 ```bash
 npm install pg
 ```
+
+## 2. Configure the store
+
+PostgreSQL keeps one row per profile:
 
 ```ts
 import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";
@@ -44,8 +48,8 @@ CREATE TABLE IF NOT EXISTS kibana_mcp_catalogs (
 );
 ```
 
-The database user needs `SELECT`, `INSERT` and `UPDATE` on that table, plus `CREATE` on the schema if the store creates it.
+Grant the database user `SELECT`, `INSERT` and `UPDATE` on the table, plus schema `CREATE` if the store creates it.
 
 ## How writes are protected
 
-A new catalog is inserted with `ON CONFLICT DO NOTHING`; an existing one is updated only `WHERE content = <what was read>`. A write that changes no row is reported as a conflict.
+New catalogs use `ON CONFLICT DO NOTHING`; existing ones update only `WHERE content = <what was read>`. No changed row reports a conflict.

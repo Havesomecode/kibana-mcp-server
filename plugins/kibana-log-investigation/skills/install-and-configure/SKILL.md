@@ -5,51 +5,59 @@ description: Install the repo plugin with connection-only bootstrap.
 
 # Install and Configure
 
-Use this skill only when the repository has been cloned locally and Codex needs the repo-scoped plugin. For public installs, use the canonical `skills/kibana-log-investigation` skill and the published npm package instead.
+Build the cloned checkout before installing its Codex plugin. Public npm installs use `skills/kibana-log-investigation` instead.
 
-## Version-matched README handoff
+## Build and install
 
-Resolve the selected branch or tag to the full installation commit SHA before following installation instructions. Read the README at this immutable URL:
+1. [Resolve the installation commit](#pin-the-handoff) and verify Node.js 22+. Use `ensure-node-runtime` if missing.
+2. Run from the repository root:
 
-```text
-https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
-```
+   ```bash
+   npm install
+   npm run build
+   ```
 
-Branch and tag names are resolution inputs, not final handoff URLs. Use `INSTALL.md` and skills from the same resolved installation commit. Do not infer a Git tag from an npm version or silently fall back to master. Detached installs use `git rev-parse HEAD`'s full commit SHA.
+3. Confirm `plugins/kibana-log-investigation/dist/mcp_entry.mjs` exists. Install `Kibana Log Investigation` from the repo-local Codex marketplace. The built plugin includes its runtime dependencies; it runs from its installed directory, not the checkout.
+4. Restart Codex only if the plugin directory does not refresh.
 
-From a maintained repository root containing the helper, run `node scripts/readme-handoff.mjs <resolved-installation-ref>`. Include its verified `url` and `commit` in agent handoffs. The helper resolves local refs and verifies the downloaded README against the selected Git object. Unknown refs, missing READMEs, or retrieval/content verification failures must be reported instead of presenting another version's instructions. The helper is repository-only; historical installations without it require explicit ref resolution and README retrieval verification.
+## Save the connection
 
-## Workflow
+1. Obtain `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD`, or safe CLI alternatives. Use the base URL prefix, without `/internal/search/es`. Never put passwords in arguments or summaries.
+2. Bootstrap without duplicate registration; do not edit client files.
 
-1. Ensure Node.js 22+ is available. Use `ensure-node-runtime` when needed.
-2. From the repository root:
+   ```bash
+   node dist/src/bin/kibana-mcp-server.js bootstrap --client none
+   ```
 
-```bash
-npm install
-npm run build
-```
+   First install creates an empty catalog without inspecting indexes. Do not import the bundled example unless requested. Use `--profile NAME` for additional environments; outside the plugin, select them with `serve --profile NAME`.
 
-3. Confirm the build produced `plugins/kibana-log-investigation/dist/mcp_entry.mjs`. Install `Kibana Log Investigation` from the repo-local Codex marketplace only after building. The built plugin includes runtime dependencies and launches from its installed directory, not the checkout.
-4. Restart Codex if the plugin directory does not refresh automatically.
-5. Resolve the Kibana connection through `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD`, or safe CLI alternatives.
-6. Bootstrap only the connection, without registering a duplicate global MCP:
+3. Clear connection variables from the plugin environment before reconnecting.
 
-```bash
-node dist/src/bin/kibana-mcp-server.js bootstrap --client none
-```
+   Bash: `unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD`
 
-7. Confirm first-time bootstrap reports an empty source catalog. It must not inspect or configure indexes. Remove `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` from the plugin process environment before reconnecting so startup uses the saved profile. In Bash: `unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD`; in PowerShell: `Remove-Item Env:KIBANA_BASE_URL, Env:KIBANA_USERNAME, Env:KIBANA_PASSWORD -ErrorAction SilentlyContinue`.
-8. In a fresh Codex session, call `discover`. When it reports no sources, ask the operator which exact index or index pattern to configure.
-9. Only after the operator answers, call `configure_index` with exactly that value. Then run `discover` again.
+   PowerShell: `Remove-Item Env:KIBANA_BASE_URL, Env:KIBANA_USERNAME, Env:KIBANA_PASSWORD -ErrorAction SilentlyContinue`
 
-## Rules
+## Select an index
 
-- Do not edit client configuration files.
-- Separate saved configuration, process startup, tools in the current discussion, and real backend access. If startup fails, inspect sanitized stderr and repair/reinstall the plugin before requesting another discussion. Run `npm run verify:entrypoint` for the isolated packaged-plugin handshake; it is not a native Codex or real-backend check.
-- Do not use the bundled example catalog unless the operator explicitly requests example data.
-- Do not put passwords in command arguments or summaries.
-- Do not guess, enumerate, scan, or auto-select Kibana indexes.
-- Do not call `configure_index` until the operator explicitly names the index or pattern.
-- Use `--profile NAME` for additional environments.
-- Use `serve --profile NAME` when invoking a non-default profile outside the repo plugin.
-- `KIBANA_BASE_URL` is a base prefix. Do not append `/internal/search/es`.
+1. In a fresh session, call `discover`.
+2. If empty, ask for the exact index or pattern and wait. Never guess, enumerate, scan, or auto-select.
+3. Call `configure_index` with exactly that value, then `discover` again.
+
+## Fix startup before restarting again
+
+Inspect MCP startup status and sanitized stderr. Repair and reinstall a failing plugin first. Saved configuration, process startup, tools in a discussion, and backend access are separate checks.
+
+`npm run verify:entrypoint` tests the isolated packaged plugin, not native Codex or a real backend.
+
+## Pin the handoff
+
+1. Resolve a full **commit SHA** using `git rev-parse <ref>^{commit}`, or `git rev-parse HEAD` for detached installs. Use README, INSTALL, and skills from this **resolved installation commit**.
+2. Verify the commit-pinned README:
+
+   ```text
+   https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
+   ```
+
+   In a maintained checkout: `node scripts/readme-handoff.mjs <resolved-installation-ref>`. Hand off the verified `url` and `commit`.
+
+Do not infer a Git tag from an npm version. Never substitute master on missing refs, README, or retrieval failures. The helper compares fetched bytes with Git; historical installs without it need explicit resolution and retrieval verification. It is repository-only, not an npm command.

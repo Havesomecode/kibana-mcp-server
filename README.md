@@ -1,71 +1,46 @@
 # Kibana Log Investigation MCP
 
-Read-only MCP server for agent-driven log investigation against Kibana-backed search endpoints protected with basic auth.
-
-It gives an agent what a Kibana UI cannot: a short list of logical sources it can trust, the fields it may filter on, and typed results.
-
-**Documentation: https://havesomecode.github.io/kibana-mcp-server/**
-
-## What it provides
-
-- `discover` lists the logical sources configured for the caller
-- `describe_fields` exposes the effective fields of a source, including which ones support exact matching
-- `query` searches one or more sources over an absolute time window in `hits`, `count`, `histogram`, `terms`, `stats`, or `grouped_top_hits` mode
-- `filter` runs an exact-field filter when the field name is already known
-- `configure_index` validates and persists exactly one index or pattern after the user explicitly names it
-
-The server never writes to Elasticsearch or Kibana, and never guesses an index.
-
-## Requirements
-
-- Node.js 22+
-- A Kibana-compatible read endpoint reachable with basic auth
-- One or more Elasticsearch index patterns
+Read Kibana logs with an agent. No Elasticsearch or Kibana writes, no guessed indexes.
 
 ## Quick start
 
-Bootstrap the connection; missing values are prompted for:
+Use Node.js 22+, `codex` on `PATH`, and a reachable Kibana base URL with basic auth. Run:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
 ```
 
-For prompt-free automation, provision the connection values in the environment:
+Missing values are prompted for. For automation, provision `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` first. Never pass a password in an argument; use environment, `--password-env NAME`, or `--password-stdin`.
 
-```bash
-export KIBANA_BASE_URL='https://kibana.example.com'
-export KIBANA_USERNAME='elastic'
-export KIBANA_PASSWORD='use-a-secret-provider'
+1. Clear those variables from the server environment after bootstrap so it uses the saved profile. Bash: `unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD`; PowerShell instructions are in [INSTALL.md](INSTALL.md).
+2. Open a fresh agent session and call `discover`.
+3. Name the exact index or pattern when asked. The agent calls `configure_index`, then `discover` again. It must not guess, enumerate, scan, or auto-select indexes.
 
-npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
-unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD
-```
+Bootstrap saves and verifies the connection, not index access. Startup requires a connection; direct environment startup overrides profiles and needs `KIBANA_SOURCE_CATALOG_PATH` or a configuration-file store. No implicit checkout catalog or MCP credential input is supported.
 
-Bootstrap verifies only the Kibana connection, creates an empty managed catalog, stores the credentials securely and registers the server. It does not list, scan, infer, or configure indexes: the agent asks which exact index or pattern to use, then calls `configure_index`.
-
-Clear the connection variables from the MCP server environment after bootstrap so startup uses the saved profile. Direct environment connections take precedence over profiles and require an explicit catalog path or store.
-
-The server requires a connection at startup. Use bootstrap, a configuration file, or connection environment variables with an explicit `KIBANA_SOURCE_CATALOG_PATH`. It does not accept credentials through MCP tools or search the checkout for a catalog. `bootstrap` always saves only the connection. Bare `setup` guides hand-authored catalog import; `setup` with connection options uses the same bootstrap flow.
-
-Never pass passwords as command-line arguments. Use `KIBANA_PASSWORD`, `--password-env NAME`, or `--password-stdin`.
-
-Install the agent skill that teaches the investigation workflow:
+## Install the investigation skill
 
 ```bash
 npx skills add Havesomecode/kibana-mcp-server \
   --skill kibana-log-investigation \
-  --agent codex \
-  --global \
-  --yes
+  --agent codex --global --yes
 ```
 
-`INSTALL.md` is the deterministic install and handoff guide for agents.
+Use [INSTALL.md](INSTALL.md) for profiles, plugin installation, or hand-authored catalogs. Bare `setup` imports a hand-authored catalog; with connection options it runs bootstrap.
 
-For a version-matched handoff, resolve the selected branch, tag, or package metadata to the full commit SHA. That SHA is the **resolved installation commit** used in `https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md`. Read `INSTALL.md` and the skills from the same commit. Do not infer a Git tag from an npm version; use the exact package's `gitHead`. A maintained checkout can verify the handoff with `node scripts/readme-handoff.mjs <resolved-installation-ref>`.
+## MCP tools
+
+| Tool | Use |
+| --- | --- |
+| `discover` | List configured sources for the caller. |
+| `describe_fields` | Find fields and exact-match support. |
+| `query` | Search sources over an absolute time window: `hits`, `count`, `histogram`, `terms`, `stats`, or `grouped_top_hits`. |
+| `filter` | Filter a known exact field. |
+| `configure_index` | Validate and save the user's exact index or pattern. |
 
 ## Run it as a shared service
 
-By default the server speaks stdio and serves one configuration. Over HTTP, one process serves every caller of your gateway, each with their own source catalog:
+Use HTTP behind an authenticated gateway to give each caller a separate catalog. Stdio serves one configuration.
 
 ```ts
 // kibana.mcp.config.ts
@@ -86,11 +61,21 @@ export default defineKibanaMcpConfig({
 kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
 ```
 
-Catalogs can live in files, Redis, PostgreSQL, MongoDB, SQLite, or a store you write. The HTTP transport trusts the profile header as sent: only a gateway that has authenticated the caller should reach it.
+**Restrict access to the authenticated gateway:** the server trusts its profile header. Stores: files, Redis, PostgreSQL, MongoDB, SQLite, or a custom store.
 
 ## Repository Codex plugin
 
-`npm run build` creates a self-contained runtime in `plugins/kibana-log-investigation/dist/`. The repo-local Codex plugin launches that installed bundle through `mcp-launcher.mjs`, without depending on the original checkout or its `node_modules`. Use `npm run verify:entrypoint` for the isolated copied-plugin handshake, and inspect Codex's MCP startup status plus sanitized stderr before restarting a discussion.
+Run `npm run build` before installing the plugin. Its bundled runtime needs no original checkout or `node_modules`. Check startup status and sanitized stderr before restarting a discussion; `npm run verify:entrypoint` tests the copied plugin.
+
+## Version-matched agent handoff
+
+Resolve the full **commit SHA** before installation: this is the **resolved installation commit**. Read README, INSTALL, and skills from that commit:
+
+```text
+https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
+```
+
+Do not infer a Git tag from an npm version. Use the exact package's `gitHead`; pin the same package version. From a maintained checkout, verify with `node scripts/readme-handoff.mjs <resolved-installation-ref>`. Missing metadata or failed retrieval must be reported, not replaced with master.
 
 ## Documentation
 
@@ -104,16 +89,7 @@ Catalogs can live in files, Redis, PostgreSQL, MongoDB, SQLite, or a store you w
 | Integration examples (gateway, Ts.ED, Docker) | https://havesomecode.github.io/kibana-mcp-server/integrations/ |
 | Tool, CLI and configuration reference | https://havesomecode.github.io/kibana-mcp-server/reference/cli |
 
-The documentation sources live in `website/`.
-
-## Project status
-
-- Published package: `npx -y @havesomecode/kibana-mcp-server`
-- Agent skill: `npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation`
-- Repo-local Codex plugin install remains a first-class path for cloned checkouts
-- GitHub Releases are the canonical release notes and version record; the `version` field in `package.json` inside git is not the release source of truth
-- Support posture, compatibility matrix, distribution strategy and release checklist live in `docs/project/`
-- Contributing and security reporting live in `CONTRIBUTING.md` and `SECURITY.md`
+Documentation sources: `website/`. Support and release policy: `docs/project/`. Version record: GitHub Releases, not the checkout's `package.json`. See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md) for contributions and private vulnerability reports.
 
 ## Development
 

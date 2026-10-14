@@ -4,11 +4,15 @@ description: "Keep source catalogs in MongoDB: options, document shape and repli
 
 # MongoDB store
 
-Keeps one document per profile.
+## 1. Install the driver
 
 ```bash
 npm install mongodb
 ```
+
+## 2. Configure the store
+
+MongoDB keeps one document per profile:
 
 ```ts
 import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";
@@ -33,7 +37,7 @@ export default defineKibanaMcpConfig({
 | `collection` | none | A collection you obtained yourself, used instead of `url`. The store never closes its client. |
 
 ::: warning Replica sets
-A connection string listing several hosts, such as `mongodb://db1,db2,db3/logs?replicaSet=rs0`, is not accepted by the `url` option yet. Use a `mongodb+srv://` URL, or create the client yourself and pass its `collection`:
+The `url` option does not yet accept multi-host strings such as `mongodb://db1,db2,db3/logs?replicaSet=rs0`. Use `mongodb+srv://`, or create a client and pass its `collection`:
 
 ```ts
 import { MongoClient } from "mongodb";
@@ -53,4 +57,4 @@ export default defineKibanaMcpConfig({ /* … */ store, storeOptions: { collecti
 
 ## How writes are protected
 
-A new catalog is inserted, and a duplicate key is reported as a conflict. An existing one is updated with a filter on its previous content; an update that matches no document is reported as a conflict.
+New catalogs use insert; duplicate keys report a conflict. Existing catalogs update only when previous content matches; no matching document reports a conflict.

@@ -4,7 +4,7 @@ description: "Run one shared server over Streamable HTTP with a source catalog p
 
 # HTTP transport
 
-By default the server speaks stdio and serves one global configuration. To run it as a shared service, for example behind an MCP gateway, start it over Streamable HTTP:
+Start a shared Streamable HTTP server behind an authenticated MCP gateway:
 
 ```bash
 KIBANA_BASE_URL=https://kibana.example.com \
@@ -15,17 +15,25 @@ KIBANA_HTTP_AUTH_TOKEN=... \
 kibana-mcp-server serve --http --port 3000 --profile-header x-kibana-profile
 ```
 
-One process then serves every caller. Each tool call is bound to the profile named by the configured header, so callers never share a source catalog:
+Only the gateway should reach the server. The profile header is trusted as sent: the server authenticates the gateway, not end users. Non-loopback listening requires `KIBANA_HTTP_AUTH_TOKEN`.
 
-- with the `{profile}` placeholder in `KIBANA_SOURCE_CATALOG_PATH`, every profile gets its own catalog file and shares the environment connection.
-- with a `store` in the configuration file (see below), every profile gets its own entry in that store.
-- without bootstrap environment variables, the header selects a saved machine profile by its exact name, not its generated id. CLI profile selection still accepts case-insensitive names and ids.
-- without `--profile-header`, the server refuses to start unless a default profile is named (`--profile`, `KIBANA_PROFILE` or `profile` in the configuration file); every caller is then served that one profile. Over stdio, per-profile catalogs fall back to the `default` profile.
-- profile names are compared exactly: `Alice` and `alice` are two profiles.
+Without `--http`, the default is stdio with one global configuration.
 
-A profile without a catalog starts empty and fills it through `configure_index`. Profile names are turned into filesystem-safe keys before they reach a path or a store: a plain lowercase slug is kept as is, anything else gets a digest suffix. Literal names ending in the reserved `-<12 hex digits>` suffix are hashed too, so they cannot impersonate another profile's generated key. The server never adopts another identity's catalog.
+## Select each caller's catalog
 
-HTTP options, as flags or environment variables:
+One process serves all callers; each tool call uses the configured profile header:
+
+- `{profile}` in `KIBANA_SOURCE_CATALOG_PATH`: separate catalog files, shared environment connection.
+- Configuration-file [`store`](./catalog-stores): separate store entries per profile.
+- Without bootstrap environment variables: selects a saved machine profile by **exact name**, not generated id. CLI selection still accepts case-insensitive names and ids.
+- Without `--profile-header`: startup requires an explicit default (`--profile`, `KIBANA_PROFILE` or configuration-file `profile`); all callers use it. Over stdio, per-profile catalogs fall back to `default`.
+- HTTP profile names are exact: `Alice` and `alice` are distinct.
+
+Missing catalogs start empty; fill them with `configure_index`.
+
+Profile names become filesystem-safe path/store keys: plain lowercase slugs stay unchanged; other names get a digest suffix. Literal names ending in reserved `-<12 hex digits>` are hashed too, preventing impersonation of generated keys. The server never adopts another identity's catalog.
+
+## HTTP options
 
 - `--host` / `KIBANA_HTTP_HOST`, default `127.0.0.1`
 - `--port` / `KIBANA_HTTP_PORT`, default `3000`
@@ -35,10 +43,25 @@ HTTP options, as flags or environment variables:
 
 `GET /healthz` answers `200` without authentication.
 
-The profile header is trusted as sent: the server does not authenticate end users itself. Only a gateway that has already authenticated the caller should be able to reach it. The server refuses to listen on a non-loopback host without `KIBANA_HTTP_AUTH_TOKEN`.
+Without a token, MCP requests require a loopback `Host` and, if present, loopback `Origin`. Authenticated gateways may forward their own host/origin headers.
 
-Without a token, MCP requests must also have a loopback `Host` and, when present, a loopback `Origin`. Authenticated gateways may forward their own host and origin headers.
+## Legacy sessions
 
-Legacy clients that send `initialize` receive an `Mcp-Session-Id` and must echo it on subsequent requests, including cancellation notifications and `DELETE` when finished. Sessions are bound to the original profile, limited to 128 per process, and expire after 30 minutes without a request (reclaimed on the next legacy request). They also retire after 1,024 requests to bound cancellation metadata retained by the SDK; retirement closes any remaining exchanges in that session. A full session registry returns `503`; an expired, exhausted, unknown, or mismatched session returns `404` and requires reinitialization. Modern requests and handshake-free legacy calls remain supported, but cross-request cancellation requires a session.
+1. Send `initialize` to receive an `Mcp-Session-Id`.
+2. Echo it on subsequent requests, including cancellation notifications.
+3. Send `DELETE` with it when finished.
 
-The `2025-06-18` initialization flow supports session-based GET/SSE streams and authenticated DELETE. Disconnecting a GET stream releases that stream without deleting its session. Modern `2026-07-28` tool calls remain stateless: send the per-request `_meta` envelope and `MCP-Protocol-Version`, `Mcp-Method`, and `Mcp-Name` headers as required by the SDK. Disconnecting an in-flight modern request cancels its backend work; backend deadlines still bound tool calls. Authentication and profile selection are checked on every request.
+Sessions stay bound to the original profile:
+
+- Maximum: 128 per process; a full registry returns `503`.
+- Idle expiry: 30 minutes, reclaimed on the next legacy request.
+- Retirement: after 1,024 requests, bounding SDK cancellation metadata and closing remaining session exchanges.
+- Expired, exhausted, unknown or mismatched session: `404`; reinitialize.
+
+The `2025-06-18` initialization flow supports session-based GET/SSE streams and authenticated DELETE. Disconnecting GET releases only the stream, not its session. Handshake-free legacy calls remain supported; cross-request cancellation requires a session.
+
+## Modern requests
+
+For stateless `2026-07-28` tool calls, send the per-request `_meta` envelope and SDK-required `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers. Disconnecting an in-flight modern request cancels backend work; backend deadlines still bound tool calls.
+
+Authentication and profile selection are checked on **every request**, legacy or modern.

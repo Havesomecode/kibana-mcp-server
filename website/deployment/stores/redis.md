@@ -4,7 +4,9 @@ description: "Keep source catalogs in Redis with the redis or ioredis client: op
 
 # Redis store
 
-Keeps one key per profile, without expiry. Two entry points are provided, one per client library; they behave the same.
+## 1. Install a driver
+
+Both entry points behave identically; choose your client:
 
 | Entry point | Driver |
 | --- | --- |
@@ -14,6 +16,10 @@ Keeps one key per profile, without expiry. Two entry points are provided, one pe
 ```bash
 npm install redis
 ```
+
+## 2. Configure the store
+
+Redis keeps one key per profile, without expiry:
 
 ```ts
 import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";
@@ -49,13 +55,13 @@ export default defineKibanaMcpConfig({ /* … */ store, storeOptions: { client }
 
 ## Redis must be durable
 
-Catalogs are data, not a cache. Point the store at a Redis that:
+Use durable Redis; catalogs are data, not cache:
 
-- persists to disk (AOF or RDB);
-- uses the `noeviction` policy, so that a full instance refuses writes instead of dropping catalogs.
+- Enable disk persistence (AOF or RDB).
+- Set `noeviction`: full instances must refuse writes, not drop catalogs.
 
-A Redis used as a cache elsewhere in your stack is usually configured the opposite way. Use a dedicated instance or database if in doubt.
+Cache instances usually have opposite settings. If unsure, use a dedicated instance or database.
 
 ## How writes are protected
 
-A catalog is replaced by a short Lua script that sets the key only if it still holds the content that was read. Two server processes sharing one Redis cannot overwrite each other's changes.
+A Lua script sets the key only if its content still matches what was read. Shared server processes cannot overwrite each other's changes.

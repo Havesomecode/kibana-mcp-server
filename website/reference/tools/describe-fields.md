@@ -4,11 +4,9 @@ description: "Reference of the describe_fields tool: inspect the effective field
 
 # `describe_fields`
 
-Describes the effective fields of one source, including which ones support exact matching.
+Inspect one source's effective fields for safe exact matching, grouping or sorting.
 
-Use `describe_fields` when the agent needs to know whether a field is safe for exact term matching, grouping, or sorting.
-If the source does not configure a schema backend, `describe_fields` fails clearly instead of guessing.
-When direct schema endpoints are unavailable, the server will infer fields from sample hits via the configured search backend.
+Requires a configured schema backend; missing configuration fails clearly, not by guessing. When direct schema endpoints are unavailable, fields are inferred from sample hits through the configured search backend.
 
 Input:
 

@@ -4,7 +4,7 @@ description: "Every option of the configuration file, its precedence and its con
 
 # Configuration file reference
 
-The file is loaded only when named with `serve --config <path>` or `KIBANA_MCP_CONFIG`. It is executed as code, so it is never discovered from the working directory.
+Load a file explicitly with `serve --config <path>` or `KIBANA_MCP_CONFIG`. It executes as code; working-directory discovery is disabled.
 
 ```ts
 import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";
@@ -14,7 +14,7 @@ export default defineKibanaMcpConfig({
 });
 ```
 
-The default export may be the configuration object, or a function, possibly asynchronous, returning it. `defineKibanaMcpConfig` only provides types.
+Default-export an object or a function (sync or async) returning it. `defineKibanaMcpConfig` provides types only.
 
 ## Options
 
@@ -35,15 +35,15 @@ The default export may be the configuration object, or a function, possibly asyn
 
 ## Precedence
 
-Command-line flag, then environment variable, then configuration file, then built-in default.
+Command-line flag → environment variable → configuration file → built-in default.
 
 ## Constraints
 
 - `store` requires `url`, `user` and `password`, from the file or from the environment.
 - `store` cannot be combined with `KIBANA_SOURCE_CATALOG_PATH`.
-- Without `store`, a direct connection requires an explicit `KIBANA_SOURCE_CATALOG_PATH`. Saved-profile startup uses the path stored with the profile. There is no implicit catalog path.
+- Without `store`, direct connections require explicit `KIBANA_SOURCE_CATALOG_PATH`; saved profiles use their saved path. No implicit catalog path.
 - A `.ts` file needs Node.js 22.18 or later. A `.mjs` file works on every supported version.
-- The package must be resolvable from the directory of the file, since the file imports it.
+- The package must resolve from the file's directory for its import to work.
 
 ## Types
 

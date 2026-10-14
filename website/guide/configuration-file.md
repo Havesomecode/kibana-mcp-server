@@ -4,11 +4,9 @@ description: "Configure the server with a kibana.mcp.config.ts file: connection,
 
 # Configuration file
 
-Instead of environment variables, the server can read a configuration file, in stdio and in HTTP mode alike:
+1. Create `kibana.mcp.config.ts`:
 
-```bash
-kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
-```
+**Use only trusted files:** configuration executes as code. `.ts` needs Node.js 22.18+; `.mjs` works on any supported Node.js version.
 
 ```ts
 // kibana.mcp.config.ts
@@ -25,9 +23,17 @@ export default defineKibanaMcpConfig({
 });
 ```
 
-- `url`, `user`, `password`, `timeoutMs`, `profile` and `http.*` are defaults: the matching `KIBANA_*` environment variable or `serve` flag wins when set.
-- `store` decides where source catalogs live, one per profile. `storeOptions` is handed to the store factory. Without `store`, direct connection startup requires an explicit `KIBANA_SOURCE_CATALOG_PATH`; saved profiles carry their own file path. No catalog is discovered from the checkout.
-- The file is executed as code, so it is loaded only when named with `--config` or `KIBANA_MCP_CONFIG`, never discovered from the working directory. A `.ts` file needs Node.js 22.18 or later; `.mjs` works everywhere.
+2. Run with the explicit file (stdio or HTTP):
+
+```bash
+kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
+```
+
+Matching `KIBANA_*` variables or `serve` flags override `url`, `user`, `password`, `timeoutMs`, `profile` and `http.*`.
+
+`store` holds one catalog per profile; `storeOptions` goes to its factory. Without a store, direct startup requires `KIBANA_SOURCE_CATALOG_PATH`; saved profiles supply their own path. No implicit checkout catalog.
+
+Select the file with `--config` or `KIBANA_MCP_CONFIG`; it is never discovered from the working directory.
 
 ## Next steps
 

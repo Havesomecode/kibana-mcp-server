@@ -5,140 +5,75 @@ description: Bootstrap and use the Kibana log investigation MCP safely.
 
 # Kibana Log Investigation
 
-Use this skill when an operator wants to install, configure, or use the read-only Kibana MCP server from `@havesomecode/kibana-mcp-server`.
+Call `discover` before investigating. For installation, follow the steps below.
 
-## Version-matched installation instructions
+## Install the connection
 
-Before installing or generating a handoff, resolve the selected branch, tag, or package metadata to the full installation commit SHA. Read `README.md` at this immutable URL:
+1. Verify Node.js 22+ and [resolve the installation version](#pin-the-installation-version).
+2. Obtain `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` from trusted inputs. If unavailable, report what is missing. Never put passwords in arguments, logs, summaries, or client files. Alternatives: `--url URL`, `--username USER`, `--password-env NAME`, or `--password-stdin`.
+3. Choose the registration mode. Never edit client configuration yourself.
 
-```text
-https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
-```
+   | Agent | Registration owner | Mode |
+   | --- | --- | --- |
+   | Codex | bootstrap | `--client codex` |
+   | Claude Code | plugin | `--client none` |
+   | Other agent | operator | `--client none` |
 
-Branch and tag names are resolution inputs, not final handoff URLs. Read `INSTALL.md` and skills from the same resolved installation commit. Do not infer a Git tag from an npm version. Resolve the exact npm package's `gitHead` instead, or report missing metadata; pin the package installation to the same exact version. Never silently fall back to master if the ref or README is missing or retrieval fails.
+4. Run bootstrap with the chosen mode; supplied connection values make it prompt-free.
 
-In a maintained clone with the repository-only helper, run `node scripts/readme-handoff.mjs <resolved-installation-ref>` and use its verified `url` and `commit` in the handoff. The helper checks the retrieved README against that Git commit before output. It is not an npm command and need not exist in historical tags. If unavailable, resolve the selected ref and validate its raw README explicitly; do not invent successful retrieval. See `INSTALL.md`'s version-matched handoff section.
+   ```bash
+   npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
+   ```
 
-## Connection-only installation
+   **Expected:** verified Kibana status, OS-stored credentials, and an empty catalog on first install. No index inspection; reruns preserve managed sources.
 
-Do not edit Codex, Claude Code, or other MCP configuration files by hand. Bootstrap establishes only the Kibana connection and an empty managed source catalog. It must not list, scan, infer, or configure indexes.
+   Codex registration is version-pinned, transport-hashed, and read back exactly. Failed registration restores prior profile state. `--client none` leaves client files untouched.
 
-1. Verify Node.js 22 or newer is available.
-2. Resolve connection values from `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD`, unless the operator supplied safe alternatives.
-3. Choose the client mode for the agent you are running in (see below).
-4. Run the prompt-free bootstrap with that mode.
+   **Do not bypass failures:** never overwrite a conflict, add `--replace` to empty a catalog, or import the bundled example automatically.
 
-### Choosing the client mode
+5. Remove connection variables from the server environment and reconnect. Saved profiles provide their catalog; direct environment startup overrides profiles and needs `KIBANA_SOURCE_CATALOG_PATH` or a configuration-file store. No implicit checkout catalog or credential-taking MCP tool exists.
 
-Bootstrap can register the MCP server itself only in Codex. Everywhere else the server is registered by a plugin or by the operator, and bootstrap must only save the connection.
+If non-Codex tools are absent, ask the operator to register the server:
 
-| You are running in | The MCP server is registered by | Client mode |
-|---|---|---|
-| Codex | bootstrap | `--client codex` |
-| Claude Code | the `kibana-log-investigation` plugin | `--client none` |
-| Any other agent | the operator's MCP configuration | `--client none` |
+- Claude Code: `/plugin marketplace add Havesomecode/kibana-mcp-server`, then `/plugin install kibana-log-investigation@kibana-mcp-server`.
+- Other agents: stdio command `npx -y @havesomecode/kibana-mcp-server serve`.
 
-Codex:
+For `No saved Kibana connection is available. Run connection bootstrap first.`, bootstrap and reconnect; do not send credentials through MCP.
 
-```bash
-npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --client codex
-```
+## Configure the selected index
 
-Claude Code and other agents:
+1. Call `discover`. If empty, ask for the exact index or pattern.
+2. Wait for the answer. Never guess, enumerate, scan, or auto-select.
+3. Call `configure_index` once with that exact `index`. It accepts no credentials and runs field inspection plus one bounded validation search for that index only.
+4. Report `source_id` and time field. On failure, preserve the catalog and report the error; bootstrap success alone does not prove index access.
+5. Call `discover` again before investigating.
 
-```bash
-npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --client none
-```
+## Investigate
 
-If you are not running in Codex and the tools of this server (`discover`, `configure_index`) are not available in the session, the server is not registered. Do not write MCP configuration yourself. Ask the operator to register it:
+1. Use the source id returned by `discover`.
+2. Call `describe_fields` before unfamiliar filters or aggregations.
+3. Use a bounded time range and small result limit.
+4. Keep queries read-only and cite returned evidence, not unseen logs.
 
-- in Claude Code, by installing the plugin: `/plugin marketplace add Havesomecode/kibana-mcp-server`, then `/plugin install kibana-log-investigation@kibana-mcp-server`;
-- in any other agent, by declaring the stdio command `npx -y @havesomecode/kibana-mcp-server serve` in its MCP configuration.
+## Choose a profile
 
-With `--client none`, reconnect the MCP server or start a new session after bootstrap. A server without a configured connection fails at startup; it does not wait for an MCP tool to supply credentials.
-
-### What bootstrap does
-
-Bootstrap must:
-
-- validate the Kibana base URL and verify the connection through Kibana status only
-- write an empty managed catalog on first install
-- preserve previously and explicitly configured generated sources on idempotent reruns
-- save credentials in the operating-system credential store
-- with `--client codex`, register the exact, version-pinned stdio command under a transport-hashed Codex name, read the registration back, and reject conflicting entries
-- with `--client none`, leave every MCP client configuration untouched
-- restore prior profile state if registration fails
-
-A successful command verifies installation, not an index. Do not claim an index is usable until the explicit configuration flow below succeeds.
-
-## Supplying secrets safely
-
-Never put a password directly in a command argument. Prefer a pre-provisioned `KIBANA_PASSWORD` environment variable. The examples below use `--client codex`; substitute the client mode chosen above. When a secret is available on stdin, use:
-
-```bash
-printf '%s\n' "$SECRET_VALUE" | npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --password-stdin \
-  --client codex
-```
-
-If the password is stored under another environment variable, reference its name without exposing its value:
-
-```bash
-npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --password-env KIBANA_PROD_PASSWORD \
-  --client codex
-```
-
-## Explicit index configuration
-
-After bootstrap:
-
-1. Call `discover`.
-2. If no source is configured, ask the user which exact Kibana index or index pattern they want to use.
-3. Wait for the user's answer. Never guess, enumerate, scan, or auto-select an index.
-4. Call `configure_index` exactly once with the user's value in `index`.
-5. Report the configured `source_id` and time field. If validation fails, preserve the empty catalog and report the error.
-6. Call `discover` again before beginning an investigation.
-
-`configure_index` contains no credential fields. It may inspect fields and perform one bounded validation search only for the exact user-approved index or pattern.
-
-## Profiles and overrides
-
-| Value | Flag | Environment fallback |
-|---|---|---|
-| Profile | `--profile prod` | `KIBANA_PROFILE`, then `default` |
-| Base URL | `--url https://kibana.example.com` | `KIBANA_BASE_URL` |
-| Username | `--username elastic` | `KIBANA_USERNAME` |
-| Password | `--password-stdin` or `--password-env NAME` | `KIBANA_PASSWORD` |
-| Client | `--client codex` or `--client none` | `codex` |
-
-To select an existing non-default profile:
+Use `--profile NAME`; fallback is `KIBANA_PROFILE`, then `default`. Start an existing profile with:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server serve --profile prod
 ```
 
-For saved-profile startup, do not pass `KIBANA_BASE_URL`, `KIBANA_USERNAME`, or `KIBANA_PASSWORD` to the server process. Supplying all three selects direct environment startup, which requires an explicit `KIBANA_SOURCE_CATALOG_PATH` or a configuration-file catalog store. Saved profiles already carry their catalog path; no checkout catalog is loaded implicitly. Guided `setup` remains available when the operator explicitly wants to import a hand-authored catalog.
+Bare `setup` is for operator-requested hand-authored catalog import, not automatic installation.
 
-## Failure rules
+## Pin the installation version
 
-- Never silently import the bundled example catalog.
-- Never pass an index to bootstrap; bootstrap is connection-only.
-- Never call `configure_index` until the user explicitly names the index or pattern.
-- Never add `--replace` merely to make a failed install pass. It intentionally replaces an existing catalog with an empty managed catalog.
-- Never overwrite a conflicting MCP client registration.
-- Never write or edit an MCP client configuration file to register the server; only bootstrap in Codex, a plugin, or the operator does that.
-- If startup fails with `No saved Kibana connection is available. Run connection bootstrap first.`, run connection-only bootstrap, then reconnect the server. No MCP tool accepts connection credentials.
-- Never expose a password in logs, summaries, shell history, generated catalogs, or MCP client configuration.
-- If URL, username, or password is unavailable, report the exact missing prerequisite rather than inventing it.
+1. Resolve the full **commit SHA**: checkout branch/tag or detached `HEAD`; for npm, the exact package's `gitHead`. This is the **resolved installation commit**. Do not infer a Git tag from an npm version. Pin the package to that exact version.
+2. Read README, INSTALL, and skills from that commit.
 
-## Using the MCP
+   ```text
+   https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
+   ```
 
-After a source is explicitly configured:
+3. In a maintained clone, run `node scripts/readme-handoff.mjs <resolved-installation-ref>`. Hand off its verified `url` and `commit`.
 
-1. Use `discover` to obtain the source id.
-2. Use field description before constructing unfamiliar filters or aggregations.
-3. Start with a bounded time range and a small result limit.
-4. Keep investigations read-only and cite returned evidence rather than inferring unseen log content.
+The helper checks retrieved README bytes against Git. It is repository-only, not an npm command. If absent in a historical install, resolve and verify retrieval explicitly. Missing refs, metadata, README, or failed retrieval are errors: never invent success or substitute master.

@@ -20,42 +20,31 @@ tags: [mcp, kibana, schema, proxy, 404]
 
 ## Problem
 
-The Kibana MCP can expose schema-aware features only when the configured source has a working schema backend. In some deployments, all supported schema backend kinds return `404`, which makes `describe_fields` unusable and blocks schema-dependent query validation.
+Schema-aware features need a working schema backend. Some deployments return `404` for every supported kind, blocking `describe_fields` and schema-dependent query validation.
 
 ## Observed Attempts
 
-Live checks were run against a proxied Kibana deployment and a structured log source:
+Live checks against one proxied Kibana deployment and structured log source returned:
 
-- `kibana_data_views_fields` with `/api/data_views/fields_for_wildcard`
-- `kibana_index_patterns_fields` with `/api/index_patterns/_fields_for_wildcard`
-- `elasticsearch_field_caps` with `/<index>/_field_caps`
-
-All three returned `404 Not Found`.
+| Backend | Path | Result |
+| --- | --- | --- |
+| `kibana_data_views_fields` | `/api/data_views/fields_for_wildcard` | `404 Not Found` |
+| `kibana_index_patterns_fields` | `/api/index_patterns/_fields_for_wildcard` | `404 Not Found` |
+| `elasticsearch_field_caps` | `/<index>/_field_caps` | `404 Not Found` |
 
 ## What Works
 
-The search backend itself still works through Kibana internal search:
-
-- `backend.kind = kibana_internal_search_es`
-- `backend.path = /internal/search/es`
-
-So source discovery and log querying remain usable even when schema metadata is absent.
+In that deployment, `backend.kind = kibana_internal_search_es` with `backend.path = /internal/search/es` still supported source discovery and log queries without schema metadata.
 
 ## Recommended Guidance
 
-For deployments with this shape:
-
-- configure the appropriate supported schema backend; Kibana data-view and index-pattern backends try their known metadata endpoints
-- for a Kibana data-view or index-pattern schema backend, if all known metadata endpoints return `404`, the server falls back to sampling fields through the configured search backend; direct `elasticsearch_field_caps` errors do not use that fallback
-- treat sampled capabilities as heuristic, not authoritative; they can recover `.keyword` promotion and object paths, but cannot prove nested mappings
-- if schema loading and sampling both fail, use configured field hints and non-schema-dependent `discover`, `filter`, and `query` operations
+1. Configure a supported schema backend. Kibana data-view and index-pattern backends try their known metadata endpoints.
+2. If all those endpoints return `404`, use their configured-search-backend sampling fallback. Direct `elasticsearch_field_caps` errors never use it.
+3. Treat sampled capabilities as heuristic: they can recover `.keyword` promotion and object paths, but cannot prove nested mappings.
+4. If metadata and sampling both fail, use configured field hints and non-schema-dependent `discover`, `filter`, and `query` operations.
 
 ## Verification Checklist
 
-Before re-enabling schema-dependent behavior in a deployment, confirm one of the following works end to end:
-
-- Kibana data views field metadata endpoint
-- Kibana legacy index patterns field metadata endpoint
-- direct Elasticsearch field capabilities endpoint
-
-If none respond, select a Kibana data-view or index-pattern schema backend and verify its search-backend sampling fallback. Inspect the returned field capabilities and query advisories; the response does not expose a sampling-provenance field. Do not equate sampled fields with authoritative mapping metadata.
+1. Before re-enabling schema-dependent behavior, verify an end-to-end metadata path: Kibana data views, legacy index patterns, or direct Elasticsearch field capabilities.
+2. If none respond, select a Kibana data-view/index-pattern backend and verify sampling through its search backend.
+3. Inspect field capabilities and query advisories. Responses expose no sampling-provenance field; sampled fields are not authoritative mappings.

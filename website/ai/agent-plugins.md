@@ -4,12 +4,7 @@ description: "Install the Kibana log investigation plugin for Claude Code or Cod
 
 # Agent plugins and skills
 
-The repository ships an agent plugin that bundles two things:
-
-- **the `kibana-log-investigation` skill**, which teaches the agent the investigation workflow and its safety rules;
-- **the Kibana MCP server**, registered for you.
-
-Pick the channel that matches your agent.
+Choose your agent below. Plugins install the `kibana-log-investigation` skill and register the MCP server; skills.sh installs only the skill.
 
 | Channel | Skill | MCP server | Agents |
 | --- | --- | --- | --- |
@@ -17,25 +12,25 @@ Pick the channel that matches your agent.
 | [Codex](#codex) | Yes | Yes | Codex CLI and the Codex app |
 | [skills.sh](#skills-sh-any-agent) | Yes | Manual | Cursor, Gemini CLI, Windsurf and others |
 
-Whatever the channel, the server needs a Kibana connection before it can answer. See [Connect to Kibana](#connect-to-kibana).
+Then [Connect to Kibana](#connect-to-kibana). Registration alone does not save a connection.
 
 ## Claude Code
 
-Add the marketplace, then install the plugin:
+Run:
 
 ```bash
 claude plugin marketplace add Havesomecode/kibana-mcp-server
 claude plugin install kibana-log-investigation@kibana-mcp-server
 ```
 
-Or from inside a Claude Code session:
+Or run inside Claude Code:
 
 ```text
 /plugin marketplace add Havesomecode/kibana-mcp-server
 /plugin install kibana-log-investigation@kibana-mcp-server
 ```
 
-To share the plugin with your team, declare it in the `.claude/settings.json` of your project:
+For team installation, add this to the project's `.claude/settings.json`:
 
 ```json
 {
@@ -53,17 +48,17 @@ To share the plugin with your team, declare it in the `.claude/settings.json` of
 }
 ```
 
-The plugin registers the MCP server as `npx -y @havesomecode/kibana-mcp-server serve`. Claude loads the skill on its own when a task matches it.
+Expected: the plugin registers `npx -y @havesomecode/kibana-mcp-server serve`. Claude loads the skill for matching tasks.
 
 ## Codex
 
-The recommended path for Codex is the bootstrap command, which verifies the connection and registers the server in one step:
+1. Run connection bootstrap. Supply credentials through a trusted environment or its secret prompt, never password arguments:
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
 ```
 
-Then add the skill:
+2. Install the skill:
 
 ```bash
 npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation --agent codex --global --yes
@@ -71,23 +66,29 @@ npx skills add Havesomecode/kibana-mcp-server --skill kibana-log-investigation -
 
 ### Codex plugin marketplace
 
-The repository also declares a Codex marketplace in `.agents/plugins/marketplace.json`. It is meant for contributors working from a cloned checkout. Run `npm install` and `npm run build` before installing it: the build produces a self-contained runtime under `plugins/kibana-log-investigation/dist/`, and the installed plugin launches that local bundle without depending on the checkout or its `node_modules`.
+For a cloned checkout, use `.agents/plugins/marketplace.json`:
 
-Check Codex's MCP process startup status before restarting a discussion. If startup fails, inspect sanitized stderr, rebuild, and reinstall the plugin. `npm run verify:entrypoint` exercises a copied installed plugin with a synthetic connection; it does not verify native Codex startup or a real Kibana backend. See [Getting started](../guide/getting-started#use-in-codex).
+1. Run `npm install` and `npm run build` before installing the plugin. The build creates `plugins/kibana-log-investigation/dist/`; the installed bundle needs neither the checkout nor its `node_modules`.
+2. Check Codex's MCP startup status before restarting a discussion. On failure, inspect sanitized stderr; rebuild and reinstall a missing runtime.
+
+`npm run verify:entrypoint` checks a copied plugin with a synthetic connection, not native Codex startup or a real Kibana backend. See [Getting started](../guide/getting-started#use-in-codex).
 
 ### Version-matched handoff
 
-Before handing a branch, tag, or package installation to another agent, resolve it to the full commit SHA. That SHA is the **resolved installation commit** used in the immutable README URL:
+1. Resolve the branch, tag, or package installation to its full commit SHA: the **resolved installation commit**.
+2. Hand off this immutable README URL:
 
 ```text
 https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
 ```
 
-Read `INSTALL.md` and the skills from that same commit. Branch and tag names are resolution inputs, not final handoff URLs. Do not infer a Git tag from an npm version; use the exact package's `gitHead`. In a maintained checkout, `node scripts/readme-handoff.mjs <resolved-installation-ref>` verifies the commit-pinned README before emitting the handoff.
+3. Read `INSTALL.md` and the skills from that same commit. Branches and tags are resolution inputs, not final URLs.
+
+Do not infer a Git tag from an npm version; use the exact package's `gitHead`. In a maintained checkout, run `node scripts/readme-handoff.mjs <resolved-installation-ref>` to verify the commit-pinned README before handoff.
 
 ## skills.sh (any agent)
 
-The [`skills`](https://skills.sh/) CLI copies the skill into the directory your agent reads.
+Run the [`skills`](https://skills.sh/) CLI:
 
 ```bash
 # pick the agents interactively
@@ -105,7 +106,7 @@ skills.sh installs the skill only. Declare the MCP server yourself with the snip
 
 ## Declare the MCP server manually
 
-For any MCP client, the server is a stdio command. It requires Node.js 22 or newer.
+With Node.js 22+, add the stdio command to your MCP client:
 
 ::: code-group
 
@@ -139,11 +140,11 @@ args = ["-y", "@havesomecode/kibana-mcp-server", "serve"]
 
 :::
 
-A team that runs the server [over HTTP](../deployment/http) behind a gateway declares the URL of that gateway instead.
+For a shared server [over HTTP](../deployment/http), declare the gateway URL instead.
 
 ## Connect to Kibana
 
-A plugin or a manual declaration only registers the server. Save the connection once per machine, without registering a client:
+1. Provision credentials through a secret provider, then save the connection once per machine. `--client none` avoids duplicate registration:
 
 ```bash
 export KIBANA_BASE_URL='https://kibana.example.com'
@@ -153,8 +154,11 @@ export KIBANA_PASSWORD='use-a-secret-provider'
 npx -y @havesomecode/kibana-mcp-server bootstrap --client none
 ```
 
-Bootstrap verifies the connection, stores the credentials in the secret store of the operating system and creates an empty source catalog. Start the MCP server without direct connection variables so it uses the saved profile, then reconnect the client or start a new session: the agent asks which exact index or index pattern to use, and calls `configure_index` with your answer.
+Expected: a verified connection, credentials in the OS secret store, and an empty source catalog. Bootstrap does not inspect indexes.
 
-Without a saved connection the server fails at startup with `No saved Kibana connection is available. Run connection bootstrap first.` Direct environment-based startup requires an explicit `KIBANA_SOURCE_CATALOG_PATH` or configuration-file store, never an implicit checkout catalog.
+2. Remove direct connection variables from the MCP server environment to use the saved profile. Reconnect the client or start a new session.
+3. Call `discover`. If the catalog is empty, ask for the exact index or pattern and wait. Never guess, list, or scan indexes; call `configure_index` only with the user's answer.
 
-You can also let the agent do it. The skill knows which mode fits the agent it runs in: `--client codex` in Codex, where bootstrap registers the server itself, and `--client none` in Claude Code and elsewhere, where a plugin or your own configuration does.
+Without a saved connection, startup fails: `No saved Kibana connection is available. Run connection bootstrap first.` Direct environment startup requires an explicit `KIBANA_SOURCE_CATALOG_PATH` or configuration-file store; no implicit checkout catalog.
+
+For agent-run bootstrap, use `--client codex` in Codex; use `--client none` where a plugin or manual configuration already registers the server.

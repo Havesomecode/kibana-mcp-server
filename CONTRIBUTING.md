@@ -1,7 +1,5 @@
 # Contributing
 
-Thanks for contributing to Kibana Log Investigation MCP.
-
 ## Quick Start
 
 1. Ensure Node.js 22+ (see `.node-version`).
@@ -25,25 +23,20 @@ Thanks for contributing to Kibana Log Investigation MCP.
 
 ## Source Catalogs
 
-- Connection bootstrap saves an empty managed catalog with the machine profile; `configure_index` adds only indexes explicitly approved by the user.
-- Guided `setup` imports a hand-authored catalog selected by the operator. Use `config/sources.example.json` only as an explicitly chosen template.
-- Environment-based startup requires `KIBANA_SOURCE_CATALOG_PATH` unless a configuration-file store supplies the catalog. Saved profiles carry their own catalog path; no checkout file is loaded implicitly.
-- Do not commit real environment source catalogs or credentials.
+1. Use connection bootstrap for an empty managed catalog saved with the machine profile. Add indexes through `configure_index` only with explicit user approval.
+2. Use guided `setup` to import an operator-selected hand-authored catalog. Choose `config/sources.example.json` explicitly if needed as a template.
+3. Set `KIBANA_SOURCE_CATALOG_PATH` for environment startup unless a configuration-file store supplies it. Saved profiles carry their catalog path; no checkout file loads implicitly.
+
+Never commit real environment catalogs or credentials.
 
 ## Schema Endpoints
 
-Some Kibana deployments block schema metadata endpoints. When that happens:
-
-- `describe_fields` can return errors
-- exact-field promotion and nested validation may be unavailable
-
-Please include this detail in bug reports when relevant.
+Report blocked schema endpoints when relevant: `describe_fields` can fail, and exact-field promotion or nested validation may be unavailable.
 
 ## Pull Requests
 
-- Keep changes focused.
-- Update docs when behavior changes.
-- Ensure `npm run verify` passes before requesting review.
+1. Keep changes focused; update docs when behavior changes.
+2. Pass `npm run verify` before requesting review.
 
 ## Security
 

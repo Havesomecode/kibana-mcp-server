@@ -4,7 +4,7 @@ description: "Keep source catalogs in a local SQLite file with the built-in node
 
 # SQLite store
 
-Keeps one row per profile in a local database file. It needs no extra package: it uses the `node:sqlite` module built into Node.js.
+Configure a local SQLite file; no extra package is needed (`node:sqlite` is built into Node.js):
 
 ```ts
 import { defineKibanaMcpConfig } from "@havesomecode/kibana-mcp-server/config";
@@ -19,6 +19,8 @@ export default defineKibanaMcpConfig({
 });
 ```
 
+SQLite keeps one row per profile.
+
 ## Options
 
 | Option | Default | Description |
@@ -29,11 +31,11 @@ export default defineKibanaMcpConfig({
 
 ## When to use it
 
-SQLite suits a single host: one server, or a few processes on the same machine sharing the file. The database is opened in WAL mode so readers do not block.
+Use SQLite for one server or a few same-host processes sharing the file. WAL mode keeps readers from blocking.
 
-It is not the right store for several replicas on different machines: use [PostgreSQL](./postgres), [MongoDB](./mongodb) or [Redis](./redis) there.
+For replicas on different hosts, use [PostgreSQL](./postgres), [MongoDB](./mongodb) or [Redis](./redis).
 
 ## Limits
 
-- Calls are synchronous. A write that waits for another process holding the lock can pause the server for up to five seconds. Writes only happen when a source is configured, so this is rare.
-- The file must be on a persistent volume. In a container, mount one at its directory.
+- Calls are synchronous. Waiting for another process's write lock can pause the server for up to five seconds. Writes occur only during source configuration, so this is rare.
+- Put the file on a persistent volume. In containers, mount that volume at its directory.

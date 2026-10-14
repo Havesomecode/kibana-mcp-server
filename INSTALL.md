@@ -1,201 +1,148 @@
-# Deterministic Installation
+# Install the Kibana MCP
 
-This is the canonical install and handoff guide for `@havesomecode/kibana-mcp-server`.
+Use Node.js 22+, a reachable Kibana base URL, and basic-auth credentials. Codex registration also needs `codex` on `PATH`.
 
-The supported newcomer path is connection-only bootstrap. It prompts for missing connection values and is prompt-free when all values are supplied. Bootstrap never lists, scans, infers, or configures Kibana indexes. Agents must use the CLI contract below instead of editing Codex or MCP configuration files.
+For a selected release or agent handoff, [resolve its commit first](#version-matched-readme-handoff). Agents must use bootstrap, not edit MCP client configuration files.
 
-## Version-Matched README Handoff
+## Install in Codex
 
-Before installation or agent handoff, resolve the selected branch, tag, or package metadata to the full commit SHA. This is the **resolved installation commit**. Read `README.md`, `INSTALL.md`, and installation skills from that immutable commit; older commits may have different installation contracts.
+1. Run connection bootstrap. It prompts for missing values; never put a password in an argument.
 
-The version-matched README URL is always commit-pinned:
+   ```bash
+   npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
+   ```
 
-```text
-https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
-```
+   For automation, provision `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` first. With all three supplied, no prompts appear.
 
-A branch or tag is an input to commit resolution, never the final handoff URL. Do not infer a Git tag from an npm version. For npm installations, resolve the requested package to the exact version being installed, obtain its `gitHead` with `npm view @havesomecode/kibana-mcp-server@<exact-version> gitHead`, and pin the installation to that same package version. If that metadata is absent or the commit cannot be resolved, report the missing installation ref rather than claiming master matches the package. For a cloned checkout, resolve the selected branch/tag with `git rev-parse <ref>^{commit}`; for a detached checkout, use `git rev-parse HEAD`'s full commit SHA.
+2. Clear those variables from the MCP server environment so it uses the saved profile.
 
-From a maintained checkout containing the repository-only helper, verify a handoff with:
+   Bash:
 
-```bash
-node scripts/readme-handoff.mjs refs/heads/master
-# Or pass the actual refs/tags/<tag> or full commit SHA selected for installation.
-```
+   ```bash
+   unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD
+   ```
 
-The helper does not install anything or change configuration. It resolves locally available Git refs, fetches the immutable commit URL with a timeout, compares it byte-for-byte to the resolved commit's README, and outputs JSON with `ref`, `commit`, and `url` only after verification. Fetch a missing ref explicitly before retrying; the helper does not fetch Git refs or assume a tag. Ambiguous branch/tag names require the qualified `refs/heads/` or `refs/tags/` form. Unknown refs, missing READMEs, HTTP failures, and content mismatches exit nonzero without a handoff. Resolve a moved branch again to create a new commit-pinned handoff; do not silently substitute master. This helper is not a published npm command or a requirement that historical tags contain it.
+   PowerShell:
 
-Pass the verified URL and resolved commit to the receiving agent. A master preview link is not evidence that master matches a tagged or npm installation.
+   ```powershell
+   Remove-Item Env:KIBANA_BASE_URL, Env:KIBANA_USERNAME, Env:KIBANA_PASSWORD -ErrorAction SilentlyContinue
+   ```
 
-## Prerequisites
+3. Install the investigation skill.
 
-- Node.js 22 or newer
-- `codex` on `PATH` when `--client codex` is used
-- a Kibana base URL reachable with basic authentication
-- credentials supplied through a trusted environment, stdin, or a secret prompt
+   ```bash
+   npx skills add Havesomecode/kibana-mcp-server \
+     --skill kibana-log-investigation \
+     --agent codex --global --yes
+   ```
 
-For prompt-free automation, provision these values before installation:
+4. Open a fresh agent session and call `discover`. A first install has no sources.
+5. Ask the user for the exact index or pattern. Wait for their answer, call `configure_index` with that exact `index`, then call `discover` again.
 
-- `KIBANA_BASE_URL`
-- `KIBANA_USERNAME`
-- `KIBANA_PASSWORD`
+Never guess, enumerate, scan, or auto-select an index. `configure_index` accepts no credentials; it inspects fields and runs one bounded validation search for the selected index only. Failed validation leaves the catalog unchanged.
 
-Without these values, bootstrap prompts for the missing connection inputs. No index is required or accepted during bootstrap.
+**Success:** bootstrap verifies `/api/status`, saves the connection, and reads back the requested registration. It never inspects indexes. A non-zero exit means installation is incomplete; index access is verified only by `configure_index`.
 
-## Install The Agent Skill
+## Choose a profile or registration mode
 
-```bash
-npx skills add Havesomecode/kibana-mcp-server \
-  --skill kibana-log-investigation \
-  --agent codex \
-  --global \
-  --yes
-```
+| Need | Option |
+| --- | --- |
+| Additional environment | `--profile prod` |
+| Keep the current default | `--no-default` |
+| Plugin or externally managed registration | `--client none` |
+| Import a hand-authored catalog | bare `setup` |
 
-The skill is stored at `skills/kibana-log-investigation/SKILL.md`. After the repository is indexed, its skills.sh route is:
+The first bootstrap creates the default profile. With connection options, `setup` uses the same connection-only bootstrap flow. `config/sources.example.json` is documentation data, never an automatic bootstrap input.
 
-- `https://skills.sh/havesomecode/kibana-mcp-server/kibana-log-investigation`
+Codex registers `npx -y @havesomecode/kibana-mcp-server@<bootstrap-version> serve --profile prod` under `kibana-log-investigation-<transport-hash>`. Inspect it with `codex mcp list --json`.
 
-## Prompt-Free Connection Bootstrap
+## Supply secrets or overrides
 
-With connection values provisioned:
-
-```bash
-npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --client codex
-```
-
-Optional profile selection:
-
-```bash
-npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --profile prod \
-  --client codex
-```
-
-With all connection values supplied, bootstrap is non-interactive. It is idempotent for profiles it generated and:
-
-1. validates the connection inputs;
-2. checks for a missing or conflicting Codex registration;
-3. verifies only the Kibana connection through `/api/status`;
-4. acquires an interprocess state lock;
-5. writes an empty managed source catalog on first install;
-6. preserves sources that were explicitly configured after a prior bootstrap;
-7. saves credentials in the platform credential store;
-8. saves profile and catalog files atomically;
-9. calls `codex mcp add` with the exact running package version and a transport-hashed registration name;
-10. reads the registered transport back exactly;
-11. restores prior machine state if registration fails.
-
-A non-zero exit means installation did not complete. A successful exit verifies the connection, not any index.
-
-After bootstrap, remove `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` from the MCP server environment before reconnecting so startup uses the saved profile. In Bash, run `unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD`; in PowerShell, run `Remove-Item Env:KIBANA_BASE_URL, Env:KIBANA_USERNAME, Env:KIBANA_PASSWORD -ErrorAction SilentlyContinue`. Leaving direct connection values set overrides profile selection and requires an explicit catalog path or store.
-
-## Explicit Index Selection
-
-Start a fresh agent session after bootstrap and call `discover`. An empty catalog responds with instructions to ask the user which exact Kibana index or index pattern they want to use.
-
-The safe sequence is:
-
-1. call `discover`;
-2. ask the user for the exact index or pattern;
-3. wait for their answer—never guess, enumerate, scan, or auto-select;
-4. call `configure_index` with exactly the user-provided `index` value;
-5. let that tool inspect fields and run one bounded validation search only for that index;
-6. call `discover` again and use the returned source id.
-
-`configure_index` accepts no Kibana credentials. A validation failure leaves the existing catalog unchanged.
-
-The MCP server starts only with a configured connection. Bootstrap saves one for subsequent starts. Operators who supply the connection directly through environment variables must also set `KIBANA_SOURCE_CATALOG_PATH`, or declare a catalog store in a configuration file. No catalog is loaded implicitly from the checkout, and no MCP tool accepts connection credentials.
-
-## Secret Input
-
-Never put a password in a command-line argument. Supported sources, in precedence order:
-
-1. `--password-stdin`
-2. `--password-env NAME`
-3. `KIBANA_PASSWORD`
+Password precedence: `--password-stdin`, then `--password-env NAME`, then `KIBANA_PASSWORD`.
 
 ```bash
 printf '%s\n' "$SECRET_VALUE" | npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --password-stdin \
-  --client codex
+  --password-stdin --client codex
 ```
 
 ```bash
 npx -y @havesomecode/kibana-mcp-server bootstrap \
-  --password-env KIBANA_PROD_PASSWORD \
-  --client codex
+  --password-env KIBANA_PROD_PASSWORD --client codex
 ```
 
-Secrets are stored in macOS Keychain, Windows Credential Manager, or Linux Secret Service when available. They are not written to profiles, generated catalogs, or MCP client configuration.
-
-## Profiles
-
-The first bootstrap creates the default profile. Use `--profile NAME` for additional environments and `--no-default` when the new profile must not replace the current default.
-
-The registered stdio command selects the profile explicitly: `npx -y @havesomecode/kibana-mcp-server@<bootstrap-version> serve --profile prod`. Registration names use `kibana-log-investigation-<transport-hash>`. Inspect them with `codex mcp list --json`.
-
-## Client Registration Modes
-
-Use `--client codex` for a full install. Use `--client none` when registration is already managed, such as the repo-local plugin path or CI:
-
-```bash
-npx -y @havesomecode/kibana-mcp-server bootstrap --client none
-```
-
-## Explicit Overrides
-
-| Purpose | Option | Environment fallback |
-|---|---|---|
+| Value | Flag | Fallback |
+| --- | --- | --- |
 | Profile | `--profile NAME` | `KIBANA_PROFILE`, then `default` |
-| Kibana base URL | `--url URL` | `KIBANA_BASE_URL` |
+| Base URL | `--url URL` | `KIBANA_BASE_URL` |
 | Username | `--username USER` | `KIBANA_USERNAME` |
-| Password | `--password-stdin` / `--password-env NAME` | `KIBANA_PASSWORD` |
-| Client | `--client codex|none` | `codex` |
-| Replace catalog | `--replace` | preserve managed sources; refuse protected catalogs |
+| Client | `--client codex` or `--client none` | `codex` |
 
-If a profile points to a hand-authored or operator-modified catalog, bootstrap fails without changing it. Generated catalogs carry a tool marker and content hash. `--replace` intentionally converts the target to an empty managed catalog; use it only with explicit operator authorization.
+Credentials go to macOS Keychain, Windows Credential Manager, or Linux Secret Service when available, never profile, catalog, or client configuration files.
 
-## Example Catalog Policy
+Bootstrap uses a state lock and atomic writes. It preserves previously configured managed sources, rejects conflicting registrations, and restores prior state if registration fails.
 
-`config/sources.example.json` is documentation data. It never participates in bootstrap precedence. `bootstrap` is always connection-only, including without flags. Bare `setup` guides operators who explicitly want a hand-authored catalog; with connection options, `setup` uses the same connection-only bootstrap flow:
+**Before using `--replace`:** get explicit operator authorization. It replaces the target with an empty managed catalog. Without it, bootstrap refuses hand-authored or modified catalogs; managed catalogs carry a marker and content hash.
 
-```bash
-npx -y @havesomecode/kibana-mcp-server setup
-```
+## Start without a saved profile
 
-## Repository Contributor Path
+Supply the connection and an explicit `KIBANA_SOURCE_CATALOG_PATH`, or a configuration-file catalog store. Direct environment values override profiles. Startup requires a connection; it never searches the checkout for a catalog or accepts credentials through MCP tools.
 
-```bash
-npm install
-npm run build
-node dist/src/bin/kibana-mcp-server.js bootstrap --client none
-```
+## Install the repo-local Codex plugin
 
-The repo-scoped Codex plugin already supplies the MCP entry, so `--client none` avoids a duplicate global registration.
+1. Build from the repository root.
 
-`npm run build` also bundles the MCP server and its runtime dependencies into `plugins/kibana-log-investigation/dist/`. Install the plugin only after that build. The plugin declares `cwd: "."`, which Codex resolves against its installed plugin directory, and its launcher resolves the bundle relative to itself. The installed plugin does not depend on the original checkout, its root `dist/`, or its `node_modules`. Node.js 22+ must still be available on `PATH`.
+   ```bash
+   npm install
+   npm run build
+   ```
 
-Run `npm run verify:entrypoint` to pack and install the actual npm artifact, copy only its plugin into an isolated cache directory, and perform a bounded `initialize`, `tools/list`, and `discover` handshake. This uses an explicitly synthetic connection and empty managed catalog; it does not validate a real Kibana backend or a native Codex discussion.
+2. Install the built plugin from the repo-local Codex marketplace. The bundle lives in `plugins/kibana-log-investigation/dist/`; `cwd: "."` means the installed plugin directory. It needs Node.js 22+ on `PATH`, not the original checkout or its `node_modules`.
+3. Save the connection without duplicate registration.
 
-### Diagnose plugin startup before restarting discussions
+   ```bash
+   node dist/src/bin/kibana-mcp-server.js bootstrap --client none
+   ```
 
-1. **Saved configuration:** a plugin entry or successful bootstrap is not proof the process started.
-2. **Process startup:** inspect Codex's MCP startup status and sanitized stderr. A missing plugin runtime requires rebuilding the checkout and reinstalling the built plugin, not another discussion. Node/version and module-loading failures print repair instructions on stderr, never MCP stdout.
-3. **Current discussion:** after startup succeeds, open one fresh Codex discussion and call the native `discover` tool. If it is absent, inspect plugin enablement and startup logs; do not repeat restarts indefinitely.
-4. **Backend access:** an empty `discover` response proves local tools work, not backend reachability. Bootstrap verifies `/api/status`; only an explicitly selected `configure_index` validation establishes access to that index.
+4. Clear connection variables, reconnect, and follow the `discover` → user-selected `configure_index` flow above.
 
-Before sharing startup logs, remove credentials, authorization headers, credential-bearing URLs, and any operational data. Never paste passwords or complete environment dumps into an issue.
+## Fix startup failures
 
-## Verification
+1. Inspect Codex MCP startup status and sanitized stderr. Saved configuration does not prove startup.
+2. For a missing runtime, rebuild and reinstall the plugin. For Node or module-loading errors, follow stderr repair instructions; stdout is reserved for MCP.
+3. After startup succeeds, open one fresh discussion and call `discover`. If absent, check plugin enablement and startup logs instead of repeatedly restarting.
 
-Bootstrap success verifies:
+`npm run verify:entrypoint` packs and installs the npm artifact, then tests a copied plugin with `initialize`, `tools/list`, and `discover`. Its connection and empty catalog are synthetic: this proves packaged startup, not native Codex or real backend access.
 
-- Kibana returned a valid status envelope through `/api/status`
-- no index endpoint called
-- empty managed catalog created on first install
-- profile and credential saved
-- requested client registration read back
+Before sharing logs, remove credentials, authorization headers, credential-bearing URLs, and operational data. Never share complete environment dumps.
 
-After a new agent session starts, confirm `discover` reports the empty state. Configure and validate an index only after the user explicitly names it.
+## Version-matched README handoff
+
+1. Resolve the full **commit SHA** before installing or handing off. This is the **resolved installation commit**.
+
+   | Source | Resolve with |
+   | --- | --- |
+   | Checkout branch/tag | `git rev-parse <ref>^{commit}` |
+   | Detached checkout | `git rev-parse HEAD` |
+   | Exact npm version | `npm view @havesomecode/kibana-mcp-server@<exact-version> gitHead` |
+
+   Do not infer a Git tag from an npm version. Pin installation to the same exact package version. Missing metadata or refs are errors, not permission to substitute master.
+
+2. Read `README.md`, `INSTALL.md`, and skills from that same commit.
+
+   ```text
+   https://raw.githubusercontent.com/Havesomecode/kibana-mcp-server/<resolved-commit>/README.md
+   ```
+
+3. In a maintained checkout, verify the URL with the repository-only helper.
+
+   ```bash
+   node scripts/readme-handoff.mjs refs/heads/master
+   ```
+
+   Pass the actual `refs/heads/<branch>`, `refs/tags/<tag>`, or full SHA selected for installation. Fetch missing refs explicitly; resolve moved branches again.
+
+4. Pass the verified `url` and `commit` to the receiving agent.
+
+The helper makes a bounded fetch and compares README bytes against Git. It returns JSON `{ ref, commit, url }` only on success; no configuration changes or Git fetches.
+
+Unknown or ambiguous refs, missing READMEs, HTTP errors, and mismatches fail without a handoff. Historical installs without the helper need explicit resolution and retrieval verification. It is not an npm command.

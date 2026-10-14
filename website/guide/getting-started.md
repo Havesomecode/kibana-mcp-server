@@ -8,13 +8,15 @@ description: "Requirements, prompt-free bootstrap, agent skill installation and 
 
 - Node.js 22+
 - A Kibana-compatible read endpoint reachable with basic auth
-- No index is needed for bootstrap. The user names the exact Elasticsearch index or pattern only when adding a source through `configure_index`. Hand-authored catalogs remain supported for advanced setups.
+- No index for bootstrap. Select the exact index or pattern later with `configure_index`; hand-authored catalogs remain an advanced option.
 
 ## Installation
 
 ### Prompt-free connection bootstrap
 
-Pre-provision the connection values in the environment:
+1. Provision the connection through a trusted environment, then run:
+
+Never pass passwords as command-line arguments. Use `KIBANA_PASSWORD`, `--password-env NAME`, or `--password-stdin`.
 
 ```bash
 export KIBANA_BASE_URL='https://kibana.example.com'
@@ -25,19 +27,16 @@ npx -y @havesomecode/kibana-mcp-server bootstrap \
   --client codex
 ```
 
-This command performs no prompts and does not edit Codex configuration files directly. It verifies only the Kibana connection, writes an empty managed source catalog on first install, stores credentials securely, and registers the exact running package transport. It does not list, scan, infer, or configure indexes.
+Expected: no prompts with these values supplied; a verified connection, secure credentials, an empty managed catalog on first install, and registration of the exact running package transport. No direct Codex config edits or index listing, scanning, inference, or configuration.
 
-After bootstrap, start the server without `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` in its environment so it uses the saved profile. Direct connection startup instead requires an explicit `KIBANA_SOURCE_CATALOG_PATH` or configuration-file store; no checkout catalog is loaded implicitly.
+2. Start the server without `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` to use the saved profile. Direct startup requires an explicit `KIBANA_SOURCE_CATALOG_PATH` or configuration-file store; no implicit checkout catalog.
+3. Reconnect the client and call `discover`. If empty, ask the user for the exact Kibana index or pattern and wait. Never guess, list, or scan indexes. Call `configure_index` only with their answer; it validates and saves only that index and accepts no credentials.
 
-Reconnect the MCP client, then call `discover`. When no source is configured, the agent must ask the user which exact Kibana index or index pattern to use. Only after the user answers may the agent call `configure_index` with that value. That tool validates only the approved index and persists it without accepting credentials.
-
-Bootstrap reruns preserve sources that were configured through this explicit flow. It refuses to replace a hand-authored or modified catalog unless `--replace` is supplied explicitly; `--replace` creates an empty managed catalog.
-
-Never pass passwords as command-line arguments. Use `KIBANA_PASSWORD`, `--password-env NAME`, or `--password-stdin`.
+Reruns preserve explicitly configured sources. Bootstrap refuses to replace hand-authored or modified catalogs without `--replace`. Use that flag only with operator approval: it creates an empty managed catalog.
 
 ### Install the agent skill
 
-The repository contains a standard Agent Skill discoverable by the `skills` CLI and skills.sh:
+Run:
 
 ```bash
 npx skills add Havesomecode/kibana-mcp-server \
@@ -47,18 +46,16 @@ npx skills add Havesomecode/kibana-mcp-server \
   --yes
 ```
 
-The skill teaches compatible agents to run the same verified bootstrap instead of editing MCP config files. Its source is `skills/kibana-log-investigation/SKILL.md`.
+Expected: the skill at `skills/kibana-log-investigation/SKILL.md` teaches bootstrap instead of manual MCP config edits.
 
 ## Use in Codex
 
-The prompt-free package bootstrap above is the primary Codex path. The repo-scoped plugin remains available for contributors working from a cloned checkout.
+Use package bootstrap above for Codex. Use the repo plugin below only from a cloned checkout.
 
 ### Quick path
 
 1. Clone the repository.
-2. Make sure Node.js 22+ is available.
-   - if it is missing, ask Codex to use the plugin skill `ensure-node-runtime`
-   - the repo pins Node major `22` in `.node-version`
+2. Check Node.js 22+ (pinned in `.node-version`). If missing, ask Codex to use `ensure-node-runtime`.
 3. From the repo root, run:
 
 ```bash
@@ -66,12 +63,13 @@ npm install
 npm run build
 ```
 
-4. Open the cloned repo in Codex.
-5. Open the plugin directory in Codex and install `Kibana Log Investigation` from the repo marketplace.
-   - if the current model cannot complete that install itself, do the Codex UI click manually and let the agent continue with configuration afterward
-6. Run `node dist/src/bin/kibana-mcp-server.js bootstrap --client none` to verify the connection and save an empty profile. The repo plugin already supplies the client registration.
-7. Reconnect the plugin's MCP process and check its startup status. It requires a saved connection before it can start. Inspect sanitized stderr on failure; rebuild and reinstall only if the plugin runtime is missing. Restart once after startup succeeds if the tools still need refreshing.
-8. In a fresh thread, call `discover`, ask the user for the exact index or pattern, then call `configure_index` only after they answer.
+### Install the built plugin
+
+1. Open the cloned repo in Codex.
+2. Install `Kibana Log Investigation` from the repo marketplace in Codex's plugin directory. If the model cannot install it, click in the UI yourself, then let the agent continue.
+3. Run `node dist/src/bin/kibana-mcp-server.js bootstrap --client none`. This verifies the connection and creates an empty catalog on first install; the plugin already registers the server.
+4. Reconnect the MCP process and check startup status. On failure, inspect sanitized stderr; rebuild and reinstall a missing runtime. After startup succeeds, restart once if tools need refreshing.
+5. In a fresh thread, call `discover`. If empty, ask for the exact index or pattern and wait; only then call `configure_index`.
 
 Repo-scoped plugin files:
 
@@ -83,7 +81,7 @@ Repo-scoped plugin files:
 
 ### Minimal handoff prompt
 
-If you are handing only the repo link to another Codex agent, this usually works:
+Send this prompt with the repo link:
 
 ```text
 Install the `kibana-log-investigation` skill from Havesomecode/kibana-mcp-server, then run its connection-only bootstrap with the provisioned KIBANA_BASE_URL, KIBANA_USERNAME, and KIBANA_PASSWORD values. Do not edit Codex config files, import the example catalog, or inspect indexes. After install, ask me which exact index or pattern to configure before calling configure_index.
