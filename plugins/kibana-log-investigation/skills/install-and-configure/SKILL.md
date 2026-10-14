@@ -38,7 +38,7 @@ npm run build
 node dist/src/bin/kibana-mcp-server.js bootstrap --client none
 ```
 
-7. Confirm bootstrap reports an empty source catalog. It must not inspect or configure indexes.
+7. Confirm first-time bootstrap reports an empty source catalog. It must not inspect or configure indexes. Remove `KIBANA_BASE_URL`, `KIBANA_USERNAME`, and `KIBANA_PASSWORD` from the plugin process environment before reconnecting so startup uses the saved profile. In Bash: `unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD`; in PowerShell: `Remove-Item Env:KIBANA_BASE_URL, Env:KIBANA_USERNAME, Env:KIBANA_PASSWORD -ErrorAction SilentlyContinue`.
 8. In a fresh Codex session, call `discover`. When it reports no sources, ask the operator which exact index or index pattern to configure.
 9. Only after the operator answers, call `configure_index` with exactly that value. Then run `discover` again.
 

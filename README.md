@@ -24,7 +24,13 @@ The server never writes to Elasticsearch or Kibana, and never guesses an index.
 
 ## Quick start
 
-Pre-provision the connection values in the environment, then bootstrap:
+Bootstrap the connection; missing values are prompted for:
+
+```bash
+npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
+```
+
+For prompt-free automation, provision the connection values in the environment:
 
 ```bash
 export KIBANA_BASE_URL='https://kibana.example.com'
@@ -32,11 +38,14 @@ export KIBANA_USERNAME='elastic'
 export KIBANA_PASSWORD='use-a-secret-provider'
 
 npx -y @havesomecode/kibana-mcp-server bootstrap --client codex
+unset KIBANA_BASE_URL KIBANA_USERNAME KIBANA_PASSWORD
 ```
 
 Bootstrap verifies only the Kibana connection, creates an empty managed catalog, stores the credentials securely and registers the server. It does not list, scan, infer, or configure indexes: the agent asks which exact index or pattern to use, then calls `configure_index`.
 
-The server requires a connection at startup. Use bootstrap, a configuration file, or connection environment variables with an explicit `KIBANA_SOURCE_CATALOG_PATH`. It does not accept credentials through MCP tools or search the checkout for a catalog. `bootstrap` always saves only the connection; `setup` is a separate guided command for importing hand-authored catalogs.
+Clear the connection variables from the MCP server environment after bootstrap so startup uses the saved profile. Direct environment connections take precedence over profiles and require an explicit catalog path or store.
+
+The server requires a connection at startup. Use bootstrap, a configuration file, or connection environment variables with an explicit `KIBANA_SOURCE_CATALOG_PATH`. It does not accept credentials through MCP tools or search the checkout for a catalog. `bootstrap` always saves only the connection. Bare `setup` guides hand-authored catalog import; `setup` with connection options uses the same bootstrap flow.
 
 Never pass passwords as command-line arguments. Use `KIBANA_PASSWORD`, `--password-env NAME`, or `--password-stdin`.
 

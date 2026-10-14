@@ -46,7 +46,7 @@ So source discovery and log querying remain usable even when schema metadata is 
 For deployments with this shape:
 
 - configure the appropriate supported schema backend; Kibana data-view and index-pattern backends try their known metadata endpoints
-- if all metadata endpoints return `404`, the server falls back to sampling fields through the configured search backend
+- for a Kibana data-view or index-pattern schema backend, if all known metadata endpoints return `404`, the server falls back to sampling fields through the configured search backend; direct `elasticsearch_field_caps` errors do not use that fallback
 - treat sampled capabilities as heuristic, not authoritative; they can recover `.keyword` promotion and object paths, but cannot prove nested mappings
 - if schema loading and sampling both fail, use configured field hints and non-schema-dependent `discover`, `filter`, and `query` operations
 
@@ -58,4 +58,4 @@ Before re-enabling schema-dependent behavior in a deployment, confirm one of the
 - Kibana legacy index patterns field metadata endpoint
 - direct Elasticsearch field capabilities endpoint
 
-If none respond, verify the search-backend sampling fallback and inspect its provenance and advisories. Do not equate sampled fields with authoritative mapping metadata.
+If none respond, select a Kibana data-view or index-pattern schema backend and verify its search-backend sampling fallback. Inspect the returned field capabilities and query advisories; the response does not expose a sampling-provenance field. Do not equate sampled fields with authoritative mapping metadata.

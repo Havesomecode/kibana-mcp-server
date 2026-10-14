@@ -10,6 +10,7 @@ updated: 2026-04-09
 
 - CI is green on `master`.
 - `npm run verify` passes locally.
+- Build output must correspond to current source: `npm run build` replaces root `dist/`, and every packed `dist/src/**/*.js` or `dist/src/**/*.d.ts` must have its corresponding `src/**/*.ts` file. `npm run verify:packlist` rejects orphaned outputs from removed modules.
 - The compatibility matrix is up to date (`docs/project/compatibility-matrix.md`).
 - Any new env or config requirements are documented in `README.md` and `INSTALL.md`.
 - Startup requires a connection and an explicit catalog path or store; saved profiles use their stored path. Docs must not advertise a credential-taking MCP setup tool or implicit checkout catalog.

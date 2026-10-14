@@ -60,13 +60,34 @@ export async function callTool(
   headers: Record<string, string> = {},
   toolArguments: Record<string, unknown> = {},
 ): Promise<{ status: number; result?: Record<string, unknown> }> {
-  const response = await sendRpc(
-    url,
-    { id: 1, method: "tools/call", params: { name, arguments: toolArguments } },
-    headers,
-  );
-  const payload = await response.json();
-  return { status: response.status, result: payload.result };
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+      ...headers,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name, arguments: toolArguments },
+    }),
+  });
+  const text = await response.text();
+  if (response.status !== 200) {
+    return { status: response.status };
+  }
+  const payload = text.startsWith("{")
+    ? text
+    : (text
+        .split("\n")
+        .find((line) => line.startsWith("data:"))
+        ?.slice("data:".length) ?? "{}");
+  return {
+    status: response.status,
+    result: (JSON.parse(payload) as { result?: Record<string, unknown> }).result,
+  };
 }
 
 export function sourceIds(result: Record<string, unknown> | undefined): string[] {

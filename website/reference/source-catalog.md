@@ -46,7 +46,7 @@ Supported schema backend kinds:
 Deployment note:
 
 - some Kibana deployments expose search transport but not field-metadata endpoints
-- when direct schema endpoints such as `/api/data_views/fields_for_wildcard`, `/api/index_patterns/_fields_for_wildcard`, or `/<index>/_field_caps` return `404`, the server falls back to sampling fields through the configured search backend
+- when all known metadata endpoints for a Kibana data-view or index-pattern schema backend return `404`, the server falls back to sampling fields through the configured search backend; direct `elasticsearch_field_caps` failures are returned without that fallback
 - this fallback is heuristic rather than authoritative, but it is often sufficient to recover `.keyword` promotion and object-path discovery in search-only environments
 
 Example source shape for an application log stream:

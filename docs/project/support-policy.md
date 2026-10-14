@@ -34,7 +34,7 @@ Startup without a saved connection fails with `No saved Kibana connection is ava
 ## Known Environment Constraints
 
 - Some Codex model variants are less reliable at completing repo-local plugin installation without a manual Codex UI step. The supported fallback is to install the plugin manually from the local marketplace, then continue with MCP configuration.
-- Some Kibana deployments proxy or block schema metadata endpoints. On `404`, the server can sample fields through the configured search backend. This fallback is heuristic, not authoritative; schema-dependent features can still be unavailable.
+- Some Kibana deployments proxy or block schema metadata endpoints. When all known Kibana data-view or index-pattern metadata endpoints return `404`, the server can sample fields through the configured search backend. Direct Elasticsearch field-capability errors do not use this fallback. Sampling is heuristic, not authoritative; schema-dependent features can still be unavailable.
 - `KIBANA_BASE_URL` must be the Kibana base prefix, not a full search endpoint such as `/internal/search/es`.
 - Linux secure storage depends on a Secret Service-compatible keyring being available and unlocked.
 - If you run staging and production side by side, prefer saved machine profiles plus `KIBANA_PROFILE` selection. For direct environment startup, name `KIBANA_SOURCE_CATALOG_PATH` explicitly and keep it distinct per entry so managed sources from different environments do not mix.

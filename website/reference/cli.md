@@ -46,4 +46,12 @@ Verifies the Kibana connection, creates an empty managed catalog, saves the cred
 
 ## `setup`
 
-Runs guided setup for explicitly selected hand-authored source catalogs. This is a separate command, not an alias for `bootstrap`, and accepts no bootstrap flags.
+Without connection options, runs guided setup for explicitly selected hand-authored source catalogs, even when connection environment variables are set.
+
+With any explicitly supplied option from the `bootstrap` table above, `setup` uses the same connection-only bootstrap flow and options. It prompts only for missing connection values and never inspects or configures indexes. Flags override environment fallbacks; passwords are accepted only through stdin, an environment variable, or a secret prompt, never a password argument. `--password-stdin` and `--password-env` are mutually exclusive, and `--timeout` must be an integer from 1 to 120000 milliseconds.
+
+```bash
+npx -y @havesomecode/kibana-mcp-server setup --profile prod --client none
+```
+
+Bare `bootstrap` always remains connection-only; only bare `setup` starts guided catalog setup.
