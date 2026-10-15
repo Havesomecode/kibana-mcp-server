@@ -17,9 +17,12 @@ export type HttpAuthOptions =
   | { kind: "token"; token: string; profileHeader?: string }
   | { kind: "oidc"; oidc: HttpOidcOptions };
 
-/** An authenticated caller: what the MCP handlers receive, and the catalog it is served. */
+/**
+ * An authenticated caller: the verified token handed to MCP handlers, when the caller presented
+ * one, and the profile whose catalog it is served.
+ */
 export interface HttpCaller {
-  authInfo: AuthInfo;
+  authInfo?: AuthInfo;
   profile?: string;
 }
 
@@ -33,42 +36,54 @@ export interface HttpAuthenticator {
   authenticate: (headers: Headers) => Promise<HttpCaller | Response>;
 }
 
-/**
- * Names where each caller's profile comes from, for startup errors, or `undefined` when every
- * caller is served the default profile.
- */
-export function perCallerProfileSource(auth: HttpAuthOptions): string | undefined {
-  if (auth.kind === "oidc") return "OIDC authentication";
-  return auth.profileHeader ? "A profile header" : undefined;
+export interface HttpAuthMode {
+  /**
+   * Names where each caller's profile comes from, for startup errors, or `undefined` when every
+   * caller is served the default profile.
+   */
+  perCallerProfile?: string;
+  /** Builds the authenticator; OIDC reaches the issuer, so run local checks first. */
+  createAuthenticator: () => Promise<HttpAuthenticator>;
 }
 
-export async function createHttpAuthenticator(auth: HttpAuthOptions): Promise<HttpAuthenticator> {
+export function httpAuthMode(auth: HttpAuthOptions): HttpAuthMode {
   switch (auth.kind) {
     case "local":
       return {
-        metadataResponse: () => undefined,
-        // Without a secret, only pages and tools of this machine may call: refuse DNS rebinding.
-        authenticate: async (headers) =>
-          validateHostHeader(headers.get("host"), localhostAllowedHostnames()).ok &&
-          validateOriginHeader(headers.get("origin"), localhostAllowedOrigins()).ok
-            ? callerFromHeader(headers, auth.profileHeader)
-            : refusal(403, "Untrusted Host or Origin."),
+        perCallerProfile: auth.profileHeader && "A profile header",
+        createAuthenticator: async () => ({
+          metadataResponse: () => undefined,
+          // Without a secret, only pages and tools of this machine may call: refuse DNS rebinding.
+          authenticate: async (headers) =>
+            validateHostHeader(headers.get("host"), localhostAllowedHostnames()).ok &&
+            validateOriginHeader(headers.get("origin"), localhostAllowedOrigins()).ok
+              ? callerFromHeader(headers, auth.profileHeader)
+              : refusal(403, "Untrusted Host or Origin."),
+        }),
       };
     case "token":
       return {
-        metadataResponse: () => undefined,
-        authenticate: async (headers) =>
-          matchesToken(headers.get("authorization"), auth.token)
-            ? callerFromHeader(headers, auth.profileHeader)
-            : refusal(401, "invalid_token", { "WWW-Authenticate": "Bearer" }),
+        perCallerProfile: auth.profileHeader && "A profile header",
+        createAuthenticator: async () => ({
+          metadataResponse: () => undefined,
+          authenticate: async (headers) =>
+            matchesToken(headers.get("authorization"), auth.token)
+              ? callerFromHeader(headers, auth.profileHeader)
+              : refusal(401, "invalid_token", { "WWW-Authenticate": "Bearer" }),
+        }),
       };
-    case "oidc": {
-      const server = await createOidcResourceServer(auth.oidc);
+    case "oidc":
       return {
-        metadataResponse: server.metadataResponse,
-        authenticate: (headers) => server.authenticate(headers.get("authorization") ?? undefined),
+        perCallerProfile: "OIDC authentication",
+        createAuthenticator: async () => {
+          const server = await createOidcResourceServer(auth.oidc);
+          return {
+            metadataResponse: server.metadataResponse,
+            authenticate: (headers) =>
+              server.authenticate(headers.get("authorization") ?? undefined),
+          };
+        },
       };
-    }
   }
 }
 
@@ -77,12 +92,11 @@ function callerFromHeader(
   headers: Headers,
   profileHeader: string | undefined,
 ): HttpCaller | Response {
-  const authInfo: AuthInfo = { token: "", clientId: "", scopes: [] };
-  if (!profileHeader) return { authInfo };
+  if (!profileHeader) return {};
   const value = headers.get(profileHeader)?.trim();
   if (!value) return refusal(401, `Missing required '${profileHeader}' header.`);
   try {
-    return { authInfo, profile: normalizeProfileName(value) };
+    return { profile: normalizeProfileName(value) };
   } catch (error) {
     return refusal(400, error instanceof Error ? error.message : String(error));
   }

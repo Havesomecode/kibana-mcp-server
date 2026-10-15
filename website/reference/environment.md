@@ -62,9 +62,9 @@ Sources already carry paths such as `/internal/search/es`; a full API path here 
 - `KIBANA_HTTP_OIDC_AUDIENCE` expected token audience, default the resource
 - `KIBANA_HTTP_OIDC_MODE` `offline` or `introspection`
 - `KIBANA_HTTP_OIDC_CLIENT_ID`, `KIBANA_HTTP_OIDC_CLIENT_SECRET` client used for introspection
-- `KIBANA_HTTP_OIDC_REQUIRED_SCOPES` scopes every token must carry, separated by spaces or commas
+- `KIBANA_HTTP_OIDC_REQUIRED_SCOPES` scopes every token must carry, separated by spaces
 - `KIBANA_HTTP_OIDC_SCOPES_SUPPORTED` scopes advertised to clients
-- `KIBANA_HTTP_OIDC_PROFILE_CLAIM` claim naming the caller's profile, default `sub`
+- `KIBANA_HTTP_OIDC_PROFILE_CLAIM` claim naming the caller at the issuer, default `sub`; the profile is `<issuer>#<claim value>`
 - `KIBANA_HTTP_OIDC_ALLOW_INSECURE_REQUESTS` `true` allows a non-HTTPS issuer or resource, for development only
 
 See [HTTP transport](../deployment/http) and [OpenID Connect authentication](../deployment/oidc).

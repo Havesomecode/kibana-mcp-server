@@ -58,13 +58,13 @@ kibana-mcp-server serve --http --config ./kibana.mcp.config.mjs
 | `audience` | `KIBANA_HTTP_OIDC_AUDIENCE` | Expected token audience. Defaults to `resource`. |
 | `mode` | `KIBANA_HTTP_OIDC_MODE` | `offline` or `introspection`. Defaults to `introspection` when `clientId` is set, `offline` otherwise. |
 | `clientId`, `clientSecret` | `KIBANA_HTTP_OIDC_CLIENT_ID`, `KIBANA_HTTP_OIDC_CLIENT_SECRET` | Confidential client of this server at the provider, used for introspection. |
-| `requiredScopes` | `KIBANA_HTTP_OIDC_REQUIRED_SCOPES` | Scopes every token must carry. Separate them with spaces or commas in the variable. |
+| `requiredScopes` | `KIBANA_HTTP_OIDC_REQUIRED_SCOPES` | Scopes every token must carry. Separate them with spaces in the variable: a comma belongs to the scope name. |
 | `scopesSupported` | `KIBANA_HTTP_OIDC_SCOPES_SUPPORTED` | Scopes advertised to clients in the metadata. |
-| `profileClaim` | `KIBANA_HTTP_OIDC_PROFILE_CLAIM` | Claim naming the caller's profile. Defaults to `sub`. |
+| `profileClaim` | `KIBANA_HTTP_OIDC_PROFILE_CLAIM` | Claim naming the caller at the issuer. Defaults to `sub`. |
 | `allowInsecureRequests` | `KIBANA_HTTP_OIDC_ALLOW_INSECURE_REQUESTS` | Allow a non-HTTPS issuer or resource. Development only. |
 
 ::: warning `resource` is the public URL
-`resource` is never derived from the incoming request, whose `Host` header the caller controls. Behind a reverse proxy, use the external HTTPS URL. Its path must be the path the server sees: the metadata is served at `/.well-known/oauth-protected-resource` followed by that path.
+`resource` is never derived from the incoming request, whose `Host` header the caller controls. Behind a reverse proxy, use the external HTTPS URL. Its path must be the HTTP path of the server (`/mcp` by default): clients call that URL and look up its metadata at `/.well-known/oauth-protected-resource` followed by that path, so a proxy must forward both without rewriting the path.
 :::
 
 At startup, the server refuses:
@@ -72,7 +72,9 @@ At startup, the server refuses:
 - OpenID Connect combined with `KIBANA_HTTP_AUTH_TOKEN` or a profile header;
 - a configuration without named profiles (a `store`, saved profiles, or the `{profile}` placeholder in `KIBANA_SOURCE_CATALOG_PATH`), since every user needs their own catalog;
 - a non-HTTPS issuer or resource outside the loopback interface;
-- an issuer whose discovery document cannot be read, or names another issuer.
+- a `resource` whose path differs from the HTTP path of the server;
+- an issuer whose discovery document cannot be read, or names another issuer;
+- in the offline mode, an issuer whose JWKS cannot be read or is malformed.
 
 ## Verify tokens
 
@@ -81,7 +83,7 @@ At startup, the server refuses:
 | `offline` | The JWT access token is checked locally with the provider's JWKS: signature, issuer, audience, expiration. No call to the provider per request. | The provider issues RFC 9068 JWT access tokens. |
 | `introspection` | The provider is asked about each token ([RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)). Answers are cached up to 60 seconds, never past the token expiration. | Tokens are opaque, or revocation must apply quickly. |
 
-The JWKS and introspection endpoints are discovered from `<issuer>/.well-known/openid-configuration`, then `/.well-known/oauth-authorization-server`. Verification relies on [`oauth4webapi`](https://github.com/panva/oauth4webapi).
+In the offline mode the JWKS is loaded at startup, then refreshed by `oauth4webapi` every 5 minutes, or sooner when a token names an unknown key. The JWKS and introspection endpoints are discovered from `<issuer>/.well-known/openid-configuration`, then `/.well-known/oauth-authorization-server`. Verification relies on [`oauth4webapi`](https://github.com/panva/oauth4webapi).
 
 ::: warning Access token format in offline mode
 The offline mode accepts only [RFC 9068](https://datatracker.ietf.org/doc/html/rfc9068) JWT access tokens: the JWT header must carry `typ: at+jwt`, and the payload the `iss`, `sub`, `aud`, `exp`, `iat`, `jti` and `client_id` claims. Many providers issue plain JWTs by default (`typ: JWT`, `azp` instead of `client_id`), which are refused with `401`. If yours does, enable RFC 9068 access tokens on the provider, or use the introspection mode.
@@ -96,9 +98,11 @@ Every token must name the endpoint in its audience: the `aud` claim, or the `aud
 
 ## Choose the profile claim
 
-The value of `profileClaim` names the caller's catalog. A token without that claim is refused with `401`.
+The caller's profile is the issuer followed by `#` and the value of `profileClaim`, for example `https://sso.example.com/realms/acme#alice`. A token without that claim is refused with `401`.
 
-- `sub` (default) is stable and unique, but opaque: catalogs are keyed by identifiers like `f81d4fae-7dec-…`.
+The issuer prefix keeps identities apart: the same `sub` or username at another provider is another person, and a catalog created through a gateway's profile header (`alice`) is never handed to an OIDC user. Changing `issuer` therefore starts every user with a new catalog.
+
+- `sub` (default) is stable and unique, but opaque: catalogs are named after identifiers like `f81d4fae-7dec-…`.
 - `preferred_username` or `email` give readable catalog names. Use them only if users cannot change them on the provider, or a user could take over another one's catalog.
 
 Profile names are turned into safe keys before they reach a store, as with the [profile header](./http).

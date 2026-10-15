@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import {
   type IncomingMessage,
@@ -9,7 +10,6 @@ import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 
 import {
-  type AuthInfo,
   type McpServer,
   WebStandardStreamableHTTPServerTransport,
   createMcpHandler,
@@ -32,8 +32,7 @@ import {
   type HttpAuthOptions,
   type HttpAuthenticator,
   type HttpCaller,
-  createHttpAuthenticator,
-  perCallerProfileSource,
+  httpAuthMode,
 } from "./http_auth.js";
 import { oidcOptionsFromEnv } from "./oidc.js";
 
@@ -86,9 +85,10 @@ export async function startHttpMcpServer(
     : await loadStartupConfiguration(envInput);
   try {
     const resolved = resolveHttpOptions(env, options);
-    const registry = createProfileRegistry(resolved.auth, startupConfiguration);
+    const authMode = httpAuthMode(resolved.auth);
+    const registry = createProfileRegistry(authMode.perCallerProfile, startupConfiguration);
     // Local checks first: OIDC discovery reaches the issuer over the network.
-    const authenticator = await createHttpAuthenticator(resolved.auth);
+    const authenticator = await authMode.createAuthenticator();
     return await listen(resolved, startupConfiguration, registry, authenticator);
   } catch (error) {
     await startupConfiguration.close().catch(() => {});
@@ -97,11 +97,10 @@ export async function startHttpMcpServer(
 }
 
 function createProfileRegistry(
-  auth: HttpAuthOptions,
+  perCallerProfile: string | undefined,
   startupConfiguration: StartupConfiguration,
 ): ProfileRuntimeRegistry {
   const registry = new ProfileRuntimeRegistry(startupConfiguration);
-  const perCallerProfile = perCallerProfileSource(auth);
   if (perCallerProfile && !registry.supportsNamedProfiles) {
     throw new Error(
       `${perCallerProfile} requires named profiles: use saved profiles, a store in the configuration file, or the {profile} placeholder in KIBANA_SOURCE_CATALOG_PATH.`,
@@ -121,19 +120,19 @@ async function listen(
   registry: ProfileRuntimeRegistry,
   authenticator: HttpAuthenticator,
 ): Promise<HttpServerHandle> {
-  // The SDK hands the caller's AuthInfo through to the server factory, by reference.
-  const callerProfiles = new WeakMap<AuthInfo, string | undefined>();
-  const profileOf = (authInfo: AuthInfo | undefined) => {
-    if (!authInfo || !callerProfiles.has(authInfo)) {
-      throw new Error("MCP request reached the handler without an authenticated caller.");
-    }
-    return callerProfiles.get(authInfo);
-  };
+  // The SDK builds servers inside the request it serves: the caller follows it there.
+  const currentCaller = new AsyncLocalStorage<HttpCaller>();
 
   // Modern and handshake-free legacy calls stay per-request.
-  const handler = createMcpHandler((context) => {
-    const requestProfile = profileOf(context.authInfo);
-    return createApplication(undefined, { profileRegistry: registry, requestProfile }).server;
+  const handler = createMcpHandler(() => {
+    const caller = currentCaller.getStore();
+    if (!caller) {
+      throw new Error("MCP request reached the handler without an authenticated caller.");
+    }
+    return createApplication(undefined, {
+      profileRegistry: registry,
+      requestProfile: caller.profile,
+    }).server;
   });
 
   const legacySessions = new Map<
@@ -147,11 +146,9 @@ async function listen(
     }
   >();
   let initializingSessions = 0;
-  const fetchHandler = async (
-    request: Request,
-    { authInfo, profile }: HttpCaller,
-  ): Promise<Response> => {
-    callerProfiles.set(authInfo, profile);
+  const fetchHandler = (request: Request, caller: HttpCaller): Promise<Response> =>
+    currentCaller.run(caller, () => serve(request, caller));
+  const serve = async (request: Request, { authInfo, profile }: HttpCaller): Promise<Response> => {
     if (!(await isLegacyRequest(request))) return handler.fetch(request, { authInfo });
     for (const session of legacySessions.values()) {
       if (Date.now() - session.lastUsed >= LEGACY_SESSION_IDLE_MS) await session.server.close();
@@ -271,6 +268,15 @@ function resolveHttpOptions(
     throw new Error(`HTTP path must start with '/' and differ from ${HEALTH_PATH}.`);
   }
   const auth = resolveAuthOptions(envInput, options);
+  // Clients reach the endpoint, and its metadata, at the path of the resource URL.
+  if (auth.kind === "oidc" && URL.canParse(auth.oidc.resource)) {
+    const resourcePath = new URL(auth.oidc.resource).pathname.replace(/(.)\/+$/, "$1");
+    if (resourcePath !== path) {
+      throw new Error(
+        `The path of ${HTTP_OIDC_ENV.resource} ('${resourcePath}') must be the HTTP path '${path}': clients call the resource URL and look up its metadata from that path. Behind a proxy, keep the path unchanged or set --path to match.`,
+      );
+    }
+  }
   // Without authentication anyone who reaches the port can query Kibana and assert any profile.
   if (auth.kind === "local" && !isLoopbackHost(host)) {
     throw new Error(

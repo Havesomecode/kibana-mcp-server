@@ -124,8 +124,9 @@ describe("startHttpMcpServer with OIDC", () => {
     await rm(directory, { recursive: true, force: true });
   });
 
-  const writeCatalog = (profile: string, ids: string[]) =>
-    writeProfileCatalog(directory, profile, ids);
+  // OIDC profiles are the claim value prefixed by the issuer.
+  const writeCatalog = (subject: string, ids: string[]) =>
+    writeProfileCatalog(directory, `${issuer.url}#${subject}`, ids);
 
   const token = (claims: JWTPayload = {}, options?: { expiresIn?: string; typ?: string }) =>
     issuer.sign({ sub: "alice", aud: RESOURCE, client_id: "claude", ...claims }, options);
@@ -139,6 +140,8 @@ describe("startHttpMcpServer with OIDC", () => {
     async (modern) => {
       await writeCatalog("alice", ["orders"]);
       await writeCatalog("bob", ["payments"]);
+      // A catalog named after the bare subject, e.g. from a gateway, is someone else's.
+      await writeProfileCatalog(directory, "alice", ["gateway"]);
       handle = await startHttpMcpServer(env, { port: 0 });
       const call = modern ? callModernTool : callTool;
       const discover = async (headers: Record<string, string>) =>
@@ -242,13 +245,22 @@ describe("startHttpMcpServer with OIDC", () => {
     expect(issuer.introspectionCalls).toBe(2);
   });
 
-  it("answers 500, not 401, when the issuer JWKS is malformed", async () => {
-    handle = await startHttpMcpServer(env, { port: 0 });
+  it("keeps commas inside scope names", async () => {
+    handle = await startHttpMcpServer(
+      { ...env, KIBANA_HTTP_OIDC_REQUIRED_SCOPES: "logs,read" },
+      { port: 0 },
+    );
+    const status = async (scope: string) =>
+      (await callTool(handle?.url ?? "", "discover", await bearer({ scope }))).status;
+
+    expect(await status("logs,read")).toBe(200);
+    expect(await status("logs read")).toBe(403);
+  });
+
+  it("refuses to start when the issuer JWKS is malformed", async () => {
     issuer.jwks = { keys: {} };
 
-    const response = await callTool(handle.url, "discover", await bearer());
-
-    expect(response.status).toBe(500);
+    await expect(startHttpMcpServer(env, { port: 0 })).rejects.toThrow("JWKS at '");
   });
 
   it.each([
@@ -258,6 +270,7 @@ describe("startHttpMcpServer with OIDC", () => {
     [{ KIBANA_HTTP_OIDC_MODE: "magic" }, {}, "must be 'offline' or 'introspection'"],
     [{ KIBANA_HTTP_OIDC_MODE: "introspection" }, {}, "client id and a client secret"],
     [{ KIBANA_HTTP_OIDC_RESOURCE: "http://mcp.example.com/mcp" }, {}, "must use HTTPS"],
+    [{ KIBANA_HTTP_OIDC_RESOURCE: "http://127.0.0.1/kibana/mcp" }, {}, "must be the HTTP path"],
   ])("refuses an inconsistent configuration %j %j", async (overrides, options, message) => {
     await expect(
       startHttpMcpServer({ ...env, ...overrides }, { port: 0, ...options }),

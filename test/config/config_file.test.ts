@@ -8,6 +8,7 @@ import {
   defineKibanaMcpConfig,
   loadConfigFile,
 } from "../../src/config/config_file.js";
+import { type HttpOidcOptions, oidcOptionsFromEnv } from "../../src/transports/oidc.js";
 
 describe("loadConfigFile", () => {
   let directory: string;
@@ -135,6 +136,32 @@ describe("applyConfigFile", () => {
       KIBANA_HTTP_PROFILE_HEADER: "x-profile",
       KIBANA_HTTP_AUTH_TOKEN: "token",
     });
+  });
+
+  it("round-trips every OIDC option through the environment", () => {
+    const oidc: Required<HttpOidcOptions> = {
+      issuer: "https://sso.example.com/realms/acme",
+      resource: "https://kibana-mcp.example.com/mcp",
+      audience: "api://kibana-mcp",
+      mode: "introspection",
+      clientId: "kibana-mcp",
+      clientSecret: "secret",
+      requiredScopes: ["logs:read", "kibana,mcp"],
+      scopesSupported: ["logs:read", "profile"],
+      profileClaim: "preferred_username",
+      allowInsecureRequests: true,
+    };
+
+    const env = applyConfigFile(
+      { KIBANA_HTTP_OIDC_CLIENT_SECRET: "from-env" },
+      { path: "c.ts", config: { http: { oidc } } },
+    );
+
+    expect(env).toMatchObject({
+      KIBANA_HTTP_OIDC_REQUIRED_SCOPES: "logs:read kibana,mcp",
+      KIBANA_HTTP_OIDC_ALLOW_INSECURE_REQUESTS: "true",
+    });
+    expect(oidcOptionsFromEnv(env)).toEqual({ ...oidc, clientSecret: "from-env" });
   });
 
   it("leaves the environment untouched for an empty configuration", () => {

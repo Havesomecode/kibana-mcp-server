@@ -51,7 +51,7 @@ export interface HttpOidcOptions {
   requiredScopes?: string[];
   /** Scopes advertised in the protected resource metadata. */
   scopesSupported?: string[];
-  /** Claim naming the caller's profile. Defaults to `sub`. */
+  /** Claim naming the caller within the issuer, which prefixes the profile. Defaults to `sub`. */
   profileClaim?: string;
   /** Allow a non-HTTPS issuer or resource. Local development only. */
   allowInsecureRequests?: boolean;
@@ -74,10 +74,8 @@ type Claims = Record<string, unknown>;
 /** Reads the OIDC options from the environment, or `undefined` when no issuer is set. */
 export function oidcOptionsFromEnv(envInput: NodeJS.ProcessEnv): HttpOidcOptions | undefined {
   const read = (name: string) => envInput[name]?.trim() || undefined;
-  const list = (name: string) =>
-    read(name)
-      ?.split(/[\s,]+/)
-      .filter(Boolean);
+  // Scope tokens may contain commas (RFC 6749): only whitespace separates them.
+  const list = (name: string) => read(name)?.split(/\s+/).filter(Boolean);
   const issuer = read(HTTP_OIDC_ENV.issuer);
   if (!issuer) return undefined;
 
@@ -132,7 +130,7 @@ export async function createOidcResourceServer(
   const as = await discover(issuer, httpOptions);
   const verifyClaims =
     mode === "offline"
-      ? offlineVerifier(as, audience, httpOptions)
+      ? await offlineVerifier(as, audience, httpOptions)
       : introspectionVerifier(as, audience, options, httpOptions);
 
   const readProfile = (claims: Claims | undefined): string => {
@@ -141,7 +139,8 @@ export async function createOidcResourceServer(
       throw new OAuthError(OAuthErrorCode.InvalidToken, `Token has no '${profileClaim}' claim`);
     }
     try {
-      return normalizeProfileName(value);
+      // The same claim value at another issuer is another person.
+      return normalizeProfileName(`${as.issuer}#${value}`);
     } catch {
       throw new OAuthError(OAuthErrorCode.InvalidToken, `Token '${profileClaim}' claim is invalid`);
     }
@@ -217,11 +216,11 @@ async function discover(
   );
 }
 
-function offlineVerifier(
+async function offlineVerifier(
   as: oauth.AuthorizationServer,
   audience: string,
   httpOptions: oauth.HttpRequestOptions<"GET">,
-): (token: string) => Promise<Claims> {
+): Promise<(token: string) => Promise<Claims>> {
   if (!as.jwks_uri) {
     throw new Error("The OIDC issuer publishes no jwks_uri: use the introspection mode.");
   }
@@ -245,6 +244,11 @@ function offlineVerifier(
     }
     return response;
   };
+  // Loaded once now, so a broken jwks_uri fails at startup and concurrent first requests share it;
+  // oauth4webapi refreshes it from there.
+  const jwksCache: oauth.JWKSCacheInput = {};
+  const response = await fetchJwks(jwksUri, { headers: { Accept: "application/json" } });
+  Object.assign(jwksCache, { jwks: await response.json(), uat: Math.floor(Date.now() / 1000) });
   return async (token) => {
     try {
       const request = new Request("http://resource.invalid", {
@@ -253,6 +257,7 @@ function offlineVerifier(
       return await oauth.validateJwtAccessToken(as, request, audience, {
         ...httpOptions,
         [oauth.customFetch]: fetchJwks,
+        [oauth.jwksCache]: jwksCache,
       });
     } catch (error) {
       throw toOAuthError(error);
