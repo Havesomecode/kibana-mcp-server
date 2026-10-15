@@ -25,6 +25,7 @@ interface FakeIssuer {
   introspection: Map<string, Record<string, unknown>>;
   introspectionCalls: number;
   discoveredIssuer?: string;
+  jwks?: unknown;
   close: () => Promise<void>;
 }
 
@@ -63,7 +64,7 @@ async function startFakeIssuer(): Promise<FakeIssuer> {
           introspection_endpoint: `${issuer.url}/introspect`,
         });
       } else if (request.url === "/jwks") {
-        json(200, { keys: [jwk] });
+        json(200, issuer.jwks ?? { keys: [jwk] });
       } else if (request.url === "/introspect") {
         issuer.introspectionCalls += 1;
         if (request.headers.authorization !== `Basic ${btoa("mcp:shh")}`) {
@@ -106,6 +107,7 @@ describe("startHttpMcpServer with OIDC", () => {
     issuer.introspection.clear();
     issuer.introspectionCalls = 0;
     issuer.discoveredIssuer = undefined;
+    issuer.jwks = undefined;
     env = {
       KIBANA_BASE_URL: "https://kibana.example.com",
       KIBANA_USERNAME: "elastic",
@@ -228,14 +230,25 @@ describe("startHttpMcpServer with OIDC", () => {
 
     const first = await callTool(handle.url, "discover", { Authorization: "Bearer opaque-alice" });
     const second = await callTool(handle.url, "discover", { Authorization: "Bearer opaque-alice" });
-    const revoked = await callTool(handle.url, "discover", {
-      Authorization: "Bearer opaque-revoked",
-    });
+    const revoked = async () =>
+      (await callTool(handle?.url ?? "", "discover", { Authorization: "Bearer opaque-revoked" }))
+        .status;
 
     expect(sourceIds(first.result)).toEqual(["orders"]);
     expect(sourceIds(second.result)).toEqual(["orders"]);
-    expect(revoked.status).toBe(401);
+    // A refused token is cached too: retrying it does not reach the issuer again.
+    expect(await revoked()).toBe(401);
+    expect(await revoked()).toBe(401);
     expect(issuer.introspectionCalls).toBe(2);
+  });
+
+  it("answers 500, not 401, when the issuer JWKS is malformed", async () => {
+    handle = await startHttpMcpServer(env, { port: 0 });
+    issuer.jwks = { keys: {} };
+
+    const response = await callTool(handle.url, "discover", await bearer());
+
+    expect(response.status).toBe(500);
   });
 
   it.each([

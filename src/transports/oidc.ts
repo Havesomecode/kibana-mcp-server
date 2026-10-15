@@ -225,12 +225,35 @@ function offlineVerifier(
   if (!as.jwks_uri) {
     throw new Error("The OIDC issuer publishes no jwks_uri: use the introspection mode.");
   }
+  const jwksUri = as.jwks_uri;
+  // oauth4webapi reports a malformed JWKS with the same code as a bad token: refuse it here, as a
+  // fault of the issuer rather than of the caller.
+  const fetchJwks: typeof fetch = async (url, init) => {
+    const response = await fetch(url, init);
+    if (String(url) !== jwksUri) return response;
+    const body = (await response
+      .clone()
+      .json()
+      .catch(() => undefined)) as { keys?: unknown } | undefined;
+    const keys = body?.keys;
+    if (
+      !response.ok ||
+      !Array.isArray(keys) ||
+      !keys.every((key) => key !== null && typeof key === "object" && !Array.isArray(key))
+    ) {
+      throw new Error(`The OIDC issuer JWKS at '${jwksUri}' is unavailable or malformed.`);
+    }
+    return response;
+  };
   return async (token) => {
     try {
       const request = new Request("http://resource.invalid", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      return await oauth.validateJwtAccessToken(as, request, audience, httpOptions);
+      return await oauth.validateJwtAccessToken(as, request, audience, {
+        ...httpOptions,
+        [oauth.customFetch]: fetchJwks,
+      });
     } catch (error) {
       throw toOAuthError(error);
     }
@@ -271,6 +294,8 @@ function introspectionVerifier(
   };
 
   // Least recently used first; concurrent calls with one token share a single introspection.
+  // Refused tokens stay cached too, so a client retrying one does not reach the issuer each time;
+  // only issuer faults are forgotten at once.
   const cache = new Map<string, { claims: Promise<Claims>; until: number }>();
   return (token) => {
     const key = createHash("sha256").update(token).digest("base64url");
@@ -286,7 +311,10 @@ function introspectionVerifier(
       (claims) => {
         if (typeof claims.exp === "number") entry.until = Math.min(entry.until, claims.exp * 1000);
       },
-      () => cache.delete(key),
+      (error: unknown) => {
+        const refused = error instanceof OAuthError && error.code === OAuthErrorCode.InvalidToken;
+        if (!refused && cache.get(key) === entry) cache.delete(key);
+      },
     );
     if (cache.size >= MAX_INTROSPECTION_CACHE_ENTRIES) {
       cache.delete(cache.keys().next().value as string);
