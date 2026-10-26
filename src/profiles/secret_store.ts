@@ -64,16 +64,23 @@ class MacOsSecretStore implements SecretStore {
       "-w",
     ]);
 
-    return parseStoredSecret(result.stdout);
+    // security prints non-ASCII password data as hex, including UTF-8 JSON.
+    const value = result.stdout.trim();
+    return parseStoredSecret(
+      /^(?:[0-9a-f]{2})+$/i.test(value) ? Buffer.from(value, "hex").toString("utf8") : value,
+    );
   }
 
   async save(profileId: string, secret: SavedSecret): Promise<void> {
-    const serialized = serializeSecret(secret);
-    await this.execute(
-      "add-generic-password",
-      ["-U", "-s", this.serviceName, "-a", profileId, "-w"],
-      `${serialized}\n${serialized}\n`,
-    );
+    // -w without a value uses getpass(/dev/tty), even with piped stdin.
+    // One interactive command avoids that prompt; hex avoids interpreting JSON
+    // quotes/backslashes as command syntax. The stored bytes are still JSON.
+    const stdin = `add-generic-password -U -s ${quoteKeychainToken(this.serviceName)} -a ${quoteKeychainToken(profileId)} -X ${Buffer.from(serializeSecret(secret), "utf8").toString("hex")}\n`;
+    // security's interactive reader has a 4096-byte buffer, including its NUL.
+    if (Buffer.byteLength(stdin, "utf8") >= 4096) {
+      throw new SecretStoreError("macOS Keychain command is too long.", "OPERATION_FAILED");
+    }
+    await this.execute("-i", [], stdin);
   }
 
   async delete(profileId: string): Promise<void> {
@@ -95,22 +102,33 @@ class MacOsSecretStore implements SecretStore {
     try {
       const result = await this.runner("security", [subcommand, ...args], { stdin });
       if (result.exitCode === 44) {
-        throw new SecretStoreError(
-          `No saved credentials found for profile '${args.at(-1)}'.`,
-          "NOT_FOUND",
-        );
+        throw new SecretStoreError("No saved credentials found.", "NOT_FOUND");
       }
       if (result.exitCode !== 0) {
         throw new SecretStoreError(
-          result.stderr.trim() || "macOS Keychain command failed.",
+          `macOS Keychain command failed (exit ${result.exitCode}).`,
           "OPERATION_FAILED",
         );
       }
       return result;
     } catch (error) {
-      throw normalizeRunnerError(error, "macOS Keychain is unavailable.");
+      if (error instanceof SecretStoreError) throw error;
+      const normalized = normalizeRunnerError(error, "macOS Keychain is unavailable.");
+      throw new SecretStoreError(
+        normalized.code === "UNAVAILABLE"
+          ? "macOS Keychain is unavailable."
+          : "macOS Keychain command failed.",
+        normalized.code,
+      );
     }
   }
+}
+
+function quoteKeychainToken(value: string): string {
+  if (/[\r\n\0]/.test(value)) {
+    throw new SecretStoreError("Invalid macOS Keychain identifier.", "OPERATION_FAILED");
+  }
+  return `"${value.replace(/["\\]/g, "\\$&")}"`;
 }
 
 class LinuxSecretStore implements SecretStore {
@@ -294,7 +312,13 @@ function serializeSecret(secret: SavedSecret): string {
 }
 
 function parseStoredSecret(serializedSecret: string): SavedSecret {
-  const parsed = JSON.parse(serializedSecret) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serializedSecret) as unknown;
+  } catch {
+    // JSON.parse errors can include the stored secret itself.
+    throw new SecretStoreError("Stored credentials are invalid.", "OPERATION_FAILED");
+  }
   if (
     !parsed ||
     typeof parsed !== "object" ||
@@ -332,7 +356,7 @@ function normalizeRunnerError(error: unknown, unavailableMessage: string): Secre
   );
 }
 
-async function runCommand(
+export async function runCommand(
   command: string,
   args: string[],
   options: {
@@ -347,6 +371,7 @@ async function runCommand(
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let failure: Error | undefined;
     const finish = (callback: () => void) => {
       if (settled) return;
       settled = true;
@@ -354,8 +379,11 @@ async function runCommand(
       callback();
     };
     const timeout = setTimeout(() => {
-      child.kill("SIGTERM");
-      finish(() => reject(new Error("Credential-store command timed out after 30000ms.")));
+      failure = new SecretStoreError(
+        "Credential-store command timed out after 30000ms.",
+        "OPERATION_FAILED",
+      );
+      child.kill("SIGKILL");
     }, 30000);
 
     child.stdout.setEncoding("utf8");
@@ -368,8 +396,15 @@ async function runCommand(
       stderr += chunk;
     });
     child.on("error", (error) => finish(() => reject(error)));
-    child.stdin.on("error", (error) => finish(() => reject(error)));
+    child.stdin.on("error", (error) => {
+      failure ??= error;
+      child.kill("SIGKILL");
+    });
     child.on("close", (exitCode) => {
+      if (failure) {
+        finish(() => reject(failure));
+        return;
+      }
       finish(() =>
         resolve({
           stdout,
