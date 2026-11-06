@@ -91,6 +91,7 @@ export default defineConfig({
           items: [
             { text: "stdio", link: "/deployment/stdio" },
             { text: "HTTP", link: "/deployment/http" },
+            { text: "OpenID Connect", link: "/deployment/oidc" },
             { text: "Security model", link: "/deployment/security" },
           ],
         },

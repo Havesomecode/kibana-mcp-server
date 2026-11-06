@@ -57,8 +57,17 @@ Sources already carry paths such as `/internal/search/es`; a full API path here 
 - `KIBANA_HTTP_PATH` endpoint path, default `/mcp`
 - `KIBANA_HTTP_PROFILE_HEADER` header carrying the profile of the caller, no default
 - `KIBANA_HTTP_AUTH_TOKEN` shared secret expected as `Authorization: Bearer <token>`
+- `KIBANA_HTTP_OIDC_ISSUER` OpenID Connect issuer protecting the endpoint, instead of the shared secret
+- `KIBANA_HTTP_OIDC_RESOURCE` public URL of the MCP endpoint, required with the issuer
+- `KIBANA_HTTP_OIDC_AUDIENCE` expected token audience, default the resource
+- `KIBANA_HTTP_OIDC_MODE` `offline` or `introspection`
+- `KIBANA_HTTP_OIDC_CLIENT_ID`, `KIBANA_HTTP_OIDC_CLIENT_SECRET` client used for introspection
+- `KIBANA_HTTP_OIDC_REQUIRED_SCOPES` scopes every token must carry, separated by spaces
+- `KIBANA_HTTP_OIDC_SCOPES_SUPPORTED` scopes advertised to clients
+- `KIBANA_HTTP_OIDC_PROFILE_CLAIM` claim naming the caller at the issuer, default `sub`; the profile is `<issuer>#<claim value>`
+- `KIBANA_HTTP_OIDC_ALLOW_INSECURE_REQUESTS` `true` allows a non-HTTPS issuer or resource, for development only
 
-See [HTTP transport](../deployment/http).
+See [HTTP transport](../deployment/http) and [OpenID Connect authentication](../deployment/oidc).
 
 ## Catalog stores
 

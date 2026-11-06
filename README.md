@@ -61,7 +61,7 @@ export default defineKibanaMcpConfig({
 kibana-mcp-server serve --http --config ./kibana.mcp.config.ts
 ```
 
-**Restrict access to the authenticated gateway:** the server trusts its profile header. Stores: files, Redis, PostgreSQL, MongoDB, SQLite, or a custom store.
+**Restrict access to the authenticated gateway:** with a shared token, the server trusts its profile header. **No gateway?** Set `http.oidc` instead: each user signs in with your OpenID Connect provider and gets the catalog named by their access token. Stores: files, Redis, PostgreSQL, MongoDB, SQLite, or a custom store.
 
 ## Repository Codex plugin
 
@@ -85,6 +85,7 @@ Do not infer a Git tag from an npm version. Use the exact package's `gitHead`; p
 | Agent plugins and skills | https://havesomecode.github.io/kibana-mcp-server/ai/agent-plugins |
 | Investigating with an agent | https://havesomecode.github.io/kibana-mcp-server/guide/investigating |
 | HTTP transport and security model | https://havesomecode.github.io/kibana-mcp-server/deployment/http |
+| OpenID Connect authentication | https://havesomecode.github.io/kibana-mcp-server/deployment/oidc |
 | Catalog stores | https://havesomecode.github.io/kibana-mcp-server/deployment/catalog-stores |
 | Integration examples (gateway, Ts.ED, Docker) | https://havesomecode.github.io/kibana-mcp-server/integrations/ |
 | Tool, CLI and configuration reference | https://havesomecode.github.io/kibana-mcp-server/reference/cli |

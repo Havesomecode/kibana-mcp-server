@@ -1,8 +1,13 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   CLIENT_CAPABILITIES_META_KEY,
   CLIENT_INFO_META_KEY,
   PROTOCOL_VERSION_META_KEY,
 } from "@modelcontextprotocol/server";
+
+import { toProfileKey } from "../../src/profiles/names.js";
+import { createGeneratedCatalog } from "../../src/setup/bootstrap.js";
 import type { SourceDefinition } from "../../src/types.js";
 
 export function source(id: string): SourceDefinition {
@@ -93,4 +98,32 @@ export async function callTool(
 export function sourceIds(result: Record<string, unknown> | undefined): string[] {
   const structured = result?.structuredContent as { sources: Array<{ id: string }> } | undefined;
   return (structured?.sources ?? []).map((entry) => entry.id);
+}
+
+export async function callModernTool(
+  url: string,
+  name: string,
+  headers: Record<string, string> = {},
+  toolArguments: Record<string, unknown> = {},
+): Promise<{ status: number; result?: Record<string, unknown> }> {
+  const response = await sendRpc(
+    url,
+    { id: 1, method: "tools/call", params: { name, arguments: toolArguments } },
+    headers,
+  );
+  const payload = await response.json();
+  return { status: response.status, result: payload.result };
+}
+
+/** Writes the catalog of `profile` under a `{profile}` catalog path rooted at `directory`. */
+export async function writeProfileCatalog(
+  directory: string,
+  profile: string,
+  ids: string[],
+): Promise<void> {
+  await mkdir(join(directory, toProfileKey(profile)), { recursive: true });
+  await writeFile(
+    join(directory, toProfileKey(profile), "sources.json"),
+    JSON.stringify(createGeneratedCatalog(ids.map(source))),
+  );
 }
