@@ -84,7 +84,10 @@ function resolveFieldName(
   const fallbackKeyword = findFieldDescriptor(sourceSchema, `${aliasResolvedField}.keyword`);
   const preferredExactField =
     requestedDescriptor?.preferred_exact_field ??
-    (fallbackKeyword?.aggregatable ? fallbackKeyword.name : undefined);
+    // An already aggregatable field is exact; its .keyword sibling may be absent from some merged indices.
+    (fallbackKeyword?.aggregatable && requestedDescriptor?.aggregatable !== true
+      ? fallbackKeyword.name
+      : undefined);
 
   if (preferredExactField && preferredExactField !== aliasResolvedField) {
     return {

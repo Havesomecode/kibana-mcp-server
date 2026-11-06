@@ -133,6 +133,41 @@ describe("compileQueryPlan", () => {
     expect(plan.sourceQueries[0]?.advisories[0]?.resolved_field).toBe("event.keyword");
   });
 
+  it("keeps an already aggregatable field instead of rewriting to a partial .keyword subfield", () => {
+    const schema: SourceFieldDescriptor[] = [
+      {
+        name: "request_id",
+        type: "string",
+        searchable: true,
+        aggregatable: true,
+        subfields: ["request_id.keyword"],
+      },
+      {
+        name: "request_id.keyword",
+        type: "string",
+        searchable: true,
+        aggregatable: true,
+        multi_field_parent: "request_id",
+        subfields: [],
+      },
+    ];
+    const plan = compileQueryPlan(
+      {
+        source_ids: ["app-logs"],
+        start_time: "2023-05-03T00:00:00Z",
+        end_time: "2023-05-04T00:00:00Z",
+        filters: [{ field: "request_id", value: "ebeae138b4fb3105273db8ab83ad177b" }],
+        mode: "hits",
+        limit: 25,
+      },
+      [source],
+      { sourceSchemas: new Map([["app-logs", schema]]) },
+    );
+
+    expect(plan.sourceQueries[0]?.resolvedFilters[0]?.resolved_field).toBe("request_id");
+    expect(plan.sourceQueries[0]?.advisories).toHaveLength(0);
+  });
+
   it("warns when schema-backed exact-field resolution is unavailable", () => {
     const plan = compileQueryPlan(
       {
