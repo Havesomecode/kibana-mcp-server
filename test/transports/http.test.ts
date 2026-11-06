@@ -1,5 +1,5 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { type ServerResponse, createServer, request as httpRequest } from "node:http";
+import { createServer, request as httpRequest, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,9 +12,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createGeneratedCatalog } from "../../src/setup/bootstrap.js";
 import { type HttpServerHandle, startHttpMcpServer } from "../../src/transports/http.js";
 import {
-  PROTOCOL_VERSION,
   callModernTool,
   callTool,
+  PROTOCOL_VERSION,
   requestMeta,
   sendRpc,
   source,

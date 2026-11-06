@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CatalogConflictError, bindCatalogStore } from "../../src/stores/catalog_store.js";
+import { bindCatalogStore, CatalogConflictError } from "../../src/stores/catalog_store.js";
 
 describe("bindCatalogStore", () => {
   it("binds a store to one profile and falls back to the key as location", async () => {

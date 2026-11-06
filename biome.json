@@ -1,12 +1,16 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.8.3/schema.json",
-  "organizeImports": {
-    "enabled": true
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "assist": {
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
   },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "preset": "recommended"
     }
   },
   "formatter": {
@@ -16,14 +20,17 @@
     "lineWidth": 100
   },
   "files": {
-    "ignore": [
-      "dist",
-      "node_modules",
-      ".agents",
-      "config/sources.runtime.json",
-      "config/sources.json",
-      "website/.vitepress/dist",
-      "website/.vitepress/cache"
+    "includes": [
+      "**",
+      "!**/dist",
+      "!**/node_modules",
+      "!**/.agents",
+      "!**/config/sources.runtime.json",
+      "!**/config/sources.json",
+      "!**/website/.vitepress/dist",
+      "!**/website/.vitepress/cache",
+      "!**/*.css",
+      "!**/*.vue"
     ]
   }
 }

@@ -1,7 +1,7 @@
 import { type Command, InvalidArgumentError, Option } from "commander";
 
 import { type BootstrapResult, runBootstrap } from "../setup/bootstrap.js";
-import { type PromptIo, createPromptIo } from "../utils/cli_prompts.js";
+import { createPromptIo, type PromptIo } from "../utils/cli_prompts.js";
 import type { CliCommandContext } from "./context.js";
 
 export interface BootstrapOptions {

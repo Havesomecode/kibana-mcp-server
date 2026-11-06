@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
-  PROFILE_NAME_ENV,
   loadConfigFromEnvironment,
+  PROFILE_NAME_ENV,
   parseAppConfig,
 } from "../src/config/environment.js";
 import { resolveProfilePaths } from "../src/profiles/paths.js";

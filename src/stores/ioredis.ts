@@ -1,10 +1,10 @@
 import type { CatalogStore } from "./catalog_store.js";
 import {
-  DEFAULT_KEY_PREFIX,
-  REDIS_COMPARE_AND_SET_SCRIPT,
   createKeyValueCatalogStore,
+  DEFAULT_KEY_PREFIX,
   describeStoreUrl,
   importDriver,
+  REDIS_COMPARE_AND_SET_SCRIPT,
   resolveStoreUrl,
 } from "./shared.js";
 

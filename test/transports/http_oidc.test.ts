@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type JWTPayload, SignJWT, exportJWK, generateKeyPair } from "jose";
+import { exportJWK, generateKeyPair, type JWTPayload, SignJWT } from "jose";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createGeneratedCatalog } from "../../src/setup/bootstrap.js";

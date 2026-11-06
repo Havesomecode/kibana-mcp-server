@@ -2,7 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { CatalogConflictError, type CatalogStore } from "./catalog_store.js";
-import { DEFAULT_TABLE_NAME, STORE_URL_ENV, importDriver, quoteSqlIdentifier } from "./shared.js";
+import { DEFAULT_TABLE_NAME, importDriver, quoteSqlIdentifier, STORE_URL_ENV } from "./shared.js";
 
 export interface SqliteCatalogStoreOptions {
   /** Database file, or `:memory:`. Defaults to `KIBANA_STORE_URL`, with or without a `sqlite:` prefix. */

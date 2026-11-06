@@ -33,8 +33,7 @@ import {
   queryInputSchema,
   queryOutputSchema,
 } from "./tools/query.js";
-import type { AppConfig } from "./types.js";
-import type { ResolvedAppConfig } from "./types.js";
+import type { AppConfig, ResolvedAppConfig } from "./types.js";
 
 async function withKibanaRequestDiagnostics(
   operation: () => Promise<CallToolResult>,

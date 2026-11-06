@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 
 import { sourceCatalogSchema } from "../config/environment.js";
 import { type ProfilePaths, resolveProfilePaths } from "../profiles/paths.js";
-import { type SecretStore, SecretStoreError, createSecretStore } from "../profiles/secret_store.js";
+import { createSecretStore, type SecretStore, SecretStoreError } from "../profiles/secret_store.js";
 import { acquireStateLock } from "../profiles/state_lock.js";
-import { ProfileStore, deriveProfileId } from "../profiles/store.js";
+import { deriveProfileId, ProfileStore } from "../profiles/store.js";
 import type { SavedProfile } from "../types.js";
 
 const DEFAULT_TIMEOUT_MS = 10000;

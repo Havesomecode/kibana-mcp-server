@@ -3,8 +3,8 @@ import type { Stats } from "node:fs";
 import {
   mkdir,
   open,
-  readFile,
   readdir,
+  readFile,
   rename,
   rm,
   stat,
