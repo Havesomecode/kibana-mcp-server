@@ -1,8 +1,8 @@
 import type { Command } from "commander";
 
 import { runSetupFlow } from "../setup/setup_flow.js";
-import { PromptCancelledError, createPromptIo } from "../utils/cli_prompts.js";
-import { type BootstrapOptions, addBootstrapOptions, runBootstrapCommand } from "./bootstrap.js";
+import { createPromptIo, PromptCancelledError } from "../utils/cli_prompts.js";
+import { addBootstrapOptions, type BootstrapOptions, runBootstrapCommand } from "./bootstrap.js";
 import type { CliCommandContext } from "./context.js";
 
 export default function registerSetup(program: Command, context: CliCommandContext): void {

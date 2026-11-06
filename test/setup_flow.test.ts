@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { resolveProfilePaths } from "../src/profiles/paths.js";
 import { ProfileStore } from "../src/profiles/store.js";
-import { type SetupPrompter, runSetupFlow } from "../src/setup/setup_flow.js";
+import { runSetupFlow, type SetupPrompter } from "../src/setup/setup_flow.js";
 
 const tempDirectories: string[] = [];
 

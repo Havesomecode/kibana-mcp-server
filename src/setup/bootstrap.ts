@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import { sourceCatalogSchema, sourceDefinitionSchema } from "../config/environment.js";
 import { KibanaClient } from "../kibana/client.js";
 import { type ProfilePaths, resolveProfilePaths } from "../profiles/paths.js";
-import { type SecretStore, SecretStoreError, createSecretStore } from "../profiles/secret_store.js";
+import { createSecretStore, type SecretStore, SecretStoreError } from "../profiles/secret_store.js";
 import { acquireStateLock } from "../profiles/state_lock.js";
-import { ProfileStore, deriveProfileId } from "../profiles/store.js";
+import { deriveProfileId, ProfileStore } from "../profiles/store.js";
 import type {
   KibanaConnectionConfig,
   SavedSecret,

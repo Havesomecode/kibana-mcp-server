@@ -1,19 +1,19 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import {
+  createServer,
   type IncomingMessage,
   type Server as NodeHttpServer,
   type ServerResponse,
-  createServer,
 } from "node:http";
 import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 
 import {
-  type McpServer,
-  WebStandardStreamableHTTPServerTransport,
   createMcpHandler,
   isLegacyRequest,
+  type McpServer,
+  WebStandardStreamableHTTPServerTransport,
 } from "@modelcontextprotocol/server";
 
 import {
@@ -24,13 +24,13 @@ import {
   HTTP_PORT_ENV,
   HTTP_PROFILE_HEADER_ENV,
 } from "../config/config_file.js";
-import { type StartupConfiguration, loadStartupConfiguration } from "../config/startup.js";
+import { loadStartupConfiguration, type StartupConfiguration } from "../config/startup.js";
 import { ProfileRuntimeRegistry } from "../profiles/runtime.js";
 import { createApplication } from "../server.js";
 import { isLoopbackHost } from "../utils/net.js";
 import {
-  type HttpAuthOptions,
   type HttpAuthenticator,
+  type HttpAuthOptions,
   type HttpCaller,
   httpAuthMode,
   oidcOptionsFromEnv,

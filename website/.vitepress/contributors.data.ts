@@ -16,6 +16,7 @@ interface GitHubContributor {
 }
 
 declare const data: Contributor[];
+
 export { data };
 
 const CONTRIBUTORS_URL =

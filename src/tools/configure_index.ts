@@ -8,7 +8,7 @@ import {
   createGeneratedCatalog,
   parseGeneratedCatalog,
 } from "../setup/bootstrap.js";
-import { type CatalogHandle, bindCatalogStore } from "../stores/catalog_store.js";
+import { bindCatalogStore, type CatalogHandle } from "../stores/catalog_store.js";
 import { createFileCatalogStore } from "../stores/file.js";
 import type { ResolvedAppConfig, SourceDefinition } from "../types.js";
 

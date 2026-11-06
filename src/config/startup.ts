@@ -1,17 +1,17 @@
 import type { ProfileConfigLoader } from "../profiles/runtime.js";
-import { type CatalogStore, bindCatalogStore } from "../stores/catalog_store.js";
+import { bindCatalogStore, type CatalogStore } from "../stores/catalog_store.js";
 import { createFileCatalogStore } from "../stores/file.js";
 import type { ResolvedAppConfig } from "../types.js";
 import {
+  applyConfigFile,
   CONFIG_FILE_ENV,
   type LoadedConfigFile,
-  applyConfigFile,
   loadConfigFile,
 } from "./config_file.js";
 import {
+  loadConfigFromEnvironment,
   PROFILE_NAME_ENV,
   PROFILE_PLACEHOLDER,
-  loadConfigFromEnvironment,
   readBootstrapConnection,
 } from "./environment.js";
 

@@ -6,8 +6,8 @@ import type { CatalogStore } from "../stores/catalog_store.js";
 import type { HttpOidcOptions } from "../transports/http_auth.js";
 import { PROFILE_NAME_ENV } from "./environment.js";
 
-export { CatalogConflictError } from "../stores/catalog_store.js";
 export type { CatalogStore } from "../stores/catalog_store.js";
+export { CatalogConflictError } from "../stores/catalog_store.js";
 
 export const CONFIG_FILE_ENV = "KIBANA_MCP_CONFIG";
 export const HTTP_HOST_ENV = "KIBANA_HTTP_HOST";

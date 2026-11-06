@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
-import { type SecretStore, SecretStoreError, createSecretStore } from "../profiles/secret_store.js";
+import { createSecretStore, type SecretStore, SecretStoreError } from "../profiles/secret_store.js";
 import { ProfileStore } from "../profiles/store.js";
 import type { AppConfig, ResolvedAppConfig } from "../types.js";
 
