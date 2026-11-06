@@ -81,9 +81,9 @@ At startup, the server refuses:
 | Mode | How | Use it when |
 | --- | --- | --- |
 | `offline` | The JWT access token is checked locally with the provider's JWKS: signature, issuer, audience, expiration. No call to the provider per request. | The provider issues RFC 9068 JWT access tokens. |
-| `introspection` | The provider is asked about each token ([RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)). Answers are cached up to 60 seconds, never past the token expiration. | Tokens are opaque, or revocation must apply quickly. |
+| `introspection` | The provider is asked about each token ([RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)). Answers are cached up to 60 seconds, never past the token expiration. Refused tokens are cached too, in a separate, smaller cache: tokens made up by callers cannot evict accepted ones. The server does not limit request rates: do it at your reverse proxy. | Tokens are opaque, or revocation must apply quickly. |
 
-In the offline mode the JWKS is loaded at startup, then refreshed by `oauth4webapi` every 5 minutes, or sooner when a token names an unknown key. The JWKS and introspection endpoints are discovered from `<issuer>/.well-known/openid-configuration`, then `/.well-known/oauth-authorization-server`. Verification relies on [`oauth4webapi`](https://github.com/panva/oauth4webapi).
+In the offline mode the JWKS is loaded at startup, then refreshed by `oauth4webapi` every 5 minutes, or sooner when a token names an unknown key. The JWKS and introspection endpoints are discovered from `<issuer>/.well-known/openid-configuration`, then `/.well-known/oauth-authorization-server`. The provider metadata is read once, at startup: restart the server after the provider changes its endpoints. Verification relies on [`oauth4webapi`](https://github.com/panva/oauth4webapi).
 
 ::: warning Access token format in offline mode
 The offline mode accepts only [RFC 9068](https://datatracker.ietf.org/doc/html/rfc9068) JWT access tokens: the JWT header must carry `typ: at+jwt`, and the payload the `iss`, `sub`, `aud`, `exp`, `iat`, `jti` and `client_id` claims. Many providers issue plain JWTs by default (`typ: JWT`, `azp` instead of `client_id`), which are refused with `401`. If yours does, enable RFC 9068 access tokens on the provider, or use the introspection mode.

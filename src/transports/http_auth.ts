@@ -8,8 +8,65 @@ import {
   validateOriginHeader,
 } from "@modelcontextprotocol/server";
 
+import { HTTP_OIDC_ENV } from "../config/config_file.js";
 import { normalizeProfileName } from "../profiles/names.js";
-import { type HttpOidcOptions, createOidcResourceServer } from "./oidc.js";
+
+export interface HttpOidcOptions {
+  /** Issuer identifier, as published in its discovery document. */
+  issuer: string;
+  /** Public URL of the MCP endpoint, as clients reach it. */
+  resource: string;
+  /** Expected token audience. Defaults to `resource`. */
+  audience?: string;
+  /**
+   * `offline` validates RFC 9068 JWT access tokens with the issuer JWKS; `introspection` asks the
+   * issuer (RFC 7662). Defaults to `introspection` when `clientId` is set, `offline` otherwise.
+   */
+  mode?: "offline" | "introspection";
+  /** Credentials of this server at the issuer, required by the introspection mode. */
+  clientId?: string;
+  clientSecret?: string;
+  /** Scopes every token must carry. */
+  requiredScopes?: string[];
+  /** Scopes advertised in the protected resource metadata. */
+  scopesSupported?: string[];
+  /** Claim naming the caller within the issuer, which prefixes the profile. Defaults to `sub`. */
+  profileClaim?: string;
+  /** Allow a non-HTTPS issuer or resource. Local development only. */
+  allowInsecureRequests?: boolean;
+}
+
+/** Reads the OIDC options from the environment, or `undefined` when no issuer is set. */
+export function oidcOptionsFromEnv(envInput: NodeJS.ProcessEnv): HttpOidcOptions | undefined {
+  const read = (name: string) => envInput[name]?.trim() || undefined;
+  // Scope tokens may contain commas (RFC 6749): only whitespace separates them.
+  const list = (name: string) => read(name)?.split(/\s+/).filter(Boolean);
+  const issuer = read(HTTP_OIDC_ENV.issuer);
+  if (!issuer) return undefined;
+
+  const resource = read(HTTP_OIDC_ENV.resource);
+  if (!resource) {
+    throw new Error(
+      `${HTTP_OIDC_ENV.resource} is required with ${HTTP_OIDC_ENV.issuer}: the public URL of the MCP endpoint.`,
+    );
+  }
+  const mode = read(HTTP_OIDC_ENV.mode);
+  if (mode !== undefined && mode !== "offline" && mode !== "introspection") {
+    throw new Error(`${HTTP_OIDC_ENV.mode} must be 'offline' or 'introspection'.`);
+  }
+  return {
+    issuer,
+    resource,
+    audience: read(HTTP_OIDC_ENV.audience),
+    mode,
+    clientId: read(HTTP_OIDC_ENV.clientId),
+    clientSecret: read(HTTP_OIDC_ENV.clientSecret),
+    requiredScopes: list(HTTP_OIDC_ENV.requiredScopes),
+    scopesSupported: list(HTTP_OIDC_ENV.scopesSupported),
+    profileClaim: read(HTTP_OIDC_ENV.profileClaim),
+    allowInsecureRequests: read(HTTP_OIDC_ENV.allowInsecureRequests) === "true",
+  };
+}
 
 /** How the HTTP transport authenticates callers, resolved from the configuration. */
 export type HttpAuthOptions =
@@ -76,6 +133,8 @@ export function httpAuthMode(auth: HttpAuthOptions): HttpAuthMode {
       return {
         perCallerProfile: "OIDC authentication",
         createAuthenticator: async () => {
+          // Loaded here: oauth4webapi is only needed when OIDC is configured.
+          const { createOidcResourceServer } = await import("./oidc.js");
           const server = await createOidcResourceServer(auth.oidc);
           return {
             metadataResponse: server.metadataResponse,

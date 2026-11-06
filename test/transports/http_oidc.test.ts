@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type JWTPayload, SignJWT, exportJWK, generateKeyPair } from "jose";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createGeneratedCatalog } from "../../src/setup/bootstrap.js";
 import { type HttpServerHandle, startHttpMcpServer } from "../../src/transports/http.js";
@@ -25,6 +25,7 @@ interface FakeIssuer {
   introspection: Map<string, Record<string, unknown>>;
   introspectionCalls: number;
   discoveredIssuer?: string;
+  jwksUri?: string;
   jwks?: unknown;
   close: () => Promise<void>;
 }
@@ -60,7 +61,7 @@ async function startFakeIssuer(): Promise<FakeIssuer> {
           authorization_endpoint: `${issuer.url}/authorize`,
           token_endpoint: `${issuer.url}/token`,
           response_types_supported: ["code"],
-          jwks_uri: `${issuer.url}/jwks`,
+          jwks_uri: issuer.jwksUri ?? `${issuer.url}/jwks`,
           introspection_endpoint: `${issuer.url}/introspect`,
         });
       } else if (request.url === "/jwks") {
@@ -107,6 +108,7 @@ describe("startHttpMcpServer with OIDC", () => {
     issuer.introspection.clear();
     issuer.introspectionCalls = 0;
     issuer.discoveredIssuer = undefined;
+    issuer.jwksUri = undefined;
     issuer.jwks = undefined;
     env = {
       KIBANA_BASE_URL: "https://kibana.example.com",
@@ -119,6 +121,7 @@ describe("startHttpMcpServer with OIDC", () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await handle?.close();
     handle = undefined;
     await rm(directory, { recursive: true, force: true });
@@ -255,6 +258,47 @@ describe("startHttpMcpServer with OIDC", () => {
 
     expect(await status("logs,read")).toBe(200);
     expect(await status("logs read")).toBe(403);
+  });
+
+  it("keeps accepted introspection answers when refused tokens flood the cache", async () => {
+    await writeCatalog("alice", ["orders"]);
+    issuer.introspection.set("opaque-alice", {
+      active: true,
+      sub: "alice",
+      aud: RESOURCE,
+      exp: Math.floor(Date.now() / 1000) + 300,
+    });
+    handle = await startHttpMcpServer(
+      { ...env, KIBANA_HTTP_OIDC_CLIENT_ID: "mcp", KIBANA_HTTP_OIDC_CLIENT_SECRET: "shh" },
+      { port: 0 },
+    );
+    const discover = () =>
+      callTool(handle?.url ?? "", "discover", { Authorization: "Bearer opaque-alice" });
+
+    await discover();
+    for (let i = 0; i < 1100; i++) {
+      await callTool(handle.url, "discover", { Authorization: `Bearer invented-${i}` });
+    }
+    const before = issuer.introspectionCalls;
+    await discover();
+
+    expect(issuer.introspectionCalls).toBe(before);
+  });
+
+  it("reports a malformed JWKS at refresh as an issuer fault, whatever the form of jwks_uri", async () => {
+    // Fetched as `<issuer>/jwks` once normalized.
+    issuer.jwksUri = `${issuer.url}/keys/../jwks`;
+    handle = await startHttpMcpServer(env, { port: 0 });
+    issuer.jwks = { keys: {} };
+    // Past the five minutes after which the JWKS is downloaded again.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 301_000);
+
+    const response = await callTool(handle.url, "discover", {
+      Authorization: `Bearer ${await token({}, { expiresIn: "1h" })}`,
+    });
+
+    expect(response.status).toBe(500);
   });
 
   it("refuses to start when the issuer JWKS is malformed", async () => {

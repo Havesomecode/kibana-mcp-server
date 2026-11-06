@@ -15,13 +15,14 @@ import {
 } from "@modelcontextprotocol/server";
 import * as oauth from "oauth4webapi";
 
-import { HTTP_OIDC_ENV } from "../config/config_file.js";
 import { normalizeProfileName } from "../profiles/names.js";
 import { isLoopbackHost } from "../utils/net.js";
+import type { HttpOidcOptions } from "./http_auth.js";
 
 const DEFAULT_PROFILE_CLAIM = "sub";
 const INTROSPECTION_CACHE_MS = 60 * 1000;
-const MAX_INTROSPECTION_CACHE_ENTRIES = 1024;
+const MAX_ANSWERS = 1024;
+const MAX_REFUSALS = 256;
 // Failures caused by the token itself; anything else is an unreachable or broken issuer.
 const INVALID_TOKEN_CODES = new Set<string | undefined>([
   oauth.INVALID_REQUEST,
@@ -31,31 +32,6 @@ const INVALID_TOKEN_CODES = new Set<string | undefined>([
   oauth.JWT_CLAIM_COMPARISON,
   oauth.KEY_SELECTION,
 ]);
-
-export interface HttpOidcOptions {
-  /** Issuer identifier, as published in its discovery document. */
-  issuer: string;
-  /** Public URL of the MCP endpoint, as clients reach it. */
-  resource: string;
-  /** Expected token audience. Defaults to `resource`. */
-  audience?: string;
-  /**
-   * `offline` validates RFC 9068 JWT access tokens with the issuer JWKS; `introspection` asks the
-   * issuer (RFC 7662). Defaults to `introspection` when `clientId` is set, `offline` otherwise.
-   */
-  mode?: "offline" | "introspection";
-  /** Credentials of this server at the issuer, required by the introspection mode. */
-  clientId?: string;
-  clientSecret?: string;
-  /** Scopes every token must carry. */
-  requiredScopes?: string[];
-  /** Scopes advertised in the protected resource metadata. */
-  scopesSupported?: string[];
-  /** Claim naming the caller within the issuer, which prefixes the profile. Defaults to `sub`. */
-  profileClaim?: string;
-  /** Allow a non-HTTPS issuer or resource. Local development only. */
-  allowInsecureRequests?: boolean;
-}
 
 export interface OidcResourceServer {
   /** Answers the RFC 9728 and RFC 8414 discovery documents, or `undefined` for other paths. */
@@ -70,38 +46,6 @@ export interface OidcResourceServer {
 }
 
 type Claims = Record<string, unknown>;
-
-/** Reads the OIDC options from the environment, or `undefined` when no issuer is set. */
-export function oidcOptionsFromEnv(envInput: NodeJS.ProcessEnv): HttpOidcOptions | undefined {
-  const read = (name: string) => envInput[name]?.trim() || undefined;
-  // Scope tokens may contain commas (RFC 6749): only whitespace separates them.
-  const list = (name: string) => read(name)?.split(/\s+/).filter(Boolean);
-  const issuer = read(HTTP_OIDC_ENV.issuer);
-  if (!issuer) return undefined;
-
-  const resource = read(HTTP_OIDC_ENV.resource);
-  if (!resource) {
-    throw new Error(
-      `${HTTP_OIDC_ENV.resource} is required with ${HTTP_OIDC_ENV.issuer}: the public URL of the MCP endpoint.`,
-    );
-  }
-  const mode = read(HTTP_OIDC_ENV.mode);
-  if (mode !== undefined && mode !== "offline" && mode !== "introspection") {
-    throw new Error(`${HTTP_OIDC_ENV.mode} must be 'offline' or 'introspection'.`);
-  }
-  return {
-    issuer,
-    resource,
-    audience: read(HTTP_OIDC_ENV.audience),
-    mode,
-    clientId: read(HTTP_OIDC_ENV.clientId),
-    clientSecret: read(HTTP_OIDC_ENV.clientSecret),
-    requiredScopes: list(HTTP_OIDC_ENV.requiredScopes),
-    scopesSupported: list(HTTP_OIDC_ENV.scopesSupported),
-    profileClaim: read(HTTP_OIDC_ENV.profileClaim),
-    allowInsecureRequests: read(HTTP_OIDC_ENV.allowInsecureRequests) === "true",
-  };
-}
 
 export async function createOidcResourceServer(
   options: HttpOidcOptions,
@@ -225,11 +169,13 @@ async function offlineVerifier(
     throw new Error("The OIDC issuer publishes no jwks_uri: use the introspection mode.");
   }
   const jwksUri = as.jwks_uri;
+  // The URL oauth4webapi fetches is the normalized one.
+  const jwksHref = new URL(jwksUri).href;
   // oauth4webapi reports a malformed JWKS with the same code as a bad token: refuse it here, as a
   // fault of the issuer rather than of the caller.
   const fetchJwks: typeof fetch = async (url, init) => {
     const response = await fetch(url, init);
-    if (String(url) !== jwksUri) return response;
+    if (String(url) !== jwksHref) return response;
     const body = (await response
       .clone()
       .json()
@@ -247,7 +193,7 @@ async function offlineVerifier(
   // Loaded once now, so a broken jwks_uri fails at startup and concurrent first requests share it;
   // oauth4webapi refreshes it from there.
   const jwksCache: oauth.JWKSCacheInput = {};
-  const response = await fetchJwks(jwksUri, { headers: { Accept: "application/json" } });
+  const response = await fetchJwks(jwksHref, { headers: { Accept: "application/json" } });
   Object.assign(jwksCache, { jwks: await response.json(), uat: Math.floor(Date.now() / 1000) });
   return async (token) => {
     try {
@@ -299,17 +245,26 @@ function introspectionVerifier(
   };
 
   // Least recently used first; concurrent calls with one token share a single introspection.
-  // Refused tokens stay cached too, so a client retrying one does not reach the issuer each time;
-  // only issuer faults are forgotten at once.
-  const cache = new Map<string, { claims: Promise<Claims>; until: number }>();
+  // Refused tokens are cached too, so a client retrying one does not reach the issuer each time,
+  // but in a smaller cache of their own: callers inventing tokens cannot evict accepted ones.
+  // Only issuer faults are forgotten at once.
+  type Entry = { claims: Promise<Claims>; until: number };
+  const answers = new Map<string, Entry>();
+  const refusals = new Map<string, Entry>();
+  const remember = (cache: Map<string, Entry>, key: string, entry: Entry, max: number) => {
+    cache.delete(key);
+    if (cache.size >= max) cache.delete(cache.keys().next().value as string);
+    cache.set(key, entry);
+  };
   return (token) => {
     const key = createHash("sha256").update(token).digest("base64url");
+    const cache = refusals.has(key) ? refusals : answers;
     const cached = cache.get(key);
-    cache.delete(key);
     if (cached && cached.until > Date.now()) {
-      cache.set(key, cached);
+      remember(cache, key, cached, cache === answers ? MAX_ANSWERS : MAX_REFUSALS);
       return cached.claims;
     }
+    refusals.delete(key);
 
     const entry = { claims: introspect(token), until: Date.now() + INTROSPECTION_CACHE_MS };
     entry.claims.then(
@@ -317,14 +272,14 @@ function introspectionVerifier(
         if (typeof claims.exp === "number") entry.until = Math.min(entry.until, claims.exp * 1000);
       },
       (error: unknown) => {
-        const refused = error instanceof OAuthError && error.code === OAuthErrorCode.InvalidToken;
-        if (!refused && cache.get(key) === entry) cache.delete(key);
+        if (answers.get(key) !== entry) return;
+        answers.delete(key);
+        if (error instanceof OAuthError && error.code === OAuthErrorCode.InvalidToken) {
+          remember(refusals, key, entry, MAX_REFUSALS);
+        }
       },
     );
-    if (cache.size >= MAX_INTROSPECTION_CACHE_ENTRIES) {
-      cache.delete(cache.keys().next().value as string);
-    }
-    cache.set(key, entry);
+    remember(answers, key, entry, MAX_ANSWERS);
     return entry.claims;
   };
 }

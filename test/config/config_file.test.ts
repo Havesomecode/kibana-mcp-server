@@ -8,7 +8,7 @@ import {
   defineKibanaMcpConfig,
   loadConfigFile,
 } from "../../src/config/config_file.js";
-import { type HttpOidcOptions, oidcOptionsFromEnv } from "../../src/transports/oidc.js";
+import { type HttpOidcOptions, oidcOptionsFromEnv } from "../../src/transports/http_auth.js";
 
 describe("loadConfigFile", () => {
   let directory: string;

@@ -33,8 +33,8 @@ import {
   type HttpAuthenticator,
   type HttpCaller,
   httpAuthMode,
+  oidcOptionsFromEnv,
 } from "./http_auth.js";
-import { oidcOptionsFromEnv } from "./oidc.js";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 3000;

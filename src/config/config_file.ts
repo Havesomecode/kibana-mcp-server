@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { CatalogStore } from "../stores/catalog_store.js";
-import type { HttpOidcOptions } from "../transports/oidc.js";
+import type { HttpOidcOptions } from "../transports/http_auth.js";
 import { PROFILE_NAME_ENV } from "./environment.js";
 
 export { CatalogConflictError } from "../stores/catalog_store.js";
