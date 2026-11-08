@@ -32,7 +32,7 @@ export class SourceCatalog {
 
   getRequiredSources(sourceIds: string[]): SourceDefinition[] {
     const resolved = sourceIds.map((sourceId) => this.sourceMap.get(sourceId));
-    const missing = sourceIds.filter((sourceId, index) => !resolved[index]);
+    const missing = sourceIds.filter((_sourceId, index) => !resolved[index]);
 
     if (missing.length > 0) {
       throw new Error(`Unknown source ids: ${missing.join(", ")}`);

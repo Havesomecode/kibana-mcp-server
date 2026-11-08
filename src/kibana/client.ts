@@ -224,11 +224,7 @@ function dedupePaths(paths: Array<string | undefined>): string[] {
   return [...new Set(paths.filter((path): path is string => Boolean(path?.trim())))];
 }
 
-function resolveSchemaPaths(
-  source: SourceDefinition,
-  schemaBackend: SourceSchemaBackendConfig,
-  patterns: string,
-): string[] {
+function resolveSchemaPaths(schemaBackend: SourceSchemaBackendConfig, patterns: string): string[] {
   if (schemaBackend.kind === "elasticsearch_field_caps") {
     return [schemaBackend.path ?? `/${patterns}/_field_caps`];
   }
@@ -801,7 +797,7 @@ export class KibanaClient {
     }
 
     const patterns = resolveSchemaIndexPatterns(source, schemaBackend);
-    const schemaPaths = resolveSchemaPaths(source, schemaBackend, patterns);
+    const schemaPaths = resolveSchemaPaths(schemaBackend, patterns);
 
     if (schemaBackend.kind === "elasticsearch_field_caps") {
       const schemaPath = schemaPaths[0];

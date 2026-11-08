@@ -523,11 +523,6 @@ async function restoreSecret(
   await secretStore.delete(profileId);
 }
 
-function formatIndex(index: string | string[] | undefined): string {
-  if (!index) return "unknown";
-  return Array.isArray(index) ? index.join(",") : index;
-}
-
 function asErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
